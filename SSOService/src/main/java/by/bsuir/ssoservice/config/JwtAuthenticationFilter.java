@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.config;
+﻿package by.bsuir.ssoservice.config;
 
 import by.bsuir.ssoservice.service.JwtTokenService;
 import jakarta.servlet.FilterChain;
@@ -75,4 +75,3 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                path.equals("/error");
     }
 }
-

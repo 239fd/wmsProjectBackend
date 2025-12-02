@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.utils;
+﻿package by.bsuir.ssoservice.utils;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -22,4 +22,3 @@ public class RequestUtils {
         return request.getHeader("User-Agent");
     }
 }
-

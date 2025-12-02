@@ -1,4 +1,4 @@
-package by.bsuir.organizationservice;
+﻿package by.bsuir.organizationservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

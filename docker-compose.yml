@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # RabbitMQ для межсервисного общения
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: wms-rabbitmq
+    ports:
+      - "5672:5672"    # AMQP порт
+      - "15672:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - wms-network
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL для Organization Service
+  organization-postgres:
+    image: postgres:15-alpine
+    container_name: organization-postgres
+    environment:
+      POSTGRES_DB: organization_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./organization-service/scripts/organization-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - organization_postgres_data:/var/lib/postgresql/data
+    networks:
+      - wms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d organization_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL для Warehouse Service
+  warehouse-postgres:
+    image: postgres:15-alpine
+    container_name: warehouse-postgres
+    environment:
+      POSTGRES_DB: warehouse_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./warehouse-service/scripts/warehouse-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - warehouse_postgres_data:/var/lib/postgresql/data
+    networks:
+      - wms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d warehouse_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL для Product Service
+  product-postgres:
+    image: postgres:15-alpine
+    container_name: product-postgres
+    environment:
+      POSTGRES_DB: product_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./product-service/scripts/product-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - product_postgres_data:/var/lib/postgresql/data
+    networks:
+      - wms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d product_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  wms-network:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:
+  organization_postgres_data:
+  warehouse_postgres_data:
+  product_postgres_data:
+

@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.service;
+﻿package by.bsuir.ssoservice.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,9 +8,9 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.UUID;
 
-/**
- * Сервис для управления Refresh токенами в Redis
- */
+
+
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -55,4 +55,3 @@ public class RefreshTokenService {
         log.debug("All tokens deleted for user: {}", userId);
     }
 }
-

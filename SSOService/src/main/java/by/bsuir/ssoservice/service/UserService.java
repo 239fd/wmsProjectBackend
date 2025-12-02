@@ -1,9 +1,10 @@
-package by.bsuir.ssoservice.service;
+﻿package by.bsuir.ssoservice.service;
 
 import by.bsuir.ssoservice.dto.request.LoginRequest;
 import by.bsuir.ssoservice.dto.request.RegisterRequest;
 import by.bsuir.ssoservice.dto.response.AuthResponse;
 import by.bsuir.ssoservice.dto.response.UserResponse;
+import by.bsuir.ssoservice.exception.AppException;
 import by.bsuir.ssoservice.model.entity.LoginAudit;
 import by.bsuir.ssoservice.model.entity.UserEvent;
 import by.bsuir.ssoservice.model.entity.UserReadModel;
@@ -43,12 +44,12 @@ public class UserService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (readModelRepository.existsByEmail(request.email())) {
-            throw new IllegalArgumentException("Пользователь с таким email уже существует");
+            throw AppException.conflict("Пользователь с таким email уже существует");
         }
 
         if ((request.role() == UserRole.WORKER || request.role() == UserRole.ACCOUNTANT)
                 && (request.organizationCode() == null || request.organizationCode().isBlank())) {
-            throw new IllegalArgumentException("Для роли " + request.role() + " необходим код предприятия");
+            throw AppException.badRequest("Для роли " + request.role() + " необходим код предприятия");
         }
 
         UUID userId = UUID.randomUUID();
@@ -105,12 +106,12 @@ public class UserService {
     @Transactional
     public AuthResponse register(RegisterRequest request, String ipAddress, String userAgent) {
         if (readModelRepository.existsByEmail(request.email())) {
-            throw new IllegalArgumentException("Пользователь с таким email уже существует");
+            throw AppException.conflict("Пользователь с таким email уже существует");
         }
 
         if ((request.role() == UserRole.WORKER || request.role() == UserRole.ACCOUNTANT)
                 && (request.organizationCode() == null || request.organizationCode().isBlank())) {
-            throw new IllegalArgumentException("Для роли " + request.role() + " необходим код предприятия");
+            throw AppException.badRequest("Для роли " + request.role() + " необходим код предприятия");
         }
 
         UUID userId = UUID.randomUUID();
@@ -167,14 +168,14 @@ public class UserService {
     @Transactional
     public AuthResponse login(LoginRequest request, String ipAddress, String userAgent) {
         UserReadModel user = readModelRepository.findByEmail(request.email())
-                .orElseThrow(() -> new IllegalArgumentException("Неверный email или пароль"));
+                .orElseThrow(() -> AppException.unauthorized("Неверный email или пароль"));
 
         if (!user.getIsActive()) {
-            throw new IllegalArgumentException("Аккаунт деактивирован");
+            throw AppException.forbidden("Аккаунт деактивирован");
         }
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("Неверный email или пароль");
+            throw AppException.unauthorized("Неверный email или пароль");
         }
 
 
@@ -186,14 +187,14 @@ public class UserService {
         UUID userId = refreshTokenService.getUserIdByRefreshToken(refreshToken);
 
         if (userId == null) {
-            throw new IllegalArgumentException("Недействительный refresh token");
+            throw AppException.unauthorized("Недействительный refresh token");
         }
 
         UserReadModel user = readModelRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> AppException.notFound("Пользователь не найден"));
 
         if (!user.getIsActive()) {
-            throw new IllegalArgumentException("Аккаунт деактивирован");
+            throw AppException.forbidden("Аккаунт деактивирован");
         }
 
         refreshTokenService.deleteRefreshToken(refreshToken);
@@ -204,20 +205,39 @@ public class UserService {
 
     @Transactional
     public void logout(String refreshToken) {
-        if (refreshToken != null && !refreshToken.isBlank()) {
+        try {
+            if (refreshToken == null || refreshToken.isBlank()) {
+                throw AppException.badRequest("Refresh token обязателен");
+            }
 
-            List<LoginAudit> activeSessions = loginAuditRepository.findByUserIdAndIsActiveTrue(
-                    refreshTokenService.getUserIdByRefreshToken(refreshToken)
-            );
+            UUID userId = refreshTokenService.getUserIdByRefreshToken(refreshToken);
+            if (userId == null) {
+                log.warn("Refresh token not found in Redis, trying to deactivate session anyway");
 
-            for (LoginAudit session : activeSessions) {
-                if (passwordEncoder.matches(refreshToken, session.getRefreshTokenHash())) {
-                    loginAuditRepository.deactivateSessionById(session.getId());
-                    break;
+            } else {
+                List<LoginAudit> activeSessions = loginAuditRepository.findByUserIdAndIsActiveTrue(userId);
+
+                for (LoginAudit session : activeSessions) {
+                    if (session.getRefreshTokenHash() != null &&
+                        passwordEncoder.matches(refreshToken, session.getRefreshTokenHash())) {
+                        session.setIsActive(false);
+                        session.setLogoutAt(LocalDateTime.now());
+                        loginAuditRepository.save(session);
+                        log.info("Session deactivated for user: {}", userId);
+                        break;
+                    }
                 }
             }
 
+
             refreshTokenService.deleteRefreshToken(refreshToken);
+            log.info("User logged out successfully");
+
+        } catch (AppException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Logout error: {}", e.getMessage(), e);
+            throw AppException.internalError("Ошибка при выходе из системы");
         }
     }
 
@@ -230,7 +250,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserResponse getUserInfo(UUID userId) {
         UserReadModel user = readModelRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> AppException.notFound("Пользователь не найден"));
 
         String photoBase64 = null;
         if (user.getPhoto() != null) {
@@ -309,22 +329,22 @@ public class UserService {
         );
     }
 
-    /**
-     * Вход для существующего OAuth пользователя
-     */
+
+
+
     @Transactional
     public AuthResponse loginOAuthUser(UserReadModel user, String ipAddress, String userAgent) {
         if (!user.getIsActive()) {
-            throw new IllegalArgumentException("Аккаунт деактивирован");
+            throw AppException.forbidden("Аккаунт деактивирован");
         }
 
         log.info("OAuth user logged in: {}", user.getEmail());
         return generateTokensWithAudit(user, ipAddress, userAgent);
     }
 
-    /**
-     * Создание нового OAuth пользователя с выбранной ролью
-     */
+
+
+
     @Transactional
     public UserReadModel createOAuthUser(
             String email,
@@ -336,7 +356,7 @@ public class UserService {
             String warehouseCode) {
 
         if (readModelRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException("Пользователь с таким email уже существует");
+            throw AppException.conflict("Пользователь с таким email уже существует");
         }
 
         UUID userId = UUID.randomUUID();
@@ -390,4 +410,3 @@ public class UserService {
         return readModel;
     }
 }
-

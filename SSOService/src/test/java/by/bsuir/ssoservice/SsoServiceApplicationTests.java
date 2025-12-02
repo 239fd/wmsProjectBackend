@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice;
+﻿package by.bsuir.ssoservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

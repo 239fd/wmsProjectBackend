@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.config;
+﻿package by.bsuir.ssoservice.config;
 
 import by.bsuir.ssoservice.dto.response.ErrorResponse;
 import by.bsuir.ssoservice.exception.AppException;
@@ -101,4 +101,3 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(500).body(error);
     }
 }
-

@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.repository;
+﻿package by.bsuir.ssoservice.repository;
 
 import by.bsuir.ssoservice.model.entity.LoginAudit;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -25,4 +25,3 @@ public interface LoginAuditRepository extends JpaRepository<LoginAudit, Integer>
     @Query("UPDATE LoginAudit la SET la.isActive = false, la.logoutAt = CURRENT_TIMESTAMP WHERE la.userId = :userId AND la.isActive = true")
     void deactivateAllUserSessions(@Param("userId") UUID userId);
 }
-

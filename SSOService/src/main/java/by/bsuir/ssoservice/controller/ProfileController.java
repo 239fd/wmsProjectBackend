@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.controller;
+﻿package by.bsuir.ssoservice.controller;
 
 import by.bsuir.ssoservice.dto.request.UpdateProfileRequest;
 import by.bsuir.ssoservice.dto.response.SessionInfo;
@@ -94,4 +94,3 @@ public class ProfileController {
         return ResponseEntity.ok(Map.of("message", "Аккаунт удален"));
     }
 }
-

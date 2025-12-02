@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.controller;
+﻿package by.bsuir.ssoservice.controller;
 
 import by.bsuir.ssoservice.dto.request.LoginRequest;
 import by.bsuir.ssoservice.dto.request.RefreshTokenRequest;
@@ -70,4 +70,3 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 }
-

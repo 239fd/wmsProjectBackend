@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice;
+﻿package by.bsuir.ssoservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

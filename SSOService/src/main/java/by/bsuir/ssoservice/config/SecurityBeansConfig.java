@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.config;
+﻿package by.bsuir.ssoservice.config;
 
 import by.bsuir.ssoservice.utils.JwkUtils;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -31,4 +31,3 @@ public class SecurityBeansConfig {
         }
     }
 }
-

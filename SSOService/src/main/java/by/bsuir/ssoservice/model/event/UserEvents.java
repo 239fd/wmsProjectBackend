@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.model.event;
+﻿package by.bsuir.ssoservice.model.event;
 
 import by.bsuir.ssoservice.model.enums.AuthProvider;
 import by.bsuir.ssoservice.model.enums.UserRole;
@@ -9,9 +9,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.UUID;
 
-/**
- * События пользователя для Event Sourcing
- */
+
+
+
 public class UserEvents {
 
     @NoArgsConstructor
@@ -60,4 +60,3 @@ public class UserEvents {
         private String passwordHash;
     }
 }
-

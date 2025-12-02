@@ -1,4 +1,4 @@
-package by.bsuir.apigateway;
+﻿package by.bsuir.apigateway;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

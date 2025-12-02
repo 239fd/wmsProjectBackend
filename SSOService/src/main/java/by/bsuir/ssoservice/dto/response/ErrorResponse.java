@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.dto.response;
+﻿package by.bsuir.ssoservice.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -24,4 +24,3 @@ public class ErrorResponse {
         this.path = path;
     }
 }
-

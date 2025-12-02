@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.model.entity;
+﻿package by.bsuir.ssoservice.model.entity;
 
 import by.bsuir.ssoservice.model.enums.AuthProvider;
 import by.bsuir.ssoservice.model.enums.UserRole;
@@ -81,4 +81,3 @@ public class UserReadModel {
         updatedAt = LocalDateTime.now();
     }
 }
-

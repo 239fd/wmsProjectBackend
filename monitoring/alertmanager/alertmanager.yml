@@ -1,0 +1,58 @@
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'wms-alerts@example.com'
+  smtp_auth_username: 'your-email@gmail.com'
+  smtp_auth_password: 'your-app-password'
+
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'wms-team'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'wms-critical'
+      continue: true
+    - match:
+        severity: warning
+      receiver: 'wms-warnings'
+
+receivers:
+  - name: 'wms-team'
+    email_configs:
+      - to: 'team@example.com'
+        headers:
+          Subject: '[WMS Alert] {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>Alert: {{ .GroupLabels.alertname }}</h2>
+          <b>Summary:</b> {{ .CommonAnnotations.summary }}<br>
+          <b>Description:</b> {{ .CommonAnnotations.description }}<br>
+          <b>Severity:</b> {{ .CommonLabels.severity }}<br>
+          <b>Status:</b> {{ .Status }}<br>
+
+  - name: 'wms-critical'
+    email_configs:
+      - to: 'oncall@example.com'
+        send_resolved: true
+    # Можно добавить Slack, PagerDuty и т.д.
+    # slack_configs:
+    #   - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+    #     channel: '#alerts-critical'
+    #     title: 'CRITICAL: {{ .GroupLabels.alertname }}'
+    #     text: '{{ .CommonAnnotations.description }}'
+
+  - name: 'wms-warnings'
+    email_configs:
+      - to: 'warnings@example.com'
+        send_resolved: false
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'service']
+

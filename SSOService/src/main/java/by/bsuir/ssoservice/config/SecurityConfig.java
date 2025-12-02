@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.config;
+﻿package by.bsuir.ssoservice.config;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;

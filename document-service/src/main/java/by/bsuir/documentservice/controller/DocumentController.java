@@ -1,5 +1,6 @@
-﻿package by.bsuir.documentservice.controller;
+package by.bsuir.documentservice.controller;
 
+import by.bsuir.documentservice.dto.*;
 import by.bsuir.documentservice.service.DocumentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

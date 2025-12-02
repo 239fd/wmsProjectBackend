@@ -1,4 +1,4 @@
-﻿package by.bsuir.documentservice;
+package by.bsuir.documentservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

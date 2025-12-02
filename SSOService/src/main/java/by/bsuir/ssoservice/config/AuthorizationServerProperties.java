@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.config;
+﻿package by.bsuir.ssoservice.config;
 
 import lombok.Getter;
 import lombok.Setter;

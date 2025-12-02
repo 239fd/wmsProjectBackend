@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.dto.response;
+﻿package by.bsuir.ssoservice.dto.response;
 
 import java.time.LocalDateTime;
 
@@ -10,4 +10,3 @@ public record SessionInfo(
         Boolean isCurrent
 ) {
 }
-

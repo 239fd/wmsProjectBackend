@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.service;
+﻿package by.bsuir.ssoservice.service;
 
 import by.bsuir.ssoservice.model.enums.UserRole;
 import com.nimbusds.jose.*;

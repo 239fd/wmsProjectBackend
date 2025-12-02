@@ -1,4 +1,4 @@
-package by.bsuir.documentservice;
+﻿package by.bsuir.documentservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

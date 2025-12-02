@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.model.entity;
+﻿package by.bsuir.ssoservice.model.entity;
 
 import by.bsuir.ssoservice.model.enums.AuthProvider;
 import jakarta.persistence.*;
@@ -54,4 +54,3 @@ public class LoginAudit {
     @Column(name = "logout_at")
     private LocalDateTime logoutAt;
 }
-

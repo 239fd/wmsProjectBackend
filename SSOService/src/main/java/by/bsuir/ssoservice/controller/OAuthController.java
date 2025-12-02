@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.controller;
+﻿package by.bsuir.ssoservice.controller;
 
 import by.bsuir.ssoservice.dto.request.CompleteOAuthRegistrationRequest;
 import by.bsuir.ssoservice.dto.response.AuthResponse;
@@ -82,4 +82,3 @@ public class OAuthController {
         return ResponseEntity.ok(response);
     }
 }
-

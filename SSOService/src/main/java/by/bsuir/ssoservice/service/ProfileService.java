@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.service;
+﻿package by.bsuir.ssoservice.service;
 
 import by.bsuir.ssoservice.dto.request.UpdateProfileRequest;
 import by.bsuir.ssoservice.dto.response.SessionInfo;
@@ -187,4 +187,3 @@ public class ProfileService {
         log.info("Account deleted for user: {}", userId);
     }
 }
-

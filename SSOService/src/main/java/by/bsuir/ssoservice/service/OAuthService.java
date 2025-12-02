@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.service;
+﻿package by.bsuir.ssoservice.service;
 
 import by.bsuir.ssoservice.dto.request.CompleteOAuthRegistrationRequest;
 import by.bsuir.ssoservice.dto.response.AuthResponse;
@@ -277,4 +277,3 @@ public class OAuthService {
     private record OAuthUserInfo(String id, String email, String name, byte[] picture) {
     }
 }
-

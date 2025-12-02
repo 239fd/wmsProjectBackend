@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.model.entity;
+﻿package by.bsuir.ssoservice.model.entity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
@@ -48,4 +48,3 @@ public class UserEvent {
         }
     }
 }
-

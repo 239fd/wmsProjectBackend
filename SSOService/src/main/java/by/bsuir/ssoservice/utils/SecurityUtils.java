@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.utils;
+﻿package by.bsuir.ssoservice.utils;
 
 import by.bsuir.ssoservice.exception.AppException;
 import lombok.extern.slf4j.Slf4j;
@@ -26,4 +26,3 @@ public class SecurityUtils {
         }
     }
 }
-

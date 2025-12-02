@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.dto.request;
+﻿package by.bsuir.ssoservice.dto.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -21,4 +21,3 @@ public record UpdateProfileRequest(
         String email
 ) {
 }
-

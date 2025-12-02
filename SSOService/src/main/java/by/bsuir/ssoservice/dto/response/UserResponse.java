@@ -1,12 +1,12 @@
-package by.bsuir.ssoservice.dto.response;
+﻿package by.bsuir.ssoservice.dto.response;
 
 import by.bsuir.ssoservice.model.enums.UserRole;
 
 import java.util.UUID;
 
-/**
- * DTO с информацией о пользователе
- */
+
+
+
 public record UserResponse(
         UUID userId,
         String email,
@@ -16,4 +16,3 @@ public record UserResponse(
         UUID organizationId,
         UUID warehouseId
 ) {}
-

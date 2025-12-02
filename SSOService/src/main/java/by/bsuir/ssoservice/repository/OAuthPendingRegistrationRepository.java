@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.repository;
+﻿package by.bsuir.ssoservice.repository;
 
 import by.bsuir.ssoservice.model.entity.OAuthPendingRegistration;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -21,4 +21,3 @@ public interface OAuthPendingRegistrationRepository extends JpaRepository<OAuthP
     @Query("DELETE FROM OAuthPendingRegistration o WHERE o.expiresAt < :now OR o.completed = true")
     void deleteExpiredOrCompleted(LocalDateTime now);
 }
-

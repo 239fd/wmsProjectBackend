@@ -1,8 +1,8 @@
-package by.bsuir.ssoservice.dto.response;
+﻿package by.bsuir.ssoservice.dto.response;
 
-/**
- * DTO ответа при успешной аутентификации с токенами
- */
+
+
+
 public record AuthResponse(
         String accessToken,
         String refreshToken,
@@ -13,4 +13,3 @@ public record AuthResponse(
         return new AuthResponse(accessToken, refreshToken, expiresIn, "Bearer");
     }
 }
-

@@ -1,129 +1,139 @@
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+﻿CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TYPE rack_kind AS ENUM ('SHELF', 'CELL', 'FRIDGE', 'PALLET');
 
-CREATE TABLE product_category (
-    category_id   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name          VARCHAR(100) NOT NULL UNIQUE,
-    description   TEXT
+CREATE TYPE inventory_status AS ENUM ('AVAILABLE', 'RESERVED', 'DAMAGED', 'EXPIRED', 'IN_TRANSIT');
+CREATE TYPE operation_type AS ENUM ('RECEIPT', 'SHIPMENT', 'TRANSFER', 'WRITE_OFF', 'REVALUATION', 'INVENTORY');
+
+
+CREATE TABLE product_read_model (
+    product_id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name                VARCHAR(255) NOT NULL,
+    sku                 VARCHAR(100) UNIQUE,
+    barcode             VARCHAR(100),
+    category            VARCHAR(100),
+    description         TEXT,
+    unit_of_measure     VARCHAR(50),
+    weight_kg           NUMERIC(10,2),
+    volume_m3           NUMERIC(10,3),
+    created_at          TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE category_rack_kind (
-    category_id UUID NOT NULL REFERENCES product_category(category_id),
-    rack_kind   rack_kind NOT NULL,
-    PRIMARY KEY (category_id, rack_kind)
-);
+CREATE INDEX idx_product_sku ON product_read_model(sku);
+CREATE INDEX idx_product_barcode ON product_read_model(barcode);
+CREATE INDEX idx_product_category ON product_read_model(category);
 
-CREATE TABLE supplier (
-    supplier_id   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name          VARCHAR(255) NOT NULL,
-    inn           VARCHAR(20),
-    address       TEXT
-);
 
-CREATE TABLE product (
-    product_id    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    sku           VARCHAR(64) NOT NULL UNIQUE,
-    name          VARCHAR(255) NOT NULL,
-    description   TEXT,
-    category_id   UUID NOT NULL REFERENCES product_category(category_id),
-    unit          VARCHAR(16) NOT NULL,
-    shelf_life_days INTEGER,
-    barcode       VARCHAR(64)
-);
-
-CREATE TABLE delivery (
-    delivery_id     UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    supplier_id     UUID NOT NULL REFERENCES supplier(supplier_id),
-    delivery_number VARCHAR(64) NOT NULL,
-    delivery_date   DATE NOT NULL,
-    accepted_by     UUID,
+CREATE TABLE product_events (
+    event_id        BIGSERIAL PRIMARY KEY,
+    product_id      UUID NOT NULL,
+    event_type      VARCHAR(50) NOT NULL,
+    event_data      JSONB NOT NULL,
+    event_version   INT NOT NULL,
     created_at      TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE delivery_item (
-    delivery_item_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    delivery_id      UUID NOT NULL REFERENCES delivery(delivery_id),
-    product_id       UUID NOT NULL REFERENCES product(product_id),
-    planned_quantity NUMERIC(12,3) NOT NULL,
-    price_per_unit   NUMERIC(12,2)
+CREATE INDEX idx_product_events_product_id ON product_events(product_id);
+CREATE INDEX idx_product_events_created_at ON product_events(created_at);
+
+
+CREATE TABLE product_batch (
+    batch_id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id          UUID NOT NULL REFERENCES product_read_model(product_id) ON DELETE CASCADE,
+    batch_number        VARCHAR(100),
+    manufacture_date    DATE,
+    expiry_date         DATE,
+    supplier            VARCHAR(255),
+    purchase_price      NUMERIC(12,2),
+    created_at          TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE batch (
-    batch_id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    delivery_item_id UUID NOT NULL REFERENCES delivery_item(delivery_item_id),
-    batch_number    VARCHAR(64),
-    quantity        NUMERIC(12,3) NOT NULL,
-    production_date DATE,
-    expiry_date     DATE,
-    created_at      TIMESTAMP NOT NULL DEFAULT now()
+CREATE INDEX idx_batch_product_id ON product_batch(product_id);
+CREATE INDEX idx_batch_expiry_date ON product_batch(expiry_date);
+
+
+CREATE TABLE inventory (
+    inventory_id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id          UUID NOT NULL REFERENCES product_read_model(product_id) ON DELETE CASCADE,
+    batch_id            UUID REFERENCES product_batch(batch_id) ON DELETE SET NULL,
+    warehouse_id        UUID NOT NULL,
+    cell_id             UUID,
+    quantity            NUMERIC(12,3) NOT NULL DEFAULT 0,
+    reserved_quantity   NUMERIC(12,3) NOT NULL DEFAULT 0,
+    status              VARCHAR(50) NOT NULL DEFAULT 'AVAILABLE',
+    last_updated        TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE stock (
-    stock_id       UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    batch_id       UUID NOT NULL REFERENCES batch(batch_id),
-    warehouse_id   UUID NOT NULL,
-    rack_id        UUID NOT NULL,
-    place_id       UUID,
-    quantity       NUMERIC(12,3) NOT NULL,
-    reserved       NUMERIC(12,3) NOT NULL DEFAULT 0,
-    updated_at     TIMESTAMP NOT NULL DEFAULT now()
+CREATE INDEX idx_inventory_product_id ON inventory(product_id);
+CREATE INDEX idx_inventory_warehouse_id ON inventory(warehouse_id);
+CREATE INDEX idx_inventory_cell_id ON inventory(cell_id);
+CREATE INDEX idx_inventory_status ON inventory(status);
+
+
+CREATE TABLE product_operation (
+    operation_id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    operation_type      VARCHAR(50) NOT NULL,
+    product_id          UUID NOT NULL REFERENCES product_read_model(product_id) ON DELETE CASCADE,
+    batch_id            UUID REFERENCES product_batch(batch_id) ON DELETE SET NULL,
+    warehouse_id        UUID NOT NULL,
+    from_cell_id        UUID,
+    to_cell_id          UUID,
+    quantity            NUMERIC(12,3) NOT NULL,
+    user_id             UUID NOT NULL,
+    document_id         UUID,
+    operation_date      TIMESTAMP NOT NULL DEFAULT now(),
+    notes               TEXT
 );
 
-CREATE TABLE stock_event (
-    event_id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    event_type       VARCHAR(32) NOT NULL,
-    batch_id         UUID NOT NULL REFERENCES batch(batch_id),
-    from_warehouse_id UUID,
-    from_rack_id     UUID,
-    from_place_id    UUID,
-    to_warehouse_id  UUID,
-    to_rack_id       UUID,
-    to_place_id      UUID,
-    quantity         NUMERIC(12,3),
-    user_id          UUID,
-    event_time       TIMESTAMP NOT NULL DEFAULT now(),
-    document_number  VARCHAR(64),
-    comment          TEXT,
-    price_before     NUMERIC(12,2),
-    price_after      NUMERIC(12,2)
-);
+CREATE INDEX idx_operation_product_id ON product_operation(product_id);
+CREATE INDEX idx_operation_warehouse_id ON product_operation(warehouse_id);
+CREATE INDEX idx_operation_type ON product_operation(operation_type);
+CREATE INDEX idx_operation_date ON product_operation(operation_date);
+CREATE INDEX idx_operation_user_id ON product_operation(user_id);
 
-CREATE TABLE shipment_request (
-    shipment_id     UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    created_by      UUID,
-    created_at      TIMESTAMP NOT NULL DEFAULT now(),
-    status          VARCHAR(16) NOT NULL,
-    comment         TEXT
-);
-
-CREATE TABLE shipment_item (
-    shipment_item_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    shipment_id      UUID NOT NULL REFERENCES shipment_request(shipment_id),
-    product_id       UUID NOT NULL REFERENCES product(product_id),
-    batch_id         UUID REFERENCES batch(batch_id),
-    planned_quantity NUMERIC(12,3) NOT NULL,
-    actual_quantity  NUMERIC(12,3)
-);
+CREATE TYPE session_status AS ENUM ('IN_PROGRESS', 'COMPLETED', 'CANCELLED');
 
 CREATE TABLE inventory_session (
-    session_id     UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    warehouse_id   UUID NOT NULL,
-    started_by     UUID,
-    started_at     TIMESTAMP NOT NULL DEFAULT now(),
-    ended_at       TIMESTAMP,
-    status         VARCHAR(16) NOT NULL
+    session_id      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    warehouse_id    UUID NOT NULL,
+    started_by      UUID NOT NULL,
+    started_at      TIMESTAMP NOT NULL DEFAULT now(),
+    completed_at    TIMESTAMP,
+    status          session_status NOT NULL DEFAULT 'IN_PROGRESS',
+    notes           TEXT
 );
 
-CREATE TABLE inventory_item (
-    inventory_item_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    session_id        UUID NOT NULL REFERENCES inventory_session(session_id),
-    product_id        UUID NOT NULL REFERENCES product(product_id),
-    batch_id          UUID REFERENCES batch(batch_id),
-    warehouse_id      UUID NOT NULL,
-    rack_id           UUID,
-    place_id          UUID,
-    counted_quantity  NUMERIC(12,3) NOT NULL,
-    scanned_by        UUID,
-    scanned_at        TIMESTAMP NOT NULL DEFAULT now()
+CREATE INDEX idx_inventory_session_warehouse ON inventory_session(warehouse_id);
+CREATE INDEX idx_inventory_session_status ON inventory_session(status);
+CREATE INDEX idx_inventory_session_started_at ON inventory_session(started_at);
+
+CREATE TABLE inventory_count (
+    count_id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id          UUID NOT NULL REFERENCES inventory_session(session_id) ON DELETE CASCADE,
+    product_id          UUID NOT NULL,
+    batch_id            UUID,
+    cell_id             UUID,
+    expected_quantity   NUMERIC(12, 3) NOT NULL,
+    actual_quantity     NUMERIC(12, 3),
+    discrepancy         NUMERIC(12, 3) DEFAULT 0,
+    notes               TEXT
 );
+
+CREATE INDEX idx_inventory_count_session ON inventory_count(session_id);
+CREATE INDEX idx_inventory_count_product ON inventory_count(product_id);
+CREATE INDEX idx_inventory_count_batch ON inventory_count(batch_id);
+CREATE INDEX idx_inventory_count_cell ON inventory_count(cell_id);
+CREATE INDEX idx_inventory_count_discrepancy ON inventory_count(discrepancy) WHERE discrepancy != 0;
+
+
+COMMENT ON TABLE inventory_session IS 'Сессии инвентаризации складских запасов';
+COMMENT ON TABLE inventory_count IS 'Записи подсчёта товаров при инвентаризации';
+COMMENT ON COLUMN inventory_session.session_id IS 'Уникальный идентификатор сессии';
+COMMENT ON COLUMN inventory_session.warehouse_id IS 'ID склада на котором проводится инвентаризация';
+COMMENT ON COLUMN inventory_session.started_by IS 'ID пользователя который начал инвентаризацию';
+COMMENT ON COLUMN inventory_session.status IS 'Статус сессии: IN_PROGRESS, COMPLETED, CANCELLED';
+COMMENT ON COLUMN inventory_count.expected_quantity IS 'Ожидаемое количество (из системы)';
+COMMENT ON COLUMN inventory_count.actual_quantity IS 'Фактическое количество (подсчитано)';
+COMMENT ON COLUMN inventory_count.discrepancy IS 'Расхождение (actual - expected)';
+
+SELECT 'Схема базы данных product_db успешно создана!' as result;

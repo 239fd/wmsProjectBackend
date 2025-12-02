@@ -1,4 +1,4 @@
-package by.bsuir.ssoservice.exception;
+﻿package by.bsuir.ssoservice.exception;
 
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
@@ -42,4 +42,3 @@ public class AppException extends RuntimeException {
         return new AppException(message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }
-

@@ -44,6 +44,9 @@ public class ProductReadModel {
     @Column(name = "volume_m3", precision = 10, scale = 3)
     private BigDecimal volumeM3;
 
+    @Column(name = "price", precision = 12, scale = 2)
+    private BigDecimal price;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

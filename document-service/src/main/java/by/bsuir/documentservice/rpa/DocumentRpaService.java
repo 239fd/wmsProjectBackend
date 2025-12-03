@@ -1,6 +1,13 @@
 package by.bsuir.documentservice.rpa;
 
 import by.bsuir.documentservice.dto.*;
+import java.io.*;
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
@@ -12,26 +19,19 @@ import org.apache.poi.xwpf.usermodel.XWPFTableRow;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
-import java.io.*;
-import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-
 @Slf4j
 @Service
 public class DocumentRpaService {
 
     private static final String TEMPLATES_PATH = "document-service/documents template/";
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+    private static final DateTimeFormatter DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
-public byte[] generateReceiptOrder(ReceiptOrderData data) {
+    public byte[] generateReceiptOrder(ReceiptOrderData data) {
         log.info("RPA: Generating Receipt Order from template");
 
         try (InputStream template = loadTemplate("Приходной ордер.XLS");
-             HSSFWorkbook workbook = new HSSFWorkbook(template)) {
+                HSSFWorkbook workbook = new HSSFWorkbook(template)) {
 
             Sheet sheet = workbook.getSheetAt(0);
 
@@ -81,11 +81,11 @@ public byte[] generateReceiptOrder(ReceiptOrderData data) {
         }
     }
 
-public byte[] generateRevaluationAct(RevaluationActData data) {
+    public byte[] generateRevaluationAct(RevaluationActData data) {
         log.info("RPA: Generating Revaluation Act from template");
 
         try (InputStream template = loadTemplate("акт переоценки.xls");
-             HSSFWorkbook workbook = new HSSFWorkbook(template)) {
+                HSSFWorkbook workbook = new HSSFWorkbook(template)) {
 
             Sheet sheet = workbook.getSheetAt(0);
 
@@ -141,17 +141,18 @@ public byte[] generateRevaluationAct(RevaluationActData data) {
         }
     }
 
-public byte[] generateInventoryList(InventoryListData data) {
+    public byte[] generateInventoryList(InventoryListData data) {
         log.info("RPA: Generating Inventory List from template");
 
         try (InputStream template = loadTemplate("инвентарихационная опись.xls");
-             HSSFWorkbook workbook = new HSSFWorkbook(template)) {
+                HSSFWorkbook workbook = new HSSFWorkbook(template)) {
 
             Sheet sheet = workbook.getSheetAt(0);
 
             setCellValue(sheet, 2, 1, "Инвентаризационная опись №" + data.getDocumentNumber());
             setCellValue(sheet, 3, 1, "от " + formatDate(data.getDocumentDate()));
-            setCellValue(sheet, 4, 1, "Дата инвентаризации: " + formatDate(data.getInventoryDate()));
+            setCellValue(
+                    sheet, 4, 1, "Дата инвентаризации: " + formatDate(data.getInventoryDate()));
             setCellValue(sheet, 6, 1, data.getOrganizationName());
             setCellValue(sheet, 7, 1, "Склад: " + data.getWarehouseName());
 
@@ -161,7 +162,11 @@ public byte[] generateInventoryList(InventoryListData data) {
                 setCellValue(sheet, memberRow++, 1, "Член: " + member);
             }
 
-            setCellValue(sheet, memberRow + 1, 1, "Материально ответственное лицо: " + data.getResponsiblePerson());
+            setCellValue(
+                    sheet,
+                    memberRow + 1,
+                    1,
+                    "Материально ответственное лицо: " + data.getResponsiblePerson());
 
             int startRow = memberRow + 4;
             int rowNum = startRow;
@@ -203,19 +208,21 @@ public byte[] generateInventoryList(InventoryListData data) {
         }
     }
 
-public byte[] generateWriteOffAct(WriteOffActData data) {
+    public byte[] generateWriteOffAct(WriteOffActData data) {
         log.info("RPA: Generating Write-Off Act from template");
 
         try (InputStream template = loadTemplate("списание.docx");
-             XWPFDocument document = new XWPFDocument(template)) {
+                XWPFDocument document = new XWPFDocument(template)) {
 
             for (XWPFParagraph paragraph : document.getParagraphs()) {
                 replacePlaceholder(paragraph, "{{DOCUMENT_NUMBER}}", data.getDocumentNumber());
-                replacePlaceholder(paragraph, "{{DOCUMENT_DATE}}", formatDate(data.getDocumentDate()));
+                replacePlaceholder(
+                        paragraph, "{{DOCUMENT_DATE}}", formatDate(data.getDocumentDate()));
                 replacePlaceholder(paragraph, "{{ORGANIZATION_NAME}}", data.getOrganizationName());
                 replacePlaceholder(paragraph, "{{INN}}", data.getInn());
                 replacePlaceholder(paragraph, "{{REASON}}", data.getReason());
-                replacePlaceholder(paragraph, "{{REASON_DESCRIPTION}}", data.getReasonDescription());
+                replacePlaceholder(
+                        paragraph, "{{REASON_DESCRIPTION}}", data.getReasonDescription());
                 replacePlaceholder(paragraph, "{{DOCUMENT_BASIS}}", data.getDocumentBasis());
                 replacePlaceholder(paragraph, "{{CHAIRMAN}}", data.getChairmanName());
                 replacePlaceholder(paragraph, "{{RESPONSIBLE}}", data.getResponsiblePerson());
@@ -258,11 +265,11 @@ public byte[] generateWriteOffAct(WriteOffActData data) {
         }
     }
 
-public byte[] generateShippingInvoice(ShippingInvoiceData data) {
+    public byte[] generateShippingInvoice(ShippingInvoiceData data) {
         log.info("RPA: Generating Shipping Invoice (TTN) from template");
 
         try (InputStream template = loadTemplate("ттнls.xls");
-             HSSFWorkbook workbook = new HSSFWorkbook(template)) {
+                HSSFWorkbook workbook = new HSSFWorkbook(template)) {
 
             Sheet sheet = workbook.getSheetAt(0);
 
@@ -368,7 +375,7 @@ public byte[] generateShippingInvoice(ShippingInvoiceData data) {
         }
     }
 
-private InputStream loadTemplate(String filename) throws IOException {
+    private InputStream loadTemplate(String filename) throws IOException {
         Path templatePath = Paths.get(TEMPLATES_PATH + filename);
         if (Files.exists(templatePath)) {
             return Files.newInputStream(templatePath);
@@ -440,4 +447,3 @@ private InputStream loadTemplate(String filename) throws IOException {
         return amount != null ? String.format("%.2f", amount) : "0.00";
     }
 }
-

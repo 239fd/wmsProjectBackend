@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice.repository;
+package by.bsuir.warehouseservice.repository;
 
 import by.bsuir.warehouseservice.model.entity.Shelf;
 import org.springframework.data.jpa.repository.JpaRepository;

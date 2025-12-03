@@ -1,11 +1,8 @@
-﻿package by.bsuir.ssoservice.dto.request;
+package by.bsuir.ssoservice.dto.request;
 
 import by.bsuir.ssoservice.model.enums.UserRole;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-
-
-
 
 public record CompleteOAuthRegistrationRequest(
         @NotBlank(message = "Временный токен обязателен")

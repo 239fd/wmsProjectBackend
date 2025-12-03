@@ -1,4 +1,4 @@
-﻿package by.bsuir.organizationservice.service;
+package by.bsuir.organizationservice.service;
 
 import by.bsuir.organizationservice.config.RabbitMQConfig;
 import by.bsuir.organizationservice.exception.AppException;

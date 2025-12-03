@@ -1,7 +1,4 @@
-﻿package by.bsuir.ssoservice.dto.response;
-
-
-
+package by.bsuir.ssoservice.dto.response;
 
 public record AuthResponse(
         String accessToken,

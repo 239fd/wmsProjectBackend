@@ -2,6 +2,13 @@ package by.bsuir.documentservice.controller;
 
 import by.bsuir.documentservice.dto.*;
 import by.bsuir.documentservice.service.DocumentService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -14,20 +21,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-
-
-
-
 @Slf4j
 @RestController
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
+@Tag(name = "Документы", description = "API для генерации складских документов: накладные, акты, описи и другие документы")
 public class DocumentController {
 
     private final DocumentService documentService;
-
-
-
 
     @GetMapping("/{documentId}")
     public ResponseEntity<byte[]> getDocument(@PathVariable UUID documentId) {
@@ -44,9 +45,6 @@ public class DocumentController {
                 .body(document);
     }
 
-
-
-
     @GetMapping("/{documentId}/metadata")
     public ResponseEntity<Map<String, Object>> getDocumentMetadata(@PathVariable UUID documentId) {
         log.info("GET /api/documents/{}/metadata", documentId);
@@ -54,9 +52,6 @@ public class DocumentController {
         Map<String, Object> metadata = documentService.getDocumentMetadata(documentId);
         return ResponseEntity.ok(metadata);
     }
-
-
-
 
     @PostMapping("/receipt-order")
     public ResponseEntity<Map<String, String>> generateReceiptOrder(@RequestBody Map<String, Object> data) {
@@ -72,9 +67,6 @@ public class DocumentController {
         ));
     }
 
-
-
-
     @PostMapping("/shipment-order")
     public ResponseEntity<Map<String, String>> generateShipmentOrder(@RequestBody Map<String, Object> data) {
         log.info("POST /api/documents/shipment-order");
@@ -88,9 +80,6 @@ public class DocumentController {
                 "message", "Shipment order generation is not fully implemented yet"
         ));
     }
-
-
-
 
     @PostMapping("/inventory-report")
     public ResponseEntity<Map<String, String>> generateInventoryReport(@RequestBody Map<String, Object> data) {
@@ -106,9 +95,6 @@ public class DocumentController {
         ));
     }
 
-
-
-
     @PostMapping("/revaluation-act")
     public ResponseEntity<Map<String, String>> generateRevaluationAct(@RequestBody Map<String, Object> data) {
         log.info("POST /api/documents/revaluation-act");
@@ -122,9 +108,6 @@ public class DocumentController {
                 "message", "Revaluation act generation is not fully implemented yet (RPA)"
         ));
     }
-
-
-
 
     @PostMapping("/write-off-act")
     public ResponseEntity<Map<String, String>> generateWriteOffAct(@RequestBody Map<String, Object> data) {
@@ -140,9 +123,6 @@ public class DocumentController {
         ));
     }
 
-
-
-
     @PostMapping("/waybill")
     public ResponseEntity<Map<String, String>> generateWaybill(@RequestBody Map<String, Object> data) {
         log.info("POST /api/documents/waybill");
@@ -156,9 +136,6 @@ public class DocumentController {
                 "message", "Waybill generation is not fully implemented yet"
         ));
     }
-
-
-
 
     @PostMapping("/picking-list")
     public ResponseEntity<Map<String, String>> generatePickingList(@RequestBody Map<String, Object> data) {
@@ -174,9 +151,6 @@ public class DocumentController {
         ));
     }
 
-
-
-
     @GetMapping
     public ResponseEntity<Map<String, Object>> getAllDocuments(
             @RequestParam(defaultValue = "0") int page,
@@ -186,9 +160,6 @@ public class DocumentController {
         Map<String, Object> result = documentService.getAllDocuments(page, size);
         return ResponseEntity.ok(result);
     }
-
-
-
 
     @GetMapping("/stub-info")
     public ResponseEntity<Map<String, Object>> getStubInfo() {

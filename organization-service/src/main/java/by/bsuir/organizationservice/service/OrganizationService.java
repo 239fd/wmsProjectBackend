@@ -1,4 +1,4 @@
-﻿package by.bsuir.organizationservice.service;
+package by.bsuir.organizationservice.service;
 
 import by.bsuir.organizationservice.config.RabbitMQConfig;
 import by.bsuir.organizationservice.dto.request.CreateOrganizationRequest;
@@ -47,7 +47,6 @@ public class OrganizationService {
     public OrganizationResponse createOrganization(CreateOrganizationRequest request, UUID directorUserId) {
         log.info("Creating organization: {}", request.name());
 
-
         if (readModelRepository.existsByUnp(request.unp())) {
             throw AppException.conflict("Организация с таким УНП уже существует");
         }
@@ -57,7 +56,6 @@ public class OrganizationService {
         }
 
         UUID orgId = UUID.randomUUID();
-
 
         OrganizationEvents.OrganizationCreatedEvent event = new OrganizationEvents.OrganizationCreatedEvent(
                 request.name(),
@@ -76,7 +74,6 @@ public class OrganizationService {
                 .build();
         eventRepository.save(organizationEvent);
 
-
         OrganizationReadModel readModel = OrganizationReadModel.builder()
                 .orgId(orgId)
                 .name(request.name())
@@ -88,7 +85,6 @@ public class OrganizationService {
                 .updatedAt(LocalDateTime.now())
                 .build();
         readModelRepository.save(readModel);
-
 
         publishOrganizationCreated(readModel);
 
@@ -124,7 +120,6 @@ public class OrganizationService {
         OrganizationReadModel organization = readModelRepository.findByOrgId(orgId)
                 .orElseThrow(() -> AppException.notFound("Организация не найдена"));
 
-
         if (request.unp() != null && !request.unp().equals(organization.getUnp())) {
             if (readModelRepository.existsByUnp(request.unp())) {
                 throw AppException.conflict("Организация с таким УНП уже существует");
@@ -136,7 +131,6 @@ public class OrganizationService {
                 throw AppException.conflict("Организация с таким наименованием уже существует");
             }
         }
-
 
         OrganizationEvents.OrganizationUpdatedEvent event = new OrganizationEvents.OrganizationUpdatedEvent(
                 request.name(),
@@ -154,7 +148,6 @@ public class OrganizationService {
                 .build();
         eventRepository.save(organizationEvent);
 
-
         if (request.name() != null) organization.setName(request.name());
         if (request.shortName() != null) organization.setShortName(request.shortName());
         if (request.unp() != null) organization.setUnp(request.unp());
@@ -162,7 +155,6 @@ public class OrganizationService {
         organization.setUpdatedAt(LocalDateTime.now());
 
         readModelRepository.save(organization);
-
 
         publishOrganizationUpdated(organization);
 
@@ -177,7 +169,6 @@ public class OrganizationService {
         OrganizationReadModel organization = readModelRepository.findByOrgId(orgId)
                 .orElseThrow(() -> AppException.notFound("Организация не найдена"));
 
-
         Map<String, Object> dumpData = new HashMap<>();
         dumpData.put("orgId", organization.getOrgId().toString());
         dumpData.put("name", organization.getName());
@@ -189,10 +180,8 @@ public class OrganizationService {
         dumpData.put("deletedAt", LocalDateTime.now().toString());
         dumpData.put("deletedBy", deletedByUserId.toString());
 
-
         List<OrganizationEvent> events = eventRepository.findByOrgIdOrderByCreatedAtAsc(orgId);
         dumpData.put("events", events);
-
 
         OrganizationEvents.OrganizationDeletedEvent event = new OrganizationEvents.OrganizationDeletedEvent(
                 organization.getName(),
@@ -209,9 +198,7 @@ public class OrganizationService {
                 .build();
         eventRepository.save(organizationEvent);
 
-
         publishOrganizationDeleted(organization);
-
 
         invitationCodeRepository.deactivateAllByOrgId(orgId);
         readModelRepository.delete(organization);
@@ -237,9 +224,7 @@ public class OrganizationService {
             throw AppException.badRequest("Невозможно сгенерировать коды для неактивной организации");
         }
 
-
         invitationCodeRepository.deactivateAllByOrgId(orgId);
-
 
         List<Map<String, Object>> warehouses = warehouseClientService.getWarehousesByOrganization(orgId);
 
@@ -263,7 +248,6 @@ public class OrganizationService {
                     .build();
 
             invitationCodeRepository.save(code);
-
 
             OrganizationEvents.InvitationCodeGeneratedEvent event =
                     new OrganizationEvents.InvitationCodeGeneratedEvent(
@@ -295,9 +279,7 @@ public class OrganizationService {
         OrganizationReadModel organization = readModelRepository.findByOrgId(orgId)
                 .orElseThrow(() -> AppException.notFound("Организация не найдена"));
 
-
         invitationCodeRepository.deactivateAllByOrgIdAndWarehouseId(orgId, warehouseId);
-
 
         Map<String, Object> warehouse = warehouseClientService.getWarehouseInfo(warehouseId);
         String warehouseName = warehouse.get("name").toString();

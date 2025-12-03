@@ -1,4 +1,4 @@
-﻿package by.bsuir.ssoservice.repository;
+package by.bsuir.ssoservice.repository;
 
 import by.bsuir.ssoservice.model.entity.UserReadModel;
 import by.bsuir.ssoservice.model.enums.AuthProvider;
@@ -9,9 +9,6 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.util.UUID;
-
-
-
 
 @Repository
 public interface UserReadModelRepository extends JpaRepository<UserReadModel, UUID> {

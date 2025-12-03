@@ -1,9 +1,10 @@
-﻿package by.bsuir.productservice.repository;
+package by.bsuir.productservice.repository;
 
 import by.bsuir.productservice.model.entity.Inventory;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,4 +19,6 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     Optional<Inventory> findByProductIdAndWarehouseId(UUID productId, UUID warehouseId);
 
     Optional<Inventory> findByCellId(UUID cellId);
+
+    List<Inventory> findByProductIdAndWarehouseIdAndQuantityGreaterThan(UUID productId, UUID warehouseId, BigDecimal quantity);
 }

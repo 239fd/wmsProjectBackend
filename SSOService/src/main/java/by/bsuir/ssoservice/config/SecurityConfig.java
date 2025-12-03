@@ -1,4 +1,4 @@
-﻿package by.bsuir.ssoservice.config;
+package by.bsuir.ssoservice.config;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -29,6 +29,9 @@ public class SecurityConfig {
                                 .requestMatchers("/api/test/**").permitAll()
                                 .requestMatchers("/actuator/**").permitAll()
                                 .requestMatchers("/error").permitAll()
+                                .requestMatchers("/v3/api-docs/**").permitAll()
+                                .requestMatchers("/swagger-ui/**").permitAll()
+                                .requestMatchers("/swagger-ui.html").permitAll()
                                 .requestMatchers("/api/profile/**").authenticated()
                                 .anyRequest().authenticated()
                 )

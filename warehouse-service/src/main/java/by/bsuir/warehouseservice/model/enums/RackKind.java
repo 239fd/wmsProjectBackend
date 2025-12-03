@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice.model.enums;
+package by.bsuir.warehouseservice.model.enums;
 
 public enum RackKind {
     SHELF,

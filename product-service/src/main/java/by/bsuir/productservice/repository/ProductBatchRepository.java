@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.repository;
+package by.bsuir.productservice.repository;
 
 import by.bsuir.productservice.model.entity.ProductBatch;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,6 +11,8 @@ import java.util.UUID;
 public interface ProductBatchRepository extends JpaRepository<ProductBatch, UUID> {
 
     List<ProductBatch> findByProductId(UUID productId);
+
+    boolean existsByBatchNumber(String batchNumber);
 
     List<ProductBatch> findByProductIdOrderByCreatedAtDesc(UUID productId);
 }

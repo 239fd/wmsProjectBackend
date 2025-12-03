@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice.service;
+package by.bsuir.warehouseservice.service;
 
 import by.bsuir.warehouseservice.config.RabbitMQConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,10 +17,6 @@ import java.util.*;
 public class WarehouseMessageListener {
 
     private final WarehouseService warehouseService;
-
-
-
-
 
     @RabbitListener(queues = RabbitMQConfig.WAREHOUSE_INFO_REQUEST_QUEUE)
     public Object handleWarehouseInfoRequest(@Payload Map<String, String> request) {
@@ -61,9 +57,6 @@ public class WarehouseMessageListener {
             return errorResponse;
         }
     }
-
-
-
 
     @RabbitListener(queues = RabbitMQConfig.ORGANIZATION_DELETED_QUEUE)
     public void handleOrganizationDeleted(@Payload Map<String, Object> message) {

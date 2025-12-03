@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice.dto.response;
+package by.bsuir.warehouseservice.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice.config;
+package by.bsuir.warehouseservice.config;
 
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
@@ -11,10 +11,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-
     public static final String WAREHOUSE_EXCHANGE = "warehouse.exchange";
     public static final String ORGANIZATION_EXCHANGE = "organization.exchange";
-
 
     public static final String WAREHOUSE_CREATED_QUEUE = "warehouse.created.queue";
     public static final String WAREHOUSE_UPDATED_QUEUE = "warehouse.updated.queue";
@@ -22,7 +20,6 @@ public class RabbitMQConfig {
     public static final String WAREHOUSE_INFO_REQUEST_QUEUE = "warehouse.info.request.queue";
     public static final String WAREHOUSE_INFO_RESPONSE_QUEUE = "warehouse.info.response.queue";
     public static final String ORGANIZATION_DELETED_QUEUE = "organization.deleted.warehouse.queue";
-
 
     public static final String WAREHOUSE_CREATED_KEY = "warehouse.created";
     public static final String WAREHOUSE_UPDATED_KEY = "warehouse.updated";
@@ -43,7 +40,6 @@ public class RabbitMQConfig {
         return rabbitTemplate;
     }
 
-
     @Bean
     public TopicExchange warehouseExchange() {
         return new TopicExchange(WAREHOUSE_EXCHANGE);
@@ -53,7 +49,6 @@ public class RabbitMQConfig {
     public TopicExchange organizationExchange() {
         return new TopicExchange(ORGANIZATION_EXCHANGE);
     }
-
 
     @Bean
     public Queue warehouseCreatedQueue() {
@@ -84,7 +79,6 @@ public class RabbitMQConfig {
     public Queue organizationDeletedWarehouseQueue() {
         return new Queue(ORGANIZATION_DELETED_QUEUE, true);
     }
-
 
     @Bean
     public Binding warehouseCreatedBinding() {

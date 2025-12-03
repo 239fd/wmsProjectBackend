@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.model.entity;
+package by.bsuir.productservice.model.entity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;

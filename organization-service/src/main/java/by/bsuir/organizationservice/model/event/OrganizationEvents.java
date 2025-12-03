@@ -1,4 +1,4 @@
-﻿package by.bsuir.organizationservice.model.event;
+package by.bsuir.organizationservice.model.event;
 
 import by.bsuir.organizationservice.model.enums.OrganizationStatus;
 import lombok.AllArgsConstructor;

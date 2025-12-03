@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice.dto.request;
+package by.bsuir.warehouseservice.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

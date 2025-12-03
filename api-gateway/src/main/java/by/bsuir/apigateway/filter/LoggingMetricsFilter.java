@@ -1,4 +1,4 @@
-﻿package by.bsuir.apigateway.filter;
+package by.bsuir.apigateway.filter;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -14,10 +14,6 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-
-
-
-
 
 @Slf4j
 @Component
@@ -46,7 +42,6 @@ public class LoggingMetricsFilter implements GlobalFilter, Ordered {
                         log.info("Completed request: {} {} - Status: {} - Duration: {}ms",
                                 method, path, statusCode.value(), duration);
 
-
                         recordMetrics(method, path, statusCode.value(), duration);
                     }
                 })
@@ -55,7 +50,6 @@ public class LoggingMetricsFilter implements GlobalFilter, Ordered {
 
                     log.error("Failed request: {} {} - Error: {} - Duration: {}ms",
                             method, path, error.getMessage(), duration);
-
 
                     recordMetrics(method, path, 500, duration);
                 });
@@ -69,7 +63,6 @@ public class LoggingMetricsFilter implements GlobalFilter, Ordered {
                 .tag("status", String.valueOf(statusCode))
                 .register(meterRegistry)
                 .increment();
-
 
         Timer.builder("gateway.requests.duration")
                 .tag("method", method)

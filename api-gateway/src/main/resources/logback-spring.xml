@@ -3,15 +3,13 @@
     <property name="LOGS" value="./logs"/>
     <property name="SERVICE_NAME" value="api-gateway"/>
 
-    <!-- Console Appender -->
-    <appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
+<appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <customFields>{"service":"${SERVICE_NAME}"}</customFields>
         </encoder>
     </appender>
 
-    <!-- File Appender -->
-    <appender name="RollingFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+<appender name="RollingFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOGS}/${SERVICE_NAME}.log</file>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <customFields>{"service":"${SERVICE_NAME}"}</customFields>
@@ -25,8 +23,7 @@
         </rollingPolicy>
     </appender>
 
-    <!-- Loki Appender (HTTP) -->
-    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+<appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
         <http>
             <url>http://localhost:3100/loki/api/v1/push</url>
         </http>
@@ -50,20 +47,17 @@
         </format>
     </appender>
 
-    <!-- Root Logger -->
-    <root level="INFO">
+<root level="INFO">
         <appender-ref ref="Console"/>
         <appender-ref ref="RollingFile"/>
         <appender-ref ref="LOKI"/>
     </root>
 
-    <!-- Application Loggers -->
-    <logger name="by.bsuir.apigateway" level="DEBUG"/>
+<logger name="by.bsuir.apigateway" level="DEBUG"/>
     <logger name="org.springframework.cloud.gateway" level="DEBUG"/>
     <logger name="org.springframework.security" level="DEBUG"/>
 
-    <!-- Reduce noise -->
-    <logger name="org.springframework.web" level="INFO"/>
+<logger name="org.springframework.web" level="INFO"/>
     <logger name="org.springframework.boot" level="INFO"/>
 </configuration>
 

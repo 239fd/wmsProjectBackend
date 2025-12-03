@@ -1,8 +1,14 @@
-﻿package by.bsuir.productservice.controller;
+package by.bsuir.productservice.controller;
 
 import by.bsuir.productservice.dto.request.CreateBatchRequest;
 import by.bsuir.productservice.dto.response.BatchResponse;
 import by.bsuir.productservice.service.BatchService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,20 +27,26 @@ public class BatchController {
 
     private final BatchService batchService;
 
-
-
-
+    @Operation(
+            summary = "Создать партию товара",
+            description = "Создает новую партию для товара с указанием даты производства, срока годности и поставщика"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Партия успешно создана",
+                    content = @Content(schema = @Schema(implementation = BatchResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Некорректные данные"),
+            @ApiResponse(responseCode = "403", description = "Недостаточно прав"),
+            @ApiResponse(responseCode = "404", description = "Товар не найден")
+    })
     @PostMapping("/products/{productId}/batches")
     public ResponseEntity<BatchResponse> createBatch(
-            @PathVariable UUID productId,
+            @Parameter(description = "ID товара", required = true) @PathVariable UUID productId,
             @Valid @RequestBody CreateBatchRequest request,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
-
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-
 
         CreateBatchRequest updatedRequest = new CreateBatchRequest(
                 productId,
@@ -49,26 +61,26 @@ public class BatchController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-
-
-
+    @Operation(
+            summary = "Получить партии товара",
+            description = "Возвращает список всех партий для указанного товара"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Список партий получен"),
+            @ApiResponse(responseCode = "404", description = "Товар не найден")
+    })
     @GetMapping("/products/{productId}/batches")
-    public ResponseEntity<List<BatchResponse>> getBatchesByProduct(@PathVariable UUID productId) {
+    public ResponseEntity<List<BatchResponse>> getBatchesByProduct(
+            @Parameter(description = "ID товара", required = true) @PathVariable UUID productId) {
         List<BatchResponse> response = batchService.getBatchesByProduct(productId);
         return ResponseEntity.ok(response);
     }
-
-
-
 
     @GetMapping("/batches/{batchId}")
     public ResponseEntity<BatchResponse> getBatch(@PathVariable UUID batchId) {
         BatchResponse response = batchService.getBatch(batchId);
         return ResponseEntity.ok(response);
     }
-
-
-
 
     @GetMapping("/batches")
     public ResponseEntity<List<BatchResponse>> getAllBatches() {

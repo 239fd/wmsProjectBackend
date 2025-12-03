@@ -1,4 +1,4 @@
-﻿package by.bsuir.ssoservice.model.entity;
+package by.bsuir.ssoservice.model.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

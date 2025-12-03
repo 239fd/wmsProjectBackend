@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice.exception;
+package by.bsuir.warehouseservice.exception;
 
 import lombok.Getter;
 import org.springframework.http.HttpStatus;

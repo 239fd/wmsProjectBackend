@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.dto.response;
+package by.bsuir.productservice.dto.response;
 
 import by.bsuir.productservice.model.enums.InventoryStatus;
 

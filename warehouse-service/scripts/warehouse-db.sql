@@ -1,4 +1,4 @@
-﻿CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TYPE rack_kind AS ENUM ('SHELF', 'CELL', 'FRIDGE', 'PALLET');
 
@@ -81,7 +81,6 @@ CREATE TABLE pallet_place (
     height_cm       NUMERIC(8,2) NOT NULL
 );
 
-
 CREATE INDEX IF NOT EXISTS idx_warehouse_org_id ON warehouse_read_model(org_id);
 CREATE INDEX IF NOT EXISTS idx_warehouse_active ON warehouse_read_model(is_active);
 CREATE INDEX IF NOT EXISTS idx_warehouse_events_warehouse_id ON warehouse_events(warehouse_id);
@@ -97,7 +96,6 @@ CREATE INDEX IF NOT EXISTS idx_shelf_rack_id ON shelf(rack_id);
 CREATE INDEX IF NOT EXISTS idx_cell_rack_id ON cell(rack_id);
 CREATE INDEX IF NOT EXISTS idx_pallet_place_rack_id ON pallet_place(rack_id);
 
-
 COMMENT ON TABLE warehouse_read_model IS 'Read Model для складов (CQRS)';
 COMMENT ON TABLE warehouse_events IS 'Event Store для складов (Event Sourcing)';
 COMMENT ON TABLE rack_read_model IS 'Read Model для стеллажей';
@@ -108,7 +106,6 @@ COMMENT ON TABLE fridge IS 'Холодильники';
 COMMENT ON TABLE pallet IS 'Паллетные стеллажи';
 COMMENT ON TABLE pallet_place IS 'Места на паллетных стеллажах';
 
-
 COMMENT ON COLUMN warehouse_read_model.org_id IS 'ID организации-владельца';
 COMMENT ON COLUMN warehouse_read_model.responsible_user_id IS 'Материально ответственное лицо';
 COMMENT ON COLUMN rack_read_model.kind IS 'Тип стеллажа: SHELF, CELL, FRIDGE, PALLET';
@@ -116,6 +113,5 @@ COMMENT ON COLUMN shelf.shelf_capacity_kg IS 'Грузоподъёмность �
 COMMENT ON COLUMN cell.max_weight_kg IS 'Максимальный вес для ячейки в кг';
 COMMENT ON COLUMN fridge.temperature_c IS 'Температура хранения в °C';
 COMMENT ON COLUMN pallet.pallet_place_count IS 'Количество паллетомест';
-
 
 SELECT 'Схема базы данных warehouse_db успешно создана!' as result;

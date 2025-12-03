@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice.service;
+package by.bsuir.warehouseservice.service;
 
 import by.bsuir.warehouseservice.config.RabbitMQConfig;
 import by.bsuir.warehouseservice.dto.request.CreateWarehouseRequest;
@@ -34,13 +34,11 @@ public class WarehouseService {
     public WarehouseResponse createWarehouse(CreateWarehouseRequest request) {
         log.info("Creating warehouse: {} for organization: {}", request.name(), request.orgId());
 
-
         if (readModelRepository.existsByOrgIdAndName(request.orgId(), request.name())) {
             throw AppException.conflict("Склад с таким названием уже существует в данной организации");
         }
 
         UUID warehouseId = UUID.randomUUID();
-
 
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("orgId", request.orgId().toString());
@@ -57,7 +55,6 @@ public class WarehouseService {
                 .build();
         eventRepository.save(warehouseEvent);
 
-
         WarehouseReadModel readModel = WarehouseReadModel.builder()
                 .warehouseId(warehouseId)
                 .orgId(request.orgId())
@@ -69,7 +66,6 @@ public class WarehouseService {
                 .updatedAt(LocalDateTime.now())
                 .build();
         readModelRepository.save(readModel);
-
 
         publishWarehouseCreated(readModel);
 
@@ -112,13 +108,11 @@ public class WarehouseService {
         WarehouseReadModel warehouse = readModelRepository.findByWarehouseId(warehouseId)
                 .orElseThrow(() -> AppException.notFound("Склад не найден"));
 
-
         if (request.name() != null && !request.name().equals(warehouse.getName())) {
             if (readModelRepository.existsByOrgIdAndName(warehouse.getOrgId(), request.name())) {
                 throw AppException.conflict("Склад с таким названием уже существует в данной организации");
             }
         }
-
 
         Map<String, Object> eventData = new HashMap<>();
         if (request.name() != null) eventData.put("name", request.name());
@@ -135,7 +129,6 @@ public class WarehouseService {
                 .build();
         eventRepository.save(warehouseEvent);
 
-
         if (request.name() != null) warehouse.setName(request.name());
         if (request.address() != null) warehouse.setAddress(request.address());
         if (request.responsibleUserId() != null) warehouse.setResponsibleUserId(request.responsibleUserId());
@@ -143,7 +136,6 @@ public class WarehouseService {
         warehouse.setUpdatedAt(LocalDateTime.now());
 
         readModelRepository.save(warehouse);
-
 
         publishWarehouseUpdated(warehouse);
 
@@ -162,7 +154,6 @@ public class WarehouseService {
             throw AppException.badRequest("Склад уже активен");
         }
 
-
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("isActive", true);
 
@@ -175,11 +166,9 @@ public class WarehouseService {
                 .build();
         eventRepository.save(warehouseEvent);
 
-
         warehouse.setIsActive(true);
         warehouse.setUpdatedAt(LocalDateTime.now());
         readModelRepository.save(warehouse);
-
 
         publishWarehouseUpdated(warehouse);
 
@@ -198,7 +187,6 @@ public class WarehouseService {
             throw AppException.badRequest("Склад уже деактивирован");
         }
 
-
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("isActive", false);
 
@@ -211,11 +199,9 @@ public class WarehouseService {
                 .build();
         eventRepository.save(warehouseEvent);
 
-
         warehouse.setIsActive(false);
         warehouse.setUpdatedAt(LocalDateTime.now());
         readModelRepository.save(warehouse);
-
 
         publishWarehouseUpdated(warehouse);
 
@@ -229,7 +215,6 @@ public class WarehouseService {
 
         WarehouseReadModel warehouse = readModelRepository.findByWarehouseId(warehouseId)
                 .orElseThrow(() -> AppException.notFound("Склад не найден"));
-
 
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("warehouseId", warehouseId.toString());
@@ -245,9 +230,7 @@ public class WarehouseService {
                 .build();
         eventRepository.save(warehouseEvent);
 
-
         publishWarehouseDeleted(warehouse);
-
 
         readModelRepository.delete(warehouse);
 

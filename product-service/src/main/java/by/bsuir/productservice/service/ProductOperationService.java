@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.service;
+package by.bsuir.productservice.service;
 
 import by.bsuir.productservice.dto.request.ReceiveProductRequest;
 import by.bsuir.productservice.dto.request.ReserveProductRequest;
@@ -34,15 +34,11 @@ public class ProductOperationService {
     private final InventoryService inventoryService;
     private final FEFOService fefoService;
 
-
-
-
     @Transactional
     public UUID receiveProduct(ReceiveProductRequest request) {
         try {
             log.info("Receiving product {} to warehouse {}, quantity: {}",
                     request.productId(), request.warehouseId(), request.quantity());
-
 
             if (request.productId() == null) {
                 throw AppException.badRequest("Product ID обязателен");
@@ -57,10 +53,8 @@ public class ProductOperationService {
                 throw AppException.badRequest("User ID обязателен");
             }
 
-
             ProductReadModel product = productRepository.findById(request.productId())
                     .orElseThrow(() -> AppException.notFound("Товар не найден"));
-
 
             ProductOperation operation = ProductOperation.builder()
                     .operationId(UUID.randomUUID())
@@ -75,7 +69,6 @@ public class ProductOperationService {
                     .notes(request.notes())
                     .build();
             operationRepository.save(operation);
-
 
         Optional<Inventory> existingInventory = inventoryRepository
                 .findByProductIdAndWarehouseId(request.productId(), request.warehouseId());
@@ -116,15 +109,11 @@ public class ProductOperationService {
         }
     }
 
-
-
-
     @Transactional
     public UUID shipProduct(ShipProductRequest request) {
         try {
             log.info("Shipping product {} from warehouse {}, quantity: {}",
                     request.productId(), request.warehouseId(), request.quantity());
-
 
             if (request.productId() == null) {
                 throw AppException.badRequest("Product ID обязателен");
@@ -139,15 +128,12 @@ public class ProductOperationService {
                 throw AppException.badRequest("User ID обязателен");
             }
 
-
             ProductReadModel product = productRepository.findById(request.productId())
                     .orElseThrow(() -> AppException.notFound("Товар не найден"));
-
 
         Inventory inventory = inventoryRepository
                 .findByProductIdAndWarehouseId(request.productId(), request.warehouseId())
                 .orElseThrow(() -> AppException.notFound("Запасы товара на складе не найдены"));
-
 
         BigDecimal available = inventory.getQuantity().subtract(inventory.getReservedQuantity());
         if (available.compareTo(request.quantity()) < 0) {
@@ -156,7 +142,6 @@ public class ProductOperationService {
                             available, request.quantity())
             );
         }
-
 
         ProductOperation operation = ProductOperation.builder()
                 .operationId(UUID.randomUUID())
@@ -172,9 +157,7 @@ public class ProductOperationService {
                 .build();
         operationRepository.save(operation);
 
-
         inventory.setQuantity(inventory.getQuantity().subtract(request.quantity()));
-
 
         if (inventory.getQuantity().compareTo(BigDecimal.ZERO) == 0) {
 
@@ -195,22 +178,15 @@ public class ProductOperationService {
         }
     }
 
-
-
-
     @Transactional
     public void reserveProduct(ReserveProductRequest request) {
         log.info("Reserving product {} at warehouse {}, quantity: {}",
                 request.productId(), request.warehouseId(), request.quantity());
 
-
         inventoryService.reserve(request.productId(), request.warehouseId(), request.quantity());
 
         log.info("Product reserved successfully");
     }
-
-
-
 
     @Transactional
     public void releaseReservation(UUID productId, UUID warehouseId, BigDecimal quantity) {
@@ -222,15 +198,11 @@ public class ProductOperationService {
         log.info("Reservation released successfully");
     }
 
-
-
-
     @Transactional
     public UUID shipProductWithFEFO(ShipProductRequest request) {
         try {
             log.info("Shipping product {} from warehouse {} with FEFO, quantity: {}",
                     request.productId(), request.warehouseId(), request.quantity());
-
 
             if (request.productId() == null) {
                 throw AppException.badRequest("Product ID обязателен");
@@ -242,10 +214,8 @@ public class ProductOperationService {
                 throw AppException.badRequest("Количество должно быть больше 0");
             }
 
-
             ProductReadModel product = productRepository.findById(request.productId())
                     .orElseThrow(() -> AppException.notFound("Товар не найден"));
-
 
             List<FEFOService.InventoryAllocation> allocations = fefoService.selectInventoryByFEFO(
                     request.productId(),
@@ -254,7 +224,6 @@ public class ProductOperationService {
             );
 
             log.info("FEFO selected {} allocations for shipment", allocations.size());
-
 
             UUID operationId = UUID.randomUUID();
             for (FEFOService.InventoryAllocation allocation : allocations) {
@@ -274,7 +243,6 @@ public class ProductOperationService {
                                 request.notes() != null ? request.notes() : ""))
                         .build();
                 operationRepository.save(operation);
-
 
                 Inventory inventory = inventoryRepository.findById(allocation.getInventoryId())
                         .orElseThrow(() -> AppException.notFound("Inventory not found"));

@@ -20,10 +20,6 @@ import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
-/**
- * RPA сервис для автоматического заполнения документов
- * Использует Apache POI для работы с Excel и Word шаблонами
- */
 @Slf4j
 @Service
 public class DocumentRpaService {
@@ -31,10 +27,7 @@ public class DocumentRpaService {
     private static final String TEMPLATES_PATH = "document-service/documents template/";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
-    /**
-     * Генерация Приходного ордера
-     */
-    public byte[] generateReceiptOrder(ReceiptOrderData data) {
+public byte[] generateReceiptOrder(ReceiptOrderData data) {
         log.info("RPA: Generating Receipt Order from template");
 
         try (InputStream template = loadTemplate("Приходной ордер.XLS");
@@ -42,18 +35,15 @@ public class DocumentRpaService {
 
             Sheet sheet = workbook.getSheetAt(0);
 
-            // Заполняем заголовок
             setCellValue(sheet, 2, 1, data.getDocumentNumber());
             setCellValue(sheet, 2, 5, formatDate(data.getDocumentDate()));
             setCellValue(sheet, 4, 1, data.getOrganizationName());
             setCellValue(sheet, 4, 5, data.getInn());
             setCellValue(sheet, 5, 1, data.getWarehouseName());
 
-            // Поставщик
             setCellValue(sheet, 7, 1, data.getSupplierName());
             setCellValue(sheet, 7, 5, data.getSupplierInn());
 
-            // Заполняем таблицу товаров (начиная с строки 10)
             int rowNum = 10;
             for (ReceiptOrderData.ReceiptItem item : data.getItems()) {
                 Row row = getOrCreateRow(sheet, rowNum);
@@ -70,18 +60,15 @@ public class DocumentRpaService {
                 rowNum++;
             }
 
-            // Итоги
             int totalRow = rowNum + 1;
             setCellValue(sheet, totalRow, 4, "ИТОГО:");
             setCellValue(sheet, totalRow, 4, data.getTotalQuantity());
             setCellValue(sheet, totalRow, 6, data.getTotalAmount());
 
-            // Подписи
             int signRow = totalRow + 3;
             setCellValue(sheet, signRow, 1, "Принял: " + data.getReceivedBy());
             setCellValue(sheet, signRow + 1, 1, "Утвердил: " + data.getAcceptedBy());
 
-            // Сохраняем в byte array
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             workbook.write(outputStream);
 
@@ -94,10 +81,7 @@ public class DocumentRpaService {
         }
     }
 
-    /**
-     * Генерация Акта переоценки
-     */
-    public byte[] generateRevaluationAct(RevaluationActData data) {
+public byte[] generateRevaluationAct(RevaluationActData data) {
         log.info("RPA: Generating Revaluation Act from template");
 
         try (InputStream template = loadTemplate("акт переоценки.xls");
@@ -105,24 +89,20 @@ public class DocumentRpaService {
 
             Sheet sheet = workbook.getSheetAt(0);
 
-            // Заголовок
             setCellValue(sheet, 2, 1, "Акт переоценки №" + data.getDocumentNumber());
             setCellValue(sheet, 3, 1, "от " + formatDate(data.getDocumentDate()));
             setCellValue(sheet, 5, 1, data.getOrganizationName());
             setCellValue(sheet, 6, 1, "ИНН: " + data.getInn());
 
-            // Причина переоценки
             setCellValue(sheet, 8, 1, "Причина: " + data.getReason());
             setCellValue(sheet, 9, 1, data.getReasonDescription());
 
-            // Комиссия
             setCellValue(sheet, 11, 1, "Председатель комиссии: " + data.getChairmanName());
             int memberRow = 12;
             for (String member : data.getCommissionMembers()) {
                 setCellValue(sheet, memberRow++, 1, "Член комиссии: " + member);
             }
 
-            // Таблица товаров
             int startRow = memberRow + 2;
             int rowNum = startRow;
 
@@ -143,7 +123,6 @@ public class DocumentRpaService {
                 rowNum++;
             }
 
-            // Итоги
             int totalRow = rowNum + 1;
             setCellValue(sheet, totalRow, 4, "ИТОГО:");
             setCellValue(sheet, totalRow, 7, data.getTotalOldValue());
@@ -162,10 +141,7 @@ public class DocumentRpaService {
         }
     }
 
-    /**
-     * Генерация Инвентаризационной описи
-     */
-    public byte[] generateInventoryList(InventoryListData data) {
+public byte[] generateInventoryList(InventoryListData data) {
         log.info("RPA: Generating Inventory List from template");
 
         try (InputStream template = loadTemplate("инвентарихационная опись.xls");
@@ -173,14 +149,12 @@ public class DocumentRpaService {
 
             Sheet sheet = workbook.getSheetAt(0);
 
-            // Заголовок
             setCellValue(sheet, 2, 1, "Инвентаризационная опись №" + data.getDocumentNumber());
             setCellValue(sheet, 3, 1, "от " + formatDate(data.getDocumentDate()));
             setCellValue(sheet, 4, 1, "Дата инвентаризации: " + formatDate(data.getInventoryDate()));
             setCellValue(sheet, 6, 1, data.getOrganizationName());
             setCellValue(sheet, 7, 1, "Склад: " + data.getWarehouseName());
 
-            // Комиссия
             setCellValue(sheet, 9, 1, "Председатель: " + data.getChairmanName());
             int memberRow = 10;
             for (String member : data.getCommissionMembers()) {
@@ -189,7 +163,6 @@ public class DocumentRpaService {
 
             setCellValue(sheet, memberRow + 1, 1, "Материально ответственное лицо: " + data.getResponsiblePerson());
 
-            // Таблица
             int startRow = memberRow + 4;
             int rowNum = startRow;
 
@@ -212,7 +185,6 @@ public class DocumentRpaService {
                 rowNum++;
             }
 
-            // Итоги
             int totalRow = rowNum + 1;
             setCellValue(sheet, totalRow, 3, "ИТОГО:");
             setCellValue(sheet, totalRow, 8, data.getTotalBookValue());
@@ -231,16 +203,12 @@ public class DocumentRpaService {
         }
     }
 
-    /**
-     * Генерация Акта списания (Word)
-     */
-    public byte[] generateWriteOffAct(WriteOffActData data) {
+public byte[] generateWriteOffAct(WriteOffActData data) {
         log.info("RPA: Generating Write-Off Act from template");
 
         try (InputStream template = loadTemplate("списание.docx");
              XWPFDocument document = new XWPFDocument(template)) {
 
-            // Заменяем placeholders в параграфах
             for (XWPFParagraph paragraph : document.getParagraphs()) {
                 replacePlaceholder(paragraph, "{{DOCUMENT_NUMBER}}", data.getDocumentNumber());
                 replacePlaceholder(paragraph, "{{DOCUMENT_DATE}}", formatDate(data.getDocumentDate()));
@@ -253,11 +221,10 @@ public class DocumentRpaService {
                 replacePlaceholder(paragraph, "{{RESPONSIBLE}}", data.getResponsiblePerson());
             }
 
-            // Заполняем таблицу товаров
             if (!document.getTables().isEmpty()) {
                 XWPFTable table = document.getTables().get(0);
 
-                int rowIndex = 1; // Начинаем после заголовка
+                int rowIndex = 1;
                 for (WriteOffActData.WriteOffItem item : data.getItems()) {
                     XWPFTableRow row;
                     if (rowIndex < table.getRows().size()) {
@@ -291,10 +258,7 @@ public class DocumentRpaService {
         }
     }
 
-    /**
-     * Генерация ТТН (Товарно-транспортная накладная)
-     */
-    public byte[] generateShippingInvoice(ShippingInvoiceData data) {
+public byte[] generateShippingInvoice(ShippingInvoiceData data) {
         log.info("RPA: Generating Shipping Invoice (TTN) from template");
 
         try (InputStream template = loadTemplate("ттнls.xls");
@@ -302,32 +266,27 @@ public class DocumentRpaService {
 
             Sheet sheet = workbook.getSheetAt(0);
 
-            // Заголовок документа
             setCellValue(sheet, 2, 1, "ТОВАРНО-ТРАНСПОРТНАЯ НАКЛАДНАЯ №" + data.getInvoiceNumber());
             setCellValue(sheet, 3, 1, "от " + formatDate(data.getInvoiceDate()));
 
-            // Грузоотправитель
             setCellValue(sheet, 5, 0, "Грузоотправитель:");
             setCellValue(sheet, 5, 2, data.getShipperName());
             setCellValue(sheet, 6, 2, data.getShipperAddress());
             setCellValue(sheet, 7, 2, "Тел: " + data.getShipperPhone());
             setCellValue(sheet, 8, 2, "УНП: " + data.getShipperUnp());
 
-            // Грузополучатель
             setCellValue(sheet, 10, 0, "Грузополучатель:");
             setCellValue(sheet, 10, 2, data.getConsigneeName());
             setCellValue(sheet, 11, 2, data.getConsigneeAddress());
             setCellValue(sheet, 12, 2, "Тел: " + data.getConsigneePhone());
             setCellValue(sheet, 13, 2, "УНП: " + data.getConsigneeUnp());
 
-            // Перевозчик
             setCellValue(sheet, 15, 0, "Перевозчик:");
             setCellValue(sheet, 15, 2, data.getCarrierName());
             setCellValue(sheet, 16, 2, "ТС: " + data.getCarrierVehicle());
             setCellValue(sheet, 17, 2, "Водитель: " + data.getDriverName());
             setCellValue(sheet, 18, 2, "Вод. удост.: " + data.getDriverLicense());
 
-            // Маршрут
             setCellValue(sheet, 20, 0, "Пункт погрузки:");
             setCellValue(sheet, 20, 2, data.getLoadingPoint());
             setCellValue(sheet, 21, 0, "Пункт разгрузки:");
@@ -335,7 +294,6 @@ public class DocumentRpaService {
             setCellValue(sheet, 22, 0, "Дата отгрузки:");
             setCellValue(sheet, 22, 2, formatDate(data.getShippingDate()));
 
-            // Таблица товаров (начиная с строки 25)
             int rowNum = 25;
             int totalQty = 0;
             double totalWeight = 0.0;
@@ -365,7 +323,6 @@ public class DocumentRpaService {
                 rowNum++;
             }
 
-            // Итоги
             int totalRow = rowNum + 1;
             setCellValue(sheet, totalRow, 3, "ИТОГО:");
             setCellValue(sheet, totalRow, 4, totalQty);
@@ -373,7 +330,6 @@ public class DocumentRpaService {
             setCellValue(sheet, totalRow, 6, String.format("%.2f м³", totalVolume));
             setCellValue(sheet, totalRow, 8, String.format("%.2f руб.", totalCost));
 
-            // Подписи
             int signRow = totalRow + 3;
             setCellValue(sheet, signRow, 0, "Груз к перевозке принял:");
             setCellValue(sheet, signRow, 3, data.getReleasedBy());
@@ -390,7 +346,6 @@ public class DocumentRpaService {
             setCellValue(sheet, signRow + 4, 6, data.getReceivedByPosition());
             setCellValue(sheet, signRow + 4, 9, "__________");
 
-            // Примечания
             if (data.getNotes() != null && !data.getNotes().isEmpty()) {
                 setCellValue(sheet, signRow + 6, 0, "Примечания:");
                 setCellValue(sheet, signRow + 6, 2, data.getNotes());
@@ -413,15 +368,12 @@ public class DocumentRpaService {
         }
     }
 
-    // ============ Вспомогательные методы ============
-
-    private InputStream loadTemplate(String filename) throws IOException {
+private InputStream loadTemplate(String filename) throws IOException {
         Path templatePath = Paths.get(TEMPLATES_PATH + filename);
         if (Files.exists(templatePath)) {
             return Files.newInputStream(templatePath);
         }
 
-        // Fallback to classpath
         return new ClassPathResource("templates/" + filename).getInputStream();
     }
 

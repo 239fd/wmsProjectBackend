@@ -1,4 +1,4 @@
-﻿package by.bsuir.organizationservice.config;
+package by.bsuir.organizationservice.config;
 
 import by.bsuir.organizationservice.dto.response.ErrorResponse;
 import by.bsuir.organizationservice.exception.AppException;

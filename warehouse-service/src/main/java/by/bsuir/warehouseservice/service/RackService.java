@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice.service;
+package by.bsuir.warehouseservice.service;
 
 import by.bsuir.warehouseservice.dto.request.*;
 import by.bsuir.warehouseservice.dto.response.RackResponse;
@@ -36,12 +36,10 @@ public class RackService {
         log.info("Creating rack: {} of type: {} for warehouse: {}",
                 request.name(), request.kind(), request.warehouseId());
 
-
         warehouseRepository.findByWarehouseId(request.warehouseId())
                 .orElseThrow(() -> AppException.notFound("Склад не найден"));
 
         UUID rackId = UUID.randomUUID();
-
 
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("warehouseId", request.warehouseId().toString());
@@ -56,7 +54,6 @@ public class RackService {
                 .createdAt(LocalDateTime.now())
                 .build();
         eventRepository.save(rackEvent);
-
 
         RackReadModel readModel = RackReadModel.builder()
                 .rackId(rackId)
@@ -76,7 +73,6 @@ public class RackService {
     @Transactional
     public void createShelf(CreateShelfRequest request) {
         log.info("Creating shelf for rack: {}", request.rackId());
-
 
         RackReadModel rack = rackRepository.findById(request.rackId())
                 .orElseThrow(() -> AppException.notFound("Стеллаж не найден"));
@@ -131,7 +127,6 @@ public class RackService {
             throw AppException.badRequest("Стеллаж должен иметь тип FRIDGE");
         }
 
-
         if (fridgeRepository.existsById(request.rackId())) {
             throw AppException.conflict("Холодильник уже создан для этого стеллажа");
         }
@@ -158,7 +153,6 @@ public class RackService {
         if (rack.getKind() != RackKind.PALLET) {
             throw AppException.badRequest("Стеллаж должен иметь тип PALLET");
         }
-
 
         if (palletRepository.existsById(request.rackId())) {
             throw AppException.conflict("Паллет уже создан для этого стеллажа");
@@ -213,12 +207,10 @@ public class RackService {
     public List<Object> getCellsByRack(UUID rackId) {
         log.info("Getting cells for rack: {}", rackId);
 
-
         RackReadModel rack = rackRepository.findById(rackId)
                 .orElseThrow(() -> AppException.notFound("Стеллаж не найден"));
 
         List<Object> cells = new ArrayList<>();
-
 
         switch (rack.getKind()) {
             case SHELF:
@@ -247,7 +239,6 @@ public class RackService {
         RackReadModel rack = rackRepository.findById(rackId)
                 .orElseThrow(() -> AppException.notFound("Стеллаж не найден"));
 
-
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("rackId", rackId.toString());
         eventData.put("warehouseId", rack.getWarehouseId().toString());
@@ -260,7 +251,6 @@ public class RackService {
                 .createdAt(LocalDateTime.now())
                 .build();
         eventRepository.save(rackEvent);
-
 
         rackRepository.delete(rack);
 

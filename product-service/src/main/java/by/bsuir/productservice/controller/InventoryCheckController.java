@@ -1,6 +1,11 @@
-﻿package by.bsuir.productservice.controller;
+package by.bsuir.productservice.controller;
 
 import by.bsuir.productservice.service.InventoryCheckService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -11,26 +16,30 @@ import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
 
-
-
-
 @Slf4j
 @RestController
 @RequestMapping("/api/inventory-check")
 @RequiredArgsConstructor
+@Tag(name = "Инвентаризационные проверки", description = "API для проведения инвентаризации товаров на складе")
 public class InventoryCheckController {
 
     private final InventoryCheckService inventoryCheckService;
 
-
-
-
+    @Operation(
+            summary = "Начать инвентаризацию",
+            description = "Создает новую сессию инвентаризации для указанного склада. Доступно для DIRECTOR и ACCOUNTANT"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Инвентаризация начата"),
+            @ApiResponse(responseCode = "403", description = "Недостаточно прав"),
+            @ApiResponse(responseCode = "404", description = "Склад не найден")
+    })
     @PostMapping("/start")
     public ResponseEntity<Map<String, String>> startInventory(
-            @RequestParam UUID warehouseId,
-            @RequestParam UUID userId,
-            @RequestParam(required = false) String notes,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "ID склада", required = true) @RequestParam UUID warehouseId,
+            @Parameter(description = "ID пользователя", required = true) @RequestParam UUID userId,
+            @Parameter(description = "Примечания") @RequestParam(required = false) String notes,
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
         if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -45,17 +54,23 @@ public class InventoryCheckController {
         ));
     }
 
-
-
-
+    @Operation(
+            summary = "Зафиксировать фактическое количество",
+            description = "Записывает фактическое количество товара в ходе инвентаризации"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Количество зафиксировано"),
+            @ApiResponse(responseCode = "403", description = "Недостаточно прав"),
+            @ApiResponse(responseCode = "404", description = "Сессия не найдена")
+    })
     @PostMapping("/{sessionId}/record")
     public ResponseEntity<Map<String, String>> recordActualCount(
-            @PathVariable UUID sessionId,
-            @RequestParam UUID productId,
-            @RequestParam(required = false) UUID cellId,
-            @RequestParam BigDecimal actualQuantity,
-            @RequestParam(required = false) String notes,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "ID сессии инвентаризации", required = true) @PathVariable UUID sessionId,
+            @Parameter(description = "ID товара", required = true) @RequestParam UUID productId,
+            @Parameter(description = "ID ячейки") @RequestParam(required = false) UUID cellId,
+            @Parameter(description = "Фактическое количество", required = true) @RequestParam BigDecimal actualQuantity,
+            @Parameter(description = "Примечания") @RequestParam(required = false) String notes,
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -71,14 +86,20 @@ public class InventoryCheckController {
         ));
     }
 
-
-
-
+    @Operation(
+            summary = "Завершить инвентаризацию",
+            description = "Завершает сессию инвентаризации и формирует отчет о расхождениях. Доступно для DIRECTOR и ACCOUNTANT"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Инвентаризация завершена"),
+            @ApiResponse(responseCode = "403", description = "Недостаточно прав"),
+            @ApiResponse(responseCode = "404", description = "Сессия не найдена")
+    })
     @PostMapping("/{sessionId}/complete")
     public ResponseEntity<Map<String, Object>> completeInventory(
-            @PathVariable UUID sessionId,
-            @RequestParam UUID userId,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "ID сессии инвентаризации", required = true) @PathVariable UUID sessionId,
+            @Parameter(description = "ID пользователя", required = true) @RequestParam UUID userId,
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
         if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -88,9 +109,6 @@ public class InventoryCheckController {
 
         return ResponseEntity.ok(result);
     }
-
-
-
 
     @PostMapping("/{sessionId}/cancel")
     public ResponseEntity<Map<String, String>> cancelInventory(
@@ -108,9 +126,6 @@ public class InventoryCheckController {
                 "sessionId", sessionId.toString()
         ));
     }
-
-
-
 
     @GetMapping("/{sessionId}")
     public ResponseEntity<Map<String, Object>> getInventorySession(@PathVariable UUID sessionId) {

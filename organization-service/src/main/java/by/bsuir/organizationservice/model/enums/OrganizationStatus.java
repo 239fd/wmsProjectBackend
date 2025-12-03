@@ -1,4 +1,4 @@
-﻿package by.bsuir.organizationservice.model.enums;
+package by.bsuir.organizationservice.model.enums;
 
 public enum OrganizationStatus {
     ACTIVE,

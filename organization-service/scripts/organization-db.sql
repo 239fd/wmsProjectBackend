@@ -1,4 +1,4 @@
-﻿CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TYPE org_status AS ENUM ('ACTIVE', 'BLOCKED', 'ARCHIVED');
 
@@ -31,5 +31,23 @@ CREATE TABLE organization_invitation_codes (
     expires_at      TIMESTAMP NOT NULL,
     is_active       BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+CREATE TABLE organization_employees (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID NOT NULL,
+            org_id UUID NOT NULL,
+            role VARCHAR(50) NOT NULL,
+            joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            removed_at TIMESTAMP,
+            is_active BOOLEAN NOT NULL DEFAULT true,
+
+            CONSTRAINT fk_org_employee_org FOREIGN KEY (org_id)
+                REFERENCES organization_read_model(org_id) ON DELETE CASCADE,
+            CONSTRAINT uk_user_org UNIQUE (user_id, org_id)
+);
+
+CREATE INDEX idx_org_employees_org_id ON organization_employees(org_id);
+CREATE INDEX idx_org_employees_user_id ON organization_employees(user_id);
+CREATE INDEX idx_org_employees_is_active ON organization_employees(is_active);
 
 CREATE INDEX idx_invitation_code ON organization_invitation_codes(invitation_code) WHERE is_active = TRUE;

@@ -1,4 +1,4 @@
-﻿package by.bsuir.apigateway.filter;
+package by.bsuir.apigateway.filter;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
@@ -8,16 +8,9 @@ import reactor.core.publisher.Mono;
 
 import java.util.Objects;
 
-
-
-
-
 @Slf4j
 @Configuration
 public class RateLimitConfig {
-
-
-
 
     @Bean
     public KeyResolver ipKeyResolver() {
@@ -29,9 +22,6 @@ public class RateLimitConfig {
             return Mono.just(ip);
         };
     }
-
-
-
 
     @Bean
     public KeyResolver userKeyResolver() {

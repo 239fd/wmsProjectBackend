@@ -1,8 +1,15 @@
-﻿package by.bsuir.warehouseservice.controller;
+package by.bsuir.warehouseservice.controller;
 
 import by.bsuir.warehouseservice.dto.request.*;
 import by.bsuir.warehouseservice.dto.response.RackResponse;
 import by.bsuir.warehouseservice.service.RackService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,12 +25,10 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/racks")
 @RequiredArgsConstructor
+@Tag(name = "Стеллажи и зоны хранения", description = "API для управления стеллажами, полками, ячейками, паллетами и холодильными камерами")
 public class RackController {
 
     private final RackService rackService;
-
-
-
 
     @PostMapping
     public ResponseEntity<RackResponse> createRack(
@@ -38,9 +43,6 @@ public class RackController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-
-
-
     @PostMapping("/{rackId}/shelves")
     public ResponseEntity<Map<String, String>> createShelf(
             @PathVariable UUID rackId,
@@ -50,7 +52,6 @@ public class RackController {
         if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-
 
         CreateShelfRequest updatedRequest = new CreateShelfRequest(
                 rackId,
@@ -64,9 +65,6 @@ public class RackController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(Map.of("message", "Полка успешно создана"));
     }
-
-
-
 
     @PostMapping("/{rackId}/cells")
     public ResponseEntity<Map<String, String>> createCell(
@@ -91,9 +89,6 @@ public class RackController {
                 .body(Map.of("message", "Ячейка успешно создана"));
     }
 
-
-
-
     @PostMapping("/{rackId}/fridges")
     public ResponseEntity<Map<String, String>> createFridge(
             @PathVariable UUID rackId,
@@ -117,9 +112,6 @@ public class RackController {
                 .body(Map.of("message", "Холодильник успешно создан"));
     }
 
-
-
-
     @PostMapping("/{rackId}/pallets")
     public ResponseEntity<Map<String, String>> createPallet(
             @PathVariable UUID rackId,
@@ -141,17 +133,11 @@ public class RackController {
                 .body(Map.of("message", "Паллет успешно создан"));
     }
 
-
-
-
     @GetMapping("/warehouse/{warehouseId}")
     public ResponseEntity<List<RackResponse>> getRacksByWarehouse(@PathVariable UUID warehouseId) {
         List<RackResponse> response = rackService.getRacksByWarehouse(warehouseId);
         return ResponseEntity.ok(response);
     }
-
-
-
 
     @GetMapping("/{rackId}")
     public ResponseEntity<RackResponse> getRack(@PathVariable UUID rackId) {
@@ -159,26 +145,17 @@ public class RackController {
         return ResponseEntity.ok(response);
     }
 
-
-
-
     @GetMapping("/cells/{cellId}")
     public ResponseEntity<Object> getCellInfo(@PathVariable UUID cellId) {
         Object response = rackService.getCellInfo(cellId);
         return ResponseEntity.ok(response);
     }
 
-
-
-
     @GetMapping("/{rackId}/cells")
     public ResponseEntity<List<Object>> getCellsByRack(@PathVariable UUID rackId) {
         List<Object> response = rackService.getCellsByRack(rackId);
         return ResponseEntity.ok(response);
     }
-
-
-
 
     @DeleteMapping("/{rackId}")
     public ResponseEntity<Map<String, String>> deleteRack(

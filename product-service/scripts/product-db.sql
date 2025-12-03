@@ -1,9 +1,7 @@
-﻿CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TYPE inventory_status AS ENUM ('AVAILABLE', 'RESERVED', 'DAMAGED', 'EXPIRED', 'IN_TRANSIT');
 CREATE TYPE operation_type AS ENUM ('RECEIPT', 'SHIPMENT', 'TRANSFER', 'WRITE_OFF', 'REVALUATION', 'INVENTORY');
-
 
 CREATE TABLE product_read_model (
     product_id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -23,7 +21,6 @@ CREATE INDEX idx_product_sku ON product_read_model(sku);
 CREATE INDEX idx_product_barcode ON product_read_model(barcode);
 CREATE INDEX idx_product_category ON product_read_model(category);
 
-
 CREATE TABLE product_events (
     event_id        BIGSERIAL PRIMARY KEY,
     product_id      UUID NOT NULL,
@@ -35,7 +32,6 @@ CREATE TABLE product_events (
 
 CREATE INDEX idx_product_events_product_id ON product_events(product_id);
 CREATE INDEX idx_product_events_created_at ON product_events(created_at);
-
 
 CREATE TABLE product_batch (
     batch_id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -50,7 +46,6 @@ CREATE TABLE product_batch (
 
 CREATE INDEX idx_batch_product_id ON product_batch(product_id);
 CREATE INDEX idx_batch_expiry_date ON product_batch(expiry_date);
-
 
 CREATE TABLE inventory (
     inventory_id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -68,7 +63,6 @@ CREATE INDEX idx_inventory_product_id ON inventory(product_id);
 CREATE INDEX idx_inventory_warehouse_id ON inventory(warehouse_id);
 CREATE INDEX idx_inventory_cell_id ON inventory(cell_id);
 CREATE INDEX idx_inventory_status ON inventory(status);
-
 
 CREATE TABLE product_operation (
     operation_id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -124,7 +118,6 @@ CREATE INDEX idx_inventory_count_product ON inventory_count(product_id);
 CREATE INDEX idx_inventory_count_batch ON inventory_count(batch_id);
 CREATE INDEX idx_inventory_count_cell ON inventory_count(cell_id);
 CREATE INDEX idx_inventory_count_discrepancy ON inventory_count(discrepancy) WHERE discrepancy != 0;
-
 
 COMMENT ON TABLE inventory_session IS 'Сессии инвентаризации складских запасов';
 COMMENT ON TABLE inventory_count IS 'Записи подсчёта товаров при инвентаризации';

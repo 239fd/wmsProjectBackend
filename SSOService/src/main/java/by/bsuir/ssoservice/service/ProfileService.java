@@ -1,4 +1,4 @@
-﻿package by.bsuir.ssoservice.service;
+package by.bsuir.ssoservice.service;
 
 import by.bsuir.ssoservice.dto.request.UpdateProfileRequest;
 import by.bsuir.ssoservice.dto.response.SessionInfo;
@@ -28,7 +28,6 @@ public class ProfileService {
     private final UserReadModelRepository userRepository;
     private final LoginAuditRepository loginAuditRepository;
     private final RefreshTokenService refreshTokenService;
-
 
     @Transactional(readOnly = true)
     public UserResponse getUserProfile(UUID userId) {
@@ -129,7 +128,6 @@ public class ProfileService {
         }
     }
 
-
     @Transactional(readOnly = true)
     public List<SessionInfo> getActiveSessions(UUID userId, String currentToken) {
         List<LoginAudit> sessions = loginAuditRepository.findByUserIdAndIsActiveTrueOrderByLoginAtDesc(userId);
@@ -155,7 +153,6 @@ public class ProfileService {
         }
 
         loginAuditRepository.deactivateSessionById(sessionId);
-
 
         log.info("Session {} terminated for user: {}", sessionId, userId);
     }

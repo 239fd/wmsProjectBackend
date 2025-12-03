@@ -1,9 +1,16 @@
-﻿package by.bsuir.warehouseservice.controller;
+package by.bsuir.warehouseservice.controller;
 
 import by.bsuir.warehouseservice.dto.request.CreateWarehouseRequest;
 import by.bsuir.warehouseservice.dto.request.UpdateWarehouseRequest;
 import by.bsuir.warehouseservice.dto.response.WarehouseResponse;
 import by.bsuir.warehouseservice.service.WarehouseService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,12 +26,10 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/warehouses")
 @RequiredArgsConstructor
+@Tag(name = "Склады", description = "API для управления складами в системе WMS")
 public class WarehouseController {
 
     private final WarehouseService warehouseService;
-
-
-
 
     @PostMapping
     public ResponseEntity<WarehouseResponse> createWarehouse(
@@ -39,17 +44,11 @@ public class WarehouseController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-
-
-
     @GetMapping("/{warehouseId}")
     public ResponseEntity<WarehouseResponse> getWarehouse(@PathVariable UUID warehouseId) {
         WarehouseResponse response = warehouseService.getWarehouse(warehouseId);
         return ResponseEntity.ok(response);
     }
-
-
-
 
     @GetMapping("/organization/{orgId}")
     public ResponseEntity<List<WarehouseResponse>> getWarehousesByOrganization(
@@ -63,17 +62,11 @@ public class WarehouseController {
         return ResponseEntity.ok(response);
     }
 
-
-
-
     @GetMapping
     public ResponseEntity<List<WarehouseResponse>> getAllWarehouses() {
         List<WarehouseResponse> response = warehouseService.getAllWarehouses();
         return ResponseEntity.ok(response);
     }
-
-
-
 
     @PutMapping("/{warehouseId}")
     public ResponseEntity<WarehouseResponse> updateWarehouse(
@@ -89,9 +82,6 @@ public class WarehouseController {
         return ResponseEntity.ok(response);
     }
 
-
-
-
     @DeleteMapping("/{warehouseId}")
     public ResponseEntity<Map<String, String>> deleteWarehouse(
             @PathVariable UUID warehouseId,
@@ -104,9 +94,6 @@ public class WarehouseController {
         warehouseService.deleteWarehouse(warehouseId);
         return ResponseEntity.ok(Map.of("message", "Склад успешно удалён"));
     }
-
-
-
 
     @PostMapping("/{warehouseId}/activate")
     public ResponseEntity<WarehouseResponse> activateWarehouse(
@@ -121,9 +108,6 @@ public class WarehouseController {
         return ResponseEntity.ok(response);
     }
 
-
-
-
     @PostMapping("/{warehouseId}/deactivate")
     public ResponseEntity<WarehouseResponse> deactivateWarehouse(
             @PathVariable UUID warehouseId,
@@ -136,9 +120,6 @@ public class WarehouseController {
         WarehouseResponse response = warehouseService.deactivateWarehouse(warehouseId);
         return ResponseEntity.ok(response);
     }
-
-
-
 
     @GetMapping("/{warehouseId}/info")
     public ResponseEntity<Map<String, Object>> getWarehouseInfo(@PathVariable UUID warehouseId) {

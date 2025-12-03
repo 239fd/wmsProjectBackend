@@ -1,4 +1,4 @@
-﻿package by.bsuir.organizationservice.config;
+package by.bsuir.organizationservice.config;
 
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
@@ -11,17 +11,14 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-
     public static final String ORGANIZATION_EXCHANGE = "organization.exchange";
     public static final String WAREHOUSE_EXCHANGE = "warehouse.exchange";
-
 
     public static final String ORGANIZATION_CREATED_QUEUE = "organization.created.queue";
     public static final String ORGANIZATION_UPDATED_QUEUE = "organization.updated.queue";
     public static final String ORGANIZATION_DELETED_QUEUE = "organization.deleted.queue";
     public static final String WAREHOUSE_INFO_REQUEST_QUEUE = "warehouse.info.request.queue";
     public static final String WAREHOUSE_INFO_RESPONSE_QUEUE = "warehouse.info.response.queue";
-
 
     public static final String ORGANIZATION_CREATED_KEY = "organization.created";
     public static final String ORGANIZATION_UPDATED_KEY = "organization.updated";
@@ -43,18 +40,15 @@ public class RabbitMQConfig {
         return rabbitTemplate;
     }
 
-
     @Bean
     public TopicExchange organizationExchange() {
         return new TopicExchange(ORGANIZATION_EXCHANGE);
     }
 
-
     @Bean
     public TopicExchange warehouseExchange() {
         return new TopicExchange(WAREHOUSE_EXCHANGE);
     }
-
 
     @Bean
     public Queue organizationCreatedQueue() {
@@ -80,7 +74,6 @@ public class RabbitMQConfig {
     public Queue warehouseInfoResponseQueue() {
         return new Queue(WAREHOUSE_INFO_RESPONSE_QUEUE, true);
     }
-
 
     @Bean
     public Binding organizationCreatedBinding() {

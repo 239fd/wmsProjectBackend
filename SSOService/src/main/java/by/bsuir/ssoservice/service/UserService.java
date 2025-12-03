@@ -1,4 +1,4 @@
-﻿package by.bsuir.ssoservice.service;
+package by.bsuir.ssoservice.service;
 
 import by.bsuir.ssoservice.dto.request.LoginRequest;
 import by.bsuir.ssoservice.dto.request.RegisterRequest;
@@ -99,7 +99,6 @@ public class UserService {
                 .build();
         readModelRepository.save(readModel);
 
-
         return generateTokensWithAudit(readModel, null, null);
     }
 
@@ -161,7 +160,6 @@ public class UserService {
                 .build();
         readModelRepository.save(readModel);
 
-
         return generateTokensWithAudit(readModel, ipAddress, userAgent);
     }
 
@@ -177,7 +175,6 @@ public class UserService {
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw AppException.unauthorized("Неверный email или пароль");
         }
-
 
         return generateTokensWithAudit(user, ipAddress, userAgent);
     }
@@ -198,7 +195,6 @@ public class UserService {
         }
 
         refreshTokenService.deleteRefreshToken(refreshToken);
-
 
         return generateTokens(user);
     }
@@ -228,7 +224,6 @@ public class UserService {
                     }
                 }
             }
-
 
             refreshTokenService.deleteRefreshToken(refreshToken);
             log.info("User logged out successfully");
@@ -329,9 +324,6 @@ public class UserService {
         );
     }
 
-
-
-
     @Transactional
     public AuthResponse loginOAuthUser(UserReadModel user, String ipAddress, String userAgent) {
         if (!user.getIsActive()) {
@@ -341,9 +333,6 @@ public class UserService {
         log.info("OAuth user logged in: {}", user.getEmail());
         return generateTokensWithAudit(user, ipAddress, userAgent);
     }
-
-
-
 
     @Transactional
     public UserReadModel createOAuthUser(

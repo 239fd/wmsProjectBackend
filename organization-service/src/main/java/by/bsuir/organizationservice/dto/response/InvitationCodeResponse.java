@@ -1,4 +1,4 @@
-﻿package by.bsuir.organizationservice.dto.response;
+package by.bsuir.organizationservice.dto.response;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice;
+package by.bsuir.productservice;
 
 import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 import org.springframework.boot.SpringApplication;

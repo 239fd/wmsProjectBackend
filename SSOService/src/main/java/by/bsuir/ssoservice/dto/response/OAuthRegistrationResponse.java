@@ -1,10 +1,6 @@
-﻿package by.bsuir.ssoservice.dto.response;
+package by.bsuir.ssoservice.dto.response;
 
 import lombok.Builder;
-
-
-
-
 
 @Builder
 public record OAuthRegistrationResponse(

@@ -1,4 +1,4 @@
-﻿package by.bsuir.ssoservice.service;
+package by.bsuir.ssoservice.service;
 
 import by.bsuir.ssoservice.dto.request.CompleteOAuthRegistrationRequest;
 import by.bsuir.ssoservice.dto.response.AuthResponse;
@@ -29,7 +29,7 @@ public class OAuthService {
     private final UserReadModelRepository userRepository;
     private final OAuthPendingRegistrationRepository pendingRegistrationRepository;
     private final UserService userService;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
 
     @Value("${oauth.yandex.client-id}")
     private String yandexClientId;
@@ -140,7 +140,6 @@ public class OAuthService {
         };
     }
 
-
     private String buildYandexAuthUrl(String type) {
         return String.format(
                 "https://oauth.yandex.ru/authorize?response_type=code&client_id=%s&redirect_uri=%s&state=%s",
@@ -203,7 +202,6 @@ public class OAuthService {
             throw new AppException("Ошибка получения данных пользователя", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
 
     private String buildGoogleAuthUrl(String type) {
         return String.format(

@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice.model.entity;
+package by.bsuir.warehouseservice.model.entity;
 
 import by.bsuir.warehouseservice.model.enums.RackKind;
 import jakarta.persistence.*;

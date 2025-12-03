@@ -1,4 +1,4 @@
-﻿package by.bsuir.organizationservice;
+package by.bsuir.organizationservice;
 
 import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 import org.springframework.boot.SpringApplication;

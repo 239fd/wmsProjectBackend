@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice.dto.request;
+package by.bsuir.warehouseservice.dto.request;
 
 import by.bsuir.warehouseservice.model.enums.RackKind;
 import jakarta.validation.constraints.NotBlank;

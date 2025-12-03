@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice;
+package by.bsuir.warehouseservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

@@ -1,4 +1,4 @@
-﻿package by.bsuir.organizationservice.service;
+package by.bsuir.organizationservice.service;
 
 import by.bsuir.organizationservice.repository.OrganizationInvitationCodeRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,9 +15,6 @@ import java.time.LocalDateTime;
 public class InvitationCodeScheduler {
 
     private final OrganizationInvitationCodeRepository invitationCodeRepository;
-
-
-
 
     @Scheduled(cron = "0 0 * * * *")
     @Transactional

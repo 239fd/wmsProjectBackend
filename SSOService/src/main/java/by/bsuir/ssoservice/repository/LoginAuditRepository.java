@@ -1,4 +1,4 @@
-﻿package by.bsuir.ssoservice.repository;
+package by.bsuir.ssoservice.repository;
 
 import by.bsuir.ssoservice.model.entity.LoginAudit;
 import org.springframework.data.jpa.repository.JpaRepository;

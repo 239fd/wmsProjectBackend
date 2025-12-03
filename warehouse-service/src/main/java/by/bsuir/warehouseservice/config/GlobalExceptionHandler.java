@@ -1,4 +1,4 @@
-﻿package by.bsuir.warehouseservice.config;
+package by.bsuir.warehouseservice.config;
 
 import by.bsuir.warehouseservice.dto.response.ErrorResponse;
 import by.bsuir.warehouseservice.exception.AppException;

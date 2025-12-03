@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.repository;
+package by.bsuir.productservice.repository;
 
 import by.bsuir.productservice.model.entity.ProductOperation;
 import by.bsuir.productservice.model.enums.OperationType;

@@ -1,4 +1,4 @@
-﻿package by.bsuir.ssoservice.model.event;
+package by.bsuir.ssoservice.model.event;
 
 import by.bsuir.ssoservice.model.enums.AuthProvider;
 import by.bsuir.ssoservice.model.enums.UserRole;
@@ -8,9 +8,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.UUID;
-
-
-
 
 public class UserEvents {
 

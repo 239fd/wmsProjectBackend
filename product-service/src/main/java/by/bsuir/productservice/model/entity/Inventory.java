@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.model.entity;
+package by.bsuir.productservice.model.entity;
 
 import by.bsuir.productservice.model.enums.InventoryStatus;
 import jakarta.persistence.*;

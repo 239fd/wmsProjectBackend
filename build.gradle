@@ -15,7 +15,7 @@ allprojects {
 
     spotless {
         java {
-            target 'src/**/*.java'
+            target 'src*.java'
             googleJavaFormat('1.17.0').aosp().reflowLongStrings()
             removeUnusedImports()
             trimTrailingWhitespace()
@@ -29,6 +29,7 @@ allprojects {
 subprojects {
     apply plugin: 'java'
     apply plugin: 'checkstyle'
+    apply plugin: 'jacoco'
 
     java {
         toolchain {
@@ -53,6 +54,34 @@ subprojects {
         reports {
             xml.required = false
             html.required = true
+        }
+    }
+
+    jacoco {
+        toolVersion = '0.8.11'
+    }
+
+    test {
+        useJUnitPlatform()
+        finalizedBy jacocoTestReport
+    }
+
+    jacocoTestReport {
+        dependsOn test
+        reports {
+            xml.required = true
+            html.required = true
+            csv.required = false
+        }
+    }
+
+    jacocoTestCoverageVerification {
+        violationRules {
+            rule {
+                limit {
+                    minimum = 0.50
+                }
+            }
         }
     }
 }

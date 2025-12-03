@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.repository;
+package by.bsuir.productservice.repository;
 
 import by.bsuir.productservice.model.entity.InventoryCount;
 import org.springframework.data.jpa.repository.JpaRepository;

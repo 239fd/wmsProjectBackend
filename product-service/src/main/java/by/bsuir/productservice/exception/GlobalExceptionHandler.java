@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.exception;
+package by.bsuir.productservice.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

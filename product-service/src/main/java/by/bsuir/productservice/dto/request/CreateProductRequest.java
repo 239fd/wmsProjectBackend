@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.dto.request;
+package by.bsuir.productservice.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

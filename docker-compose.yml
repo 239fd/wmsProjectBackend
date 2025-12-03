@@ -1,13 +1,12 @@
 version: '3.8'
 
 services:
-  # RabbitMQ для межсервисного общения
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: wms-rabbitmq
     ports:
-      - "5672:5672"    # AMQP порт
-      - "15672:15672"  # Management UI
+      - "5672:5672"
+      - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -21,7 +20,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # PostgreSQL для Organization Service
   organization-postgres:
     image: postgres:15-alpine
     container_name: organization-postgres
@@ -42,7 +40,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # PostgreSQL для Warehouse Service
   warehouse-postgres:
     image: postgres:15-alpine
     container_name: warehouse-postgres
@@ -63,7 +60,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # PostgreSQL для Product Service
   product-postgres:
     image: postgres:15-alpine
     container_name: product-postgres

@@ -1,4 +1,4 @@
-﻿package by.bsuir.organizationservice.repository;
+package by.bsuir.organizationservice.repository;
 
 import by.bsuir.organizationservice.model.entity.OrganizationEvent;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.service;
+package by.bsuir.productservice.service;
 
 import by.bsuir.productservice.exception.AppException;
 import by.bsuir.productservice.model.entity.*;
@@ -13,9 +13,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
-
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -26,13 +23,9 @@ public class InventoryCheckService {
     private final InventoryRepository inventoryRepository;
     private final ProductOperationRepository operationRepository;
 
-
-
-
     @Transactional
     public UUID startInventory(UUID warehouseId, UUID userId, String notes) {
         log.info("Starting inventory check for warehouse: {}", warehouseId);
-
 
         List<InventorySession> activeSessions = sessionRepository.findByStatus(
                 InventorySession.SessionStatus.IN_PROGRESS);
@@ -44,7 +37,6 @@ public class InventoryCheckService {
             }
         }
 
-
         UUID sessionId = UUID.randomUUID();
         InventorySession session = InventorySession.builder()
                 .sessionId(sessionId)
@@ -55,7 +47,6 @@ public class InventoryCheckService {
                 .notes(notes)
                 .build();
         sessionRepository.save(session);
-
 
         List<Inventory> currentInventory = inventoryRepository.findByWarehouseId(warehouseId);
 
@@ -79,15 +70,11 @@ public class InventoryCheckService {
         return sessionId;
     }
 
-
-
-
     @Transactional
     public void recordActualCount(UUID sessionId, UUID productId, UUID cellId,
                                    BigDecimal actualQuantity, String notes) {
         log.info("Recording actual count for session: {}, product: {}, cell: {}, quantity: {}",
                 sessionId, productId, cellId, actualQuantity);
-
 
         InventorySession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> AppException.notFound("Сессия инвентаризации не найдена"));
@@ -96,14 +83,12 @@ public class InventoryCheckService {
             throw AppException.badRequest("Сессия инвентаризации уже завершена");
         }
 
-
         List<InventoryCount> counts = countRepository.findBySessionId(sessionId);
         InventoryCount targetCount = counts.stream()
                 .filter(c -> c.getProductId().equals(productId) &&
                             (cellId == null || cellId.equals(c.getCellId())))
                 .findFirst()
                 .orElseThrow(() -> AppException.notFound("Запись подсчёта не найдена"));
-
 
         targetCount.setActualQuantity(actualQuantity);
         targetCount.setDiscrepancy(actualQuantity.subtract(targetCount.getExpectedQuantity()));
@@ -115,13 +100,9 @@ public class InventoryCheckService {
         log.info("Actual count recorded. Discrepancy: {}", targetCount.getDiscrepancy());
     }
 
-
-
-
     @Transactional
     public Map<String, Object> completeInventory(UUID sessionId, UUID userId) {
         log.info("Completing inventory session: {}", sessionId);
-
 
         InventorySession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> AppException.notFound("Сессия инвентаризации не найдена"));
@@ -130,9 +111,7 @@ public class InventoryCheckService {
             throw AppException.badRequest("Сессия уже завершена");
         }
 
-
         List<InventoryCount> counts = countRepository.findBySessionId(sessionId);
-
 
         long unfilled = counts.stream()
                 .filter(c -> c.getActualQuantity() == null)
@@ -142,7 +121,6 @@ public class InventoryCheckService {
             log.warn("Inventory session has {} unfilled counts", unfilled);
         }
 
-
         List<InventoryCount> discrepancies = counts.stream()
                 .filter(c -> c.getActualQuantity() != null)
                 .filter(c -> c.getDiscrepancy().compareTo(BigDecimal.ZERO) != 0)
@@ -150,18 +128,15 @@ public class InventoryCheckService {
 
         log.info("Found {} discrepancies", discrepancies.size());
 
-
         for (InventoryCount count : discrepancies) {
             if (count.getActualQuantity() != null) {
                 adjustInventory(count, userId);
             }
         }
 
-
         session.setStatus(InventorySession.SessionStatus.COMPLETED);
         session.setCompletedAt(LocalDateTime.now());
         sessionRepository.save(session);
-
 
         Map<String, Object> result = new HashMap<>();
         result.put("sessionId", sessionId.toString());
@@ -180,9 +155,6 @@ public class InventoryCheckService {
         return result;
     }
 
-
-
-
     private void adjustInventory(InventoryCount count, UUID userId) {
         Optional<Inventory> inventoryOpt = inventoryRepository
                 .findByProductIdAndWarehouseId(count.getProductId(), count.getSessionId());
@@ -193,7 +165,6 @@ public class InventoryCheckService {
             inventory.setQuantity(count.getActualQuantity());
             inventory.setLastUpdated(LocalDateTime.now());
             inventoryRepository.save(inventory);
-
 
             ProductOperation operation = ProductOperation.builder()
                     .operationId(UUID.randomUUID())
@@ -213,9 +184,6 @@ public class InventoryCheckService {
         }
     }
 
-
-
-
     @Transactional
     public void cancelInventory(UUID sessionId) {
         log.info("Cancelling inventory session: {}", sessionId);
@@ -233,9 +201,6 @@ public class InventoryCheckService {
 
         log.info("Inventory session cancelled: {}", sessionId);
     }
-
-
-
 
     @Transactional(readOnly = true)
     public Map<String, Object> getInventorySession(UUID sessionId) {

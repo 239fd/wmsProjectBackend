@@ -9,15 +9,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * DTO для данных Приходного ордера
- */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ReceiptOrderData {
-    // Заголовок документа
     private String documentNumber;
     private LocalDate documentDate;
     private String organizationName;
@@ -25,20 +21,16 @@ public class ReceiptOrderData {
     private String warehouseName;
     private String warehouseAddress;
 
-    // Поставщик
     private String supplierName;
     private String supplierInn;
     private String supplierAddress;
 
-    // Ответственные лица
-    private String receivedBy;      // Принял
-    private String acceptedBy;      // Утвердил
-    private String releasedBy;      // Отпустил
+    private String receivedBy;
+    private String acceptedBy;
+    private String releasedBy;
 
-    // Позиции товаров
     private List<ReceiptItem> items;
 
-    // Итоги
     private BigDecimal totalAmount;
     private Integer totalQuantity;
 
@@ -58,5 +50,4 @@ public class ReceiptOrderData {
         private LocalDate expiryDate;
     }
 }
-
 

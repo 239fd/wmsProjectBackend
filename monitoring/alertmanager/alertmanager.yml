@@ -37,12 +37,6 @@ receivers:
     email_configs:
       - to: 'oncall@example.com'
         send_resolved: true
-    # Можно добавить Slack, PagerDuty и т.д.
-    # slack_configs:
-    #   - api_url: 'YOUR_SLACK_WEBHOOK_URL'
-    #     channel: '#alerts-critical'
-    #     title: 'CRITICAL: {{ .GroupLabels.alertname }}'
-    #     text: '{{ .CommonAnnotations.description }}'
 
   - name: 'wms-warnings'
     email_configs:

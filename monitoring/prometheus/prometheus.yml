@@ -5,20 +5,16 @@ global:
     cluster: 'wms-cluster'
     environment: 'dev'
 
-# Alertmanager configuration
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
             - alertmanager:9093
 
-# Load rules
 rule_files:
   - "alerts.yml"
 
-# Scrape configurations
 scrape_configs:
-  # API Gateway
   - job_name: 'api-gateway'
     metrics_path: '/actuator/prometheus'
     static_configs:
@@ -26,7 +22,6 @@ scrape_configs:
         labels:
           service: 'api-gateway'
 
-  # SSO Service
   - job_name: 'sso-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
@@ -34,7 +29,6 @@ scrape_configs:
         labels:
           service: 'sso-service'
 
-  # Warehouse Service
   - job_name: 'warehouse-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
@@ -42,7 +36,6 @@ scrape_configs:
         labels:
           service: 'warehouse-service'
 
-  # Product Service
   - job_name: 'product-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
@@ -50,7 +43,6 @@ scrape_configs:
         labels:
           service: 'product-service'
 
-  # Organization Service
   - job_name: 'organization-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
@@ -58,7 +50,6 @@ scrape_configs:
         labels:
           service: 'organization-service'
 
-  # Document Service
   - job_name: 'document-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
@@ -66,7 +57,6 @@ scrape_configs:
         labels:
           service: 'document-service'
 
-  # Eureka Server
   - job_name: 'eureka-server'
     metrics_path: '/actuator/prometheus'
     static_configs:
@@ -74,28 +64,24 @@ scrape_configs:
         labels:
           service: 'eureka-server'
 
-  # PostgreSQL Exporters
   - job_name: 'postgres'
     static_configs:
       - targets: ['host.docker.internal:9187']
         labels:
           service: 'postgresql'
 
-  # RabbitMQ
   - job_name: 'rabbitmq'
     static_configs:
       - targets: ['host.docker.internal:15692']
         labels:
           service: 'rabbitmq'
 
-  # Redis
   - job_name: 'redis'
     static_configs:
       - targets: ['host.docker.internal:6379']
         labels:
           service: 'redis'
 
-  # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']

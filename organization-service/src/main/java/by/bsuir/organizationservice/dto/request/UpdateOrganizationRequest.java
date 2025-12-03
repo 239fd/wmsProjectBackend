@@ -1,4 +1,4 @@
-﻿package by.bsuir.organizationservice.dto.request;
+package by.bsuir.organizationservice.dto.request;
 
 import jakarta.validation.constraints.Size;
 

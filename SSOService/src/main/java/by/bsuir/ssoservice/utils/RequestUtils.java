@@ -1,4 +1,4 @@
-﻿package by.bsuir.ssoservice.utils;
+package by.bsuir.ssoservice.utils;
 
 import jakarta.servlet.http.HttpServletRequest;
 

@@ -8,60 +8,48 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * DTO для данных Товарно-транспортной накладной (ТТН)
- */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ShippingInvoiceData {
 
-    // Номер и дата
     private String invoiceNumber;
     private LocalDate invoiceDate;
 
-    // Грузоотправитель
     private String shipperName;
     private String shipperAddress;
     private String shipperPhone;
-    private String shipperUnp; // УНП отправителя
+    private String shipperUnp;
 
-    // Грузополучатель
     private String consigneeName;
     private String consigneeAddress;
     private String consigneePhone;
-    private String consigneeUnp; // УНП получателя
+    private String consigneeUnp;
 
-    // Перевозчик
     private String carrierName;
-    private String carrierVehicle; // Марка и номер ТС
+    private String carrierVehicle;
     private String driverName;
     private String driverLicense;
 
-    // Пункт погрузки и выгрузки
     private String loadingPoint;
     private String unloadingPoint;
     private LocalDate shippingDate;
 
-    // Товары
     private List<ShipmentItem> items;
 
-    // Итоги
     private Integer totalQuantity;
     private Double totalWeight;
     private Double totalVolume;
     private Double totalCost;
 
-    // Ответственные лица
-    private String releasedBy; // Отпуск разрешил
+    private String releasedBy;
     private String releasedByPosition;
-    private String shippedBy; // Груз принял
+    private String shippedBy;
     private String shippedByPosition;
-    private String receivedBy; // Груз получил
+    private String receivedBy;
     private String receivedByPosition;
 
-    // Дополнительная информация
     private String notes;
     private String specialConditions;
 

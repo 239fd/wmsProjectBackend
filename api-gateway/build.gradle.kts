@@ -30,18 +30,14 @@ dependencies {
     implementation("io.micrometer:micrometer-registry-prometheus")
     implementation("io.micrometer:micrometer-tracing-bridge-brave")
 
-    // Logging
     implementation("net.logstash.logback:logstash-logback-encoder:7.4")
     implementation("com.github.loki4j:loki-logback-appender:1.5.1")
 
-    // Cache
     implementation("com.github.ben-manes.caffeine:caffeine")
 
-    // Lombok
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
 
-    // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

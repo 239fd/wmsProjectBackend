@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.model.enums;
+package by.bsuir.productservice.model.enums;
 
 public enum InventoryStatus {
     AVAILABLE,

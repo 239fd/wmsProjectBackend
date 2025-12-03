@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.service;
+package by.bsuir.productservice.service;
 
 import by.bsuir.productservice.dto.request.CreateBatchRequest;
 import by.bsuir.productservice.dto.response.BatchResponse;
@@ -28,7 +28,6 @@ public class BatchService {
     @Transactional
     public BatchResponse createBatch(CreateBatchRequest request) {
         log.info("Creating batch for product: {}", request.productId());
-
 
         ProductReadModel product = productRepository.findById(request.productId())
                 .orElseThrow(() -> AppException.notFound("Товар не найден"));

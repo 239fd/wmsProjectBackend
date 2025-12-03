@@ -1,10 +1,15 @@
-﻿package by.bsuir.ssoservice.controller;
+package by.bsuir.ssoservice.controller;
 
 import by.bsuir.ssoservice.dto.request.CompleteOAuthRegistrationRequest;
 import by.bsuir.ssoservice.dto.response.AuthResponse;
 import by.bsuir.ssoservice.dto.response.OAuthRegistrationResponse;
 import by.bsuir.ssoservice.service.OAuthService;
 import by.bsuir.ssoservice.utils.RequestUtils;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -19,25 +24,42 @@ import java.nio.charset.StandardCharsets;
 @RestController
 @RequestMapping("/api/oauth")
 @RequiredArgsConstructor
+@Tag(name = "OAuth2 аутентификация", description = "API для входа через Google и Yandex с помощью OAuth2")
 public class OAuthController {
 
     private final OAuthService oauthService;
 
+    @Operation(
+            summary = "Инициировать OAuth2 аутентификацию",
+            description = "Перенаправляет пользователя на страницу аутентификации провайдера (Google или Yandex)"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "302", description = "Перенаправление на OAuth провайдера"),
+            @ApiResponse(responseCode = "400", description = "Неподдерживаемый провайдер")
+    })
     @GetMapping("/authorize/{provider}")
     public void initiateOAuth(
-            @PathVariable String provider,
-            @RequestParam(defaultValue = "login") String type,
+            @Parameter(description = "Провайдер OAuth (google, yandex)", required = true) @PathVariable String provider,
+            @Parameter(description = "Тип операции (login, register)") @RequestParam(defaultValue = "login") String type,
             HttpServletResponse response) throws IOException {
 
         String authorizationUrl = oauthService.getAuthorizationUrl(provider, type);
         response.sendRedirect(authorizationUrl);
     }
 
+    @Operation(
+            summary = "Callback OAuth2",
+            description = "Обрабатывает ответ от OAuth провайдера после авторизации пользователя"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "302", description = "Перенаправление на фронтенд с токенами"),
+            @ApiResponse(responseCode = "400", description = "Ошибка аутентификации")
+    })
     @GetMapping("/callback/{provider}")
     public void handleOAuthCallback(
-            @PathVariable String provider,
-            @RequestParam String code,
-            @RequestParam(required = false) String state,
+            @Parameter(description = "Провайдер OAuth", required = true) @PathVariable String provider,
+            @Parameter(description = "Код авторизации от провайдера", required = true) @RequestParam String code,
+            @Parameter(description = "State параметр для защиты от CSRF") @RequestParam(required = false) String state,
             HttpServletRequest httpRequest,
             HttpServletResponse response) throws IOException {
 

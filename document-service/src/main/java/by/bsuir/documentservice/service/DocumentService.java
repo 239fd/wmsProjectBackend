@@ -121,10 +121,7 @@ public class DocumentService {
         return documentId;
     }
 
-    /**
-     * Генерация ТТН (Товарно-транспортной накладной)
-     */
-    public UUID generateWaybill(Map<String, Object> data) {
+public UUID generateWaybill(Map<String, Object> data) {
         log.info("Generating waybill (shipping invoice) via RPA");
         log.debug("Waybill data: {}", data);
 
@@ -195,10 +192,7 @@ public class DocumentService {
         return metadata;
     }
 
-    // ============ Mapping методы ============
-
-    private ReceiptOrderData mapToReceiptOrderData(Map<String, Object> data) {
-        // TODO: Implement proper mapping
+private ReceiptOrderData mapToReceiptOrderData(Map<String, Object> data) {
         return ReceiptOrderData.builder()
                 .documentNumber(getString(data, "documentNumber", "ПО-001"))
                 .documentDate(getDate(data, "documentDate", LocalDate.now()))

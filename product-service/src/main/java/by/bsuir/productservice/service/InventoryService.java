@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.service;
+package by.bsuir.productservice.service;
 
 import by.bsuir.productservice.dto.response.InventoryResponse;
 import by.bsuir.productservice.exception.AppException;

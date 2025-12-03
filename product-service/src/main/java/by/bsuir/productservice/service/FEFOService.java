@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.service;
+package by.bsuir.productservice.service;
 
 import by.bsuir.productservice.exception.AppException;
 import by.bsuir.productservice.model.entity.Inventory;
@@ -13,10 +13,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 
-
-
-
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -25,14 +21,6 @@ public class FEFOService {
     private final InventoryRepository inventoryRepository;
     private final ProductBatchRepository batchRepository;
 
-
-
-
-
-
-
-
-
     public List<InventoryAllocation> selectInventoryByFEFO(
             UUID productId,
             UUID warehouseId,
@@ -40,7 +28,6 @@ public class FEFOService {
 
         log.info("Selecting inventory by FEFO for product {} at warehouse {}, required quantity: {}",
                 productId, warehouseId, requiredQuantity);
-
 
         List<Inventory> availableInventory = inventoryRepository
                 .findByProductIdAndWarehouseId(productId, warehouseId)
@@ -51,14 +38,12 @@ public class FEFOService {
             throw AppException.notFound("Товар отсутствует на складе");
         }
 
-
         List<InventoryWithBatch> inventoryWithBatches = enrichWithBatchInfo(availableInventory);
         inventoryWithBatches.sort(Comparator.comparing(iwb ->
                 iwb.batch != null && iwb.batch.getExpiryDate() != null
                     ? iwb.batch.getExpiryDate()
                     : LocalDate.MAX
         ));
-
 
         LocalDate today = LocalDate.now();
         for (InventoryWithBatch iwb : inventoryWithBatches) {
@@ -71,13 +56,11 @@ public class FEFOService {
             }
         }
 
-
         List<InventoryAllocation> allocations = new ArrayList<>();
         BigDecimal remaining = requiredQuantity;
 
         for (InventoryWithBatch iwb : inventoryWithBatches) {
             Inventory inv = iwb.inventory;
-
 
             BigDecimal available = inv.getQuantity().subtract(inv.getReservedQuantity());
 
@@ -107,7 +90,6 @@ public class FEFOService {
             }
         }
 
-
         if (remaining.compareTo(BigDecimal.ZERO) > 0) {
             throw AppException.badRequest(
                     String.format("Недостаточно товара на складе. Доступно: %s, требуется: %s",
@@ -118,9 +100,6 @@ public class FEFOService {
         log.info("FEFO selection completed. Total allocations: {}", allocations.size());
         return allocations;
     }
-
-
-
 
     private List<InventoryWithBatch> enrichWithBatchInfo(List<Inventory> inventories) {
         List<InventoryWithBatch> result = new ArrayList<>();
@@ -136,9 +115,6 @@ public class FEFOService {
         return result;
     }
 
-
-
-
     private static class InventoryWithBatch {
         final Inventory inventory;
         final ProductBatch batch;
@@ -148,9 +124,6 @@ public class FEFOService {
             this.batch = batch;
         }
     }
-
-
-
 
     public static class InventoryAllocation {
         private final UUID inventoryId;
@@ -172,7 +145,6 @@ public class FEFOService {
             this.quantity = quantity;
             this.expiryDate = expiryDate;
         }
-
 
         public UUID getInventoryId() { return inventoryId; }
         public UUID getProductId() { return productId; }

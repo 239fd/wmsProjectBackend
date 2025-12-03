@@ -1,4 +1,4 @@
-﻿package by.bsuir.productservice.service;
+package by.bsuir.productservice.service;
 
 import by.bsuir.productservice.dto.request.CreateProductRequest;
 import by.bsuir.productservice.dto.request.UpdateProductRequest;
@@ -34,7 +34,6 @@ public class ProductService {
     public ProductResponse createProduct(CreateProductRequest request) {
         log.info("Creating product: {}", request.name());
 
-
         if (request.sku() != null && productRepository.existsBySku(request.sku())) {
             throw AppException.conflict("Товар с таким SKU уже существует");
         }
@@ -44,7 +43,6 @@ public class ProductService {
         }
 
         UUID productId = UUID.randomUUID();
-
 
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("name", request.name());
@@ -61,7 +59,6 @@ public class ProductService {
                 .createdAt(LocalDateTime.now())
                 .build();
         eventRepository.save(productEvent);
-
 
         ProductReadModel readModel = ProductReadModel.builder()
                 .productId(productId)
@@ -124,20 +121,17 @@ public class ProductService {
         ProductReadModel product = productRepository.findById(productId)
                 .orElseThrow(() -> AppException.notFound("Товар не найден"));
 
-
         if (request.sku() != null && !request.sku().equals(product.getSku())) {
             if (productRepository.existsBySku(request.sku())) {
                 throw AppException.conflict("Товар с таким SKU уже существует");
             }
         }
 
-
         if (request.barcode() != null && !request.barcode().equals(product.getBarcode())) {
             if (productRepository.existsByBarcode(request.barcode())) {
                 throw AppException.conflict("Товар с таким штрих-кодом уже существует");
             }
         }
-
 
         Map<String, Object> eventData = new HashMap<>();
         if (request.name() != null) eventData.put("name", request.name());
@@ -157,7 +151,6 @@ public class ProductService {
                 .createdAt(LocalDateTime.now())
                 .build();
         eventRepository.save(productEvent);
-
 
         if (request.name() != null) product.setName(request.name());
         if (request.sku() != null) product.setSku(request.sku());
@@ -181,7 +174,6 @@ public class ProductService {
 
         ProductReadModel product = productRepository.findById(productId)
                 .orElseThrow(() -> AppException.notFound("Товар не найден"));
-
 
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("productId", productId.toString());

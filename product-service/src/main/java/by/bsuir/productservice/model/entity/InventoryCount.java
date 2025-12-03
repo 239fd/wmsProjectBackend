@@ -1,13 +1,10 @@
-﻿package by.bsuir.productservice.model.entity;
+package by.bsuir.productservice.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
 import java.util.UUID;
-
-
-
 
 @Entity
 @Table(name = "inventory_count")

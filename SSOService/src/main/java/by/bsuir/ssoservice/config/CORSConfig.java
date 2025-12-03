@@ -1,4 +1,4 @@
-﻿package by.bsuir.ssoservice.config;
+package by.bsuir.ssoservice.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;

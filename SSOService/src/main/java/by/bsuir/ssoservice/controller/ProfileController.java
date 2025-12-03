@@ -1,4 +1,4 @@
-﻿package by.bsuir.ssoservice.controller;
+package by.bsuir.ssoservice.controller;
 
 import by.bsuir.ssoservice.dto.request.UpdateProfileRequest;
 import by.bsuir.ssoservice.dto.response.SessionInfo;
@@ -6,6 +6,13 @@ import by.bsuir.ssoservice.dto.response.UserResponse;
 import by.bsuir.ssoservice.exception.AppException;
 import by.bsuir.ssoservice.service.ProfileService;
 import by.bsuir.ssoservice.utils.SecurityUtils;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,10 +29,20 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/profile")
 @RequiredArgsConstructor
+@Tag(name = "Профиль пользователя", description = "API для управления профилем, фото и активными сессиями")
 public class ProfileController {
 
     private final ProfileService profileService;
 
+    @Operation(
+            summary = "Получить профиль текущего пользователя",
+            description = "Возвращает информацию о профиле аутентифицированного пользователя"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Профиль получен",
+                    content = @Content(schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Неавторизован")
+    })
     @GetMapping
     public ResponseEntity<UserResponse> getCurrentUser() {
         UUID userId = SecurityUtils.getCurrentUserId();
@@ -33,6 +50,16 @@ public class ProfileController {
         return ResponseEntity.ok(user);
     }
 
+    @Operation(
+            summary = "Обновить профиль",
+            description = "Обновляет информацию профиля пользователя (имя, фамилия, телефон, дата рождения)"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Профиль обновлен",
+                    content = @Content(schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Некорректные данные"),
+            @ApiResponse(responseCode = "401", description = "Неавторизован")
+    })
     @PutMapping
     public ResponseEntity<UserResponse> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
         UUID userId = SecurityUtils.getCurrentUserId();
@@ -40,8 +67,18 @@ public class ProfileController {
         return ResponseEntity.ok(updatedUser);
     }
 
+    @Operation(
+            summary = "Загрузить фото профиля",
+            description = "Загружает фото профиля пользователя (максимум 5 МБ, форматы: jpg, png, gif)"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Фото загружено"),
+            @ApiResponse(responseCode = "400", description = "Файл слишком большой или неверный формат"),
+            @ApiResponse(responseCode = "401", description = "Неавторизован")
+    })
     @PostMapping(value = "/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Map<String, String>> uploadPhoto(@RequestParam("photo") MultipartFile photo) throws IOException {
+    public ResponseEntity<Map<String, String>> uploadPhoto(
+            @Parameter(description = "Файл изображения", required = true) @RequestParam("photo") MultipartFile photo) throws IOException {
         UUID userId = SecurityUtils.getCurrentUserId();
 
         if (photo.getSize() > 5 * 1024 * 1024) {
@@ -57,6 +94,14 @@ public class ProfileController {
         return ResponseEntity.ok(Map.of("photoUrl", photoUrl));
     }
 
+    @Operation(
+            summary = "Удалить фото профиля",
+            description = "Удаляет фото профиля пользователя"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Фото удалено"),
+            @ApiResponse(responseCode = "401", description = "Неавторизован")
+    })
     @DeleteMapping("/photo")
     public ResponseEntity<Map<String, String>> deletePhoto() {
         UUID userId = SecurityUtils.getCurrentUserId();

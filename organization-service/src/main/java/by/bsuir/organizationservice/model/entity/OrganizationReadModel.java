@@ -1,4 +1,4 @@
-﻿package by.bsuir.organizationservice.model.entity;
+package by.bsuir.organizationservice.model.entity;
 
 import by.bsuir.organizationservice.model.enums.OrganizationStatus;
 import jakarta.persistence.*;

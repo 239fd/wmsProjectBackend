@@ -1,4 +1,4 @@
-﻿package by.bsuir.apigateway.filter;
+package by.bsuir.apigateway.filter;
 
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
@@ -22,12 +22,7 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 
-
-
-
-
 @Slf4j
-@Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     @Value("${jwt.public-key:}")
@@ -41,12 +36,20 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private static final long KEY_CACHE_DURATION = 3600000;
 
     private static final List<String> EXCLUDED_PATHS = List.of(
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/refresh",
+            "/api/auth/logout",
+            "/api/auth/public-key",
+            "/api/oauth",
+
             "/sso-service/api/auth/login",
             "/sso-service/api/auth/register",
             "/sso-service/api/auth/refresh",
             "/sso-service/api/auth/logout",
             "/sso-service/api/auth/public-key",
             "/sso-service/api/oauth",
+
             "/actuator",
             "/prometheus",
             "/eureka"
@@ -55,7 +58,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
-
 
         if (isExcludedPath(path)) {
             return chain.filter(exchange);
@@ -75,9 +77,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
             SignedJWT signedJWT = SignedJWT.parse(token);
 
-
             RSAPublicKey publicKey = getPublicKey();
-
 
             JWSVerifier verifier = new RSASSAVerifier(publicKey);
 
@@ -87,7 +87,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return exchange.getResponse().setComplete();
             }
 
-
             Date expirationTime = signedJWT.getJWTClaimsSet().getExpirationTime();
             if (expirationTime.before(new Date())) {
                 log.warn("Expired JWT token for path: {}", path);
@@ -95,11 +94,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return exchange.getResponse().setComplete();
             }
 
-
             String userId = signedJWT.getJWTClaimsSet().getSubject();
             String email = signedJWT.getJWTClaimsSet().getStringClaim("email");
             String role = signedJWT.getJWTClaimsSet().getStringClaim("role");
-
 
             ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
                     .header("X-User-Id", userId)
@@ -122,17 +119,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         return EXCLUDED_PATHS.stream().anyMatch(path::startsWith);
     }
 
-
-
-
     private RSAPublicKey getPublicKey() throws Exception {
         long currentTime = System.currentTimeMillis();
-
 
         if (cachedPublicKey != null && (currentTime - lastKeyFetchTime) < KEY_CACHE_DURATION) {
             return cachedPublicKey;
         }
-
 
         if (publicKeyString != null && !publicKeyString.isEmpty() && !publicKeyString.contains("yourpublickey")) {
             try {
@@ -145,7 +137,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             }
         }
 
-
         try {
             String publicKeyPEM = fetchPublicKeyFromSSOService();
             cachedPublicKey = loadPublicKeyFromPEM(publicKeyPEM);
@@ -157,9 +148,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             throw new RuntimeException("Cannot validate JWT: public key not available", e);
         }
     }
-
-
-
 
     private String fetchPublicKeyFromSSOService() throws Exception {
         try {
@@ -185,13 +173,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             }
             in.close();
 
-
             String jsonResponse = response.toString();
 
             int startIndex = jsonResponse.indexOf("\"publicKey\":\"") + 13;
             int endIndex = jsonResponse.indexOf("\"", startIndex);
             String publicKeyPEM = jsonResponse.substring(startIndex, endIndex);
-
 
             publicKeyPEM = publicKeyPEM.replace("\\n", "\n");
 

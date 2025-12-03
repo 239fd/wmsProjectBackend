@@ -2,15 +2,14 @@ package by.bsuir.documentservice.service;
 
 import by.bsuir.documentservice.dto.*;
 import by.bsuir.documentservice.rpa.DocumentRpaService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
@@ -121,7 +120,7 @@ public class DocumentService {
         return documentId;
     }
 
-public UUID generateWaybill(Map<String, Object> data) {
+    public UUID generateWaybill(Map<String, Object> data) {
         log.info("Generating waybill (shipping invoice) via RPA");
         log.debug("Waybill data: {}", data);
 
@@ -156,17 +155,17 @@ public UUID generateWaybill(Map<String, Object> data) {
         Map<String, Object> result = new HashMap<>();
         List<Map<String, Object>> documents = new ArrayList<>();
 
-        documentMetadata.forEach((id, metadata) -> {
-            Map<String, Object> doc = new HashMap<>(metadata);
-            doc.put("id", id.toString());
-            documents.add(doc);
-        });
+        documentMetadata.forEach(
+                (id, metadata) -> {
+                    Map<String, Object> doc = new HashMap<>(metadata);
+                    doc.put("id", id.toString());
+                    documents.add(doc);
+                });
 
         int start = page * size;
         int end = Math.min(start + size, documents.size());
-        List<Map<String, Object>> pageDocuments = start < documents.size()
-            ? documents.subList(start, end)
-            : new ArrayList<>();
+        List<Map<String, Object>> pageDocuments =
+                start < documents.size() ? documents.subList(start, end) : new ArrayList<>();
 
         result.put("documents", pageDocuments);
         result.put("page", page);
@@ -192,7 +191,7 @@ public UUID generateWaybill(Map<String, Object> data) {
         return metadata;
     }
 
-private ReceiptOrderData mapToReceiptOrderData(Map<String, Object> data) {
+    private ReceiptOrderData mapToReceiptOrderData(Map<String, Object> data) {
         return ReceiptOrderData.builder()
                 .documentNumber(getString(data, "documentNumber", "ПО-001"))
                 .documentDate(getDate(data, "documentDate", LocalDate.now()))
@@ -215,7 +214,8 @@ private ReceiptOrderData mapToReceiptOrderData(Map<String, Object> data) {
                 .reason(getString(data, "reason", "INFLATION"))
                 .reasonDescription(getString(data, "reasonDescription", "Переоценка товаров"))
                 .chairmanName(getString(data, "chairmanName", "Председатель комиссии"))
-                .commissionMembers((List<String>) data.getOrDefault("commissionMembers", new ArrayList<>()))
+                .commissionMembers(
+                        (List<String>) data.getOrDefault("commissionMembers", new ArrayList<>()))
                 .items(new ArrayList<>())
                 .totalOldValue(BigDecimal.ZERO)
                 .totalNewValue(BigDecimal.ZERO)
@@ -232,8 +232,10 @@ private ReceiptOrderData mapToReceiptOrderData(Map<String, Object> data) {
                 .inn(getString(data, "inn", "1234567890"))
                 .warehouseName(getString(data, "warehouseName", "Склад №1"))
                 .chairmanName(getString(data, "chairmanName", "Председатель комиссии"))
-                .commissionMembers((List<String>) data.getOrDefault("commissionMembers", new ArrayList<>()))
-                .responsiblePerson(getString(data, "responsiblePerson", "Материально ответственное лицо"))
+                .commissionMembers(
+                        (List<String>) data.getOrDefault("commissionMembers", new ArrayList<>()))
+                .responsiblePerson(
+                        getString(data, "responsiblePerson", "Материально ответственное лицо"))
                 .items(new ArrayList<>())
                 .totalBookValue(BigDecimal.ZERO)
                 .totalActualValue(BigDecimal.ZERO)
@@ -260,7 +262,8 @@ private ReceiptOrderData mapToReceiptOrderData(Map<String, Object> data) {
                 .shipperPhone(getString(data, "shipperPhone", "+375 29 123-45-67"))
                 .shipperUnp(getString(data, "shipperUnp", "123456789"))
                 .consigneeName(getString(data, "consigneeName", "ООО Грузополучатель"))
-                .consigneeAddress(getString(data, "consigneeAddress", "г. Минск, ул. Получателя, 2"))
+                .consigneeAddress(
+                        getString(data, "consigneeAddress", "г. Минск, ул. Получателя, 2"))
                 .consigneePhone(getString(data, "consigneePhone", "+375 29 987-65-43"))
                 .consigneeUnp(getString(data, "consigneeUnp", "987654321"))
                 .carrierName(getString(data, "carrierName", "ООО Перевозчик"))

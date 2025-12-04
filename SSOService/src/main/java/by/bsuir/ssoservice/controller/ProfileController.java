@@ -109,6 +109,14 @@ public class ProfileController {
         return ResponseEntity.ok(Map.of("message", "Фото удалено"));
     }
 
+    @Operation(
+            summary = "Получить активные сессии",
+            description = "Возвращает список всех активных сессий текущего пользователя"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Список сессий получен"),
+            @ApiResponse(responseCode = "401", description = "Неавторизован")
+    })
     @GetMapping("/sessions")
     public ResponseEntity<List<SessionInfo>> getActiveSessions(HttpServletRequest request) {
         UUID userId = SecurityUtils.getCurrentUserId();
@@ -117,13 +125,31 @@ public class ProfileController {
         return ResponseEntity.ok(sessions);
     }
 
+    @Operation(
+            summary = "Завершить сессию",
+            description = "Завершает конкретную сессию пользователя по её идентификатору"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Сессия завершена"),
+            @ApiResponse(responseCode = "401", description = "Неавторизован"),
+            @ApiResponse(responseCode = "404", description = "Сессия не найдена")
+    })
     @DeleteMapping("/sessions/{sessionId}")
-    public ResponseEntity<Map<String, String>> terminateSession(@PathVariable Integer sessionId) {
+    public ResponseEntity<Map<String, String>> terminateSession(
+            @Parameter(description = "ID сессии", required = true) @PathVariable Integer sessionId) {
         UUID userId = SecurityUtils.getCurrentUserId();
         profileService.terminateSession(userId, sessionId);
         return ResponseEntity.ok(Map.of("message", "Сессия завершена"));
     }
 
+    @Operation(
+            summary = "Завершить все сессии",
+            description = "Завершает все активные сессии пользователя, кроме текущей"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Все сессии завершены"),
+            @ApiResponse(responseCode = "401", description = "Неавторизован")
+    })
     @DeleteMapping("/sessions")
     public ResponseEntity<Map<String, String>> terminateAllSessions(HttpServletRequest request) {
         UUID userId = SecurityUtils.getCurrentUserId();
@@ -132,6 +158,14 @@ public class ProfileController {
         return ResponseEntity.ok(Map.of("message", "Все сессии завершены"));
     }
 
+    @Operation(
+            summary = "Удалить аккаунт",
+            description = "Полностью удаляет аккаунт текущего пользователя и все связанные данные"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Аккаунт удален"),
+            @ApiResponse(responseCode = "401", description = "Неавторизован")
+    })
     @DeleteMapping
     public ResponseEntity<Map<String, String>> deleteAccount() {
         UUID userId = SecurityUtils.getCurrentUserId();

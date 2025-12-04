@@ -19,7 +19,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/inventory")
 @RequiredArgsConstructor
-@Tag(name = "Инвентаризация", description = "API для получения информации об остатках товаров на складах")
+@Tag(name = "Остатки товаров", description = "API для получения информации об остатках товаров на складах и в ячейках хранения")
 public class InventoryController {
 
     private final InventoryService inventoryService;

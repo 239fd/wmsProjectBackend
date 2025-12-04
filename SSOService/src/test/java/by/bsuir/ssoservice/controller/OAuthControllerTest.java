@@ -69,7 +69,7 @@ class OAuthControllerTest {
         when(httpServletRequest.getHeader("X-Forwarded-For")).thenReturn("127.0.0.1");
         when(httpServletRequest.getHeader("User-Agent")).thenReturn("Mozilla");
 
-        oauthController.handleOAuthCallback("google", "code", "state", httpServletRequest, httpServletResponse);
+        oauthController.handleOAuthCallback("google", "code", "state", null, null, httpServletRequest, httpServletResponse);
 
         verify(httpServletResponse).sendRedirect(startsWith("http://localhost:3000/auth/callback"));
     }
@@ -81,9 +81,9 @@ class OAuthControllerTest {
         when(httpServletRequest.getHeader("X-Forwarded-For")).thenReturn("127.0.0.1");
         when(httpServletRequest.getHeader("User-Agent")).thenReturn("Mozilla");
 
-        oauthController.handleOAuthCallback("google", "code", "state", httpServletRequest, httpServletResponse);
+        oauthController.handleOAuthCallback("google", "code", "state", null, null, httpServletRequest, httpServletResponse);
 
-        verify(httpServletResponse).sendRedirect(startsWith("http://localhost:3000/role"));
+        verify(httpServletResponse).sendRedirect(startsWith("http://localhost:3000/auth/callback"));
     }
 
     @Test

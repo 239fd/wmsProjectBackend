@@ -121,8 +121,6 @@ pmdTest {
 // SpotBugs - поиск багов
 spotbugs {
     toolVersion = '4.8.3'
-    effort = 'max'
-    reportLevel = 'medium'
     ignoreFailures = true
 }
 

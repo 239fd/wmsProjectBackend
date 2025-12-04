@@ -5,6 +5,7 @@ import by.bsuir.productservice.model.entity.Inventory;
 import by.bsuir.productservice.model.entity.ProductBatch;
 import by.bsuir.productservice.repository.InventoryRepository;
 import by.bsuir.productservice.repository.ProductBatchRepository;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -115,16 +116,10 @@ public class FEFOService {
         return result;
     }
 
-    private static class InventoryWithBatch {
-        final Inventory inventory;
-        final ProductBatch batch;
-
-        InventoryWithBatch(Inventory inventory, ProductBatch batch) {
-            this.inventory = inventory;
-            this.batch = batch;
-        }
+    private record InventoryWithBatch(Inventory inventory, ProductBatch batch) {
     }
 
+    @Getter
     public static class InventoryAllocation {
         private final UUID inventoryId;
         private final UUID productId;
@@ -145,14 +140,6 @@ public class FEFOService {
             this.quantity = quantity;
             this.expiryDate = expiryDate;
         }
-
-        public UUID getInventoryId() { return inventoryId; }
-        public UUID getProductId() { return productId; }
-        public UUID getBatchId() { return batchId; }
-        public UUID getWarehouseId() { return warehouseId; }
-        public UUID getCellId() { return cellId; }
-        public BigDecimal getQuantity() { return quantity; }
-        public LocalDate getExpiryDate() { return expiryDate; }
 
         @Override
         public String toString() {

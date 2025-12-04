@@ -1,11 +1,27 @@
 package by.bsuir.warehouseservice.service;
 
-import by.bsuir.warehouseservice.dto.request.*;
+import by.bsuir.warehouseservice.dto.request.CreateCellRequest;
+import by.bsuir.warehouseservice.dto.request.CreateFridgeRequest;
+import by.bsuir.warehouseservice.dto.request.CreatePalletRequest;
+import by.bsuir.warehouseservice.dto.request.CreateRackRequest;
+import by.bsuir.warehouseservice.dto.request.CreateShelfRequest;
 import by.bsuir.warehouseservice.dto.response.RackResponse;
 import by.bsuir.warehouseservice.exception.AppException;
-import by.bsuir.warehouseservice.model.entity.*;
+import by.bsuir.warehouseservice.model.entity.Cell;
+import by.bsuir.warehouseservice.model.entity.Fridge;
+import by.bsuir.warehouseservice.model.entity.Pallet;
+import by.bsuir.warehouseservice.model.entity.PalletPlace;
+import by.bsuir.warehouseservice.model.entity.RackEvent;
+import by.bsuir.warehouseservice.model.entity.RackReadModel;
+import by.bsuir.warehouseservice.model.entity.Shelf;
 import by.bsuir.warehouseservice.model.enums.RackKind;
-import by.bsuir.warehouseservice.repository.*;
+import by.bsuir.warehouseservice.repository.CellRepository;
+import by.bsuir.warehouseservice.repository.FridgeRepository;
+import by.bsuir.warehouseservice.repository.PalletPlaceRepository;
+import by.bsuir.warehouseservice.repository.PalletRepository;
+import by.bsuir.warehouseservice.repository.RackEventRepository;
+import by.bsuir.warehouseservice.repository.RackReadModelRepository;
+import by.bsuir.warehouseservice.repository.ShelfRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,7 +39,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("RackService Unit Tests")

@@ -35,6 +35,8 @@ dependencies {
 
     implementation("com.github.ben-manes.caffeine:caffeine")
 
+    runtimeOnly("org.springframework.boot:spring-boot-properties-migrator")
+
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
 

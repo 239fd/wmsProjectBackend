@@ -1,8 +1,14 @@
 package by.bsuir.productservice.service;
 
 import by.bsuir.productservice.exception.AppException;
-import by.bsuir.productservice.model.entity.*;
-import by.bsuir.productservice.repository.*;
+import by.bsuir.productservice.model.entity.Inventory;
+import by.bsuir.productservice.model.entity.InventoryCount;
+import by.bsuir.productservice.model.entity.InventorySession;
+import by.bsuir.productservice.model.entity.ProductOperation;
+import by.bsuir.productservice.repository.InventoryCountRepository;
+import by.bsuir.productservice.repository.InventoryRepository;
+import by.bsuir.productservice.repository.InventorySessionRepository;
+import by.bsuir.productservice.repository.ProductOperationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

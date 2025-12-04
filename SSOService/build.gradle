@@ -53,6 +53,14 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // H2 для интеграционных тестов репозитория
+    testImplementation 'com.h2database:h2'
+
+    // Testcontainers для полных интеграционных тестов
+    testImplementation 'org.testcontainers:testcontainers:1.19.3'
+    testImplementation 'org.testcontainers:junit-jupiter:1.19.3'
+    testImplementation 'org.testcontainers:postgresql:1.19.3'
 }
 dependencyManagement {
     imports {
@@ -98,8 +106,6 @@ pmdTest {
 
 spotbugs {
     toolVersion = '4.8.3'
-    effort = 'max'
-    reportLevel = 'medium'
     ignoreFailures = true
 }
 

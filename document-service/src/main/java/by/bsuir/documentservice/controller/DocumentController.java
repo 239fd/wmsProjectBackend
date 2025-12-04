@@ -1,6 +1,5 @@
 package by.bsuir.documentservice.controller;
 
-import by.bsuir.documentservice.dto.*;
 import by.bsuir.documentservice.service.DocumentService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.HashMap;

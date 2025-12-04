@@ -303,8 +303,6 @@ class AuthControllerIntegrationTest {
         @Test
         @DisplayName("Без токена - возвращает 500 (необработанное исключение)")
         void getCurrentUser_WithoutToken_ShouldReturnInternalServerError() throws Exception {
-            // GlobalExceptionHandler не обрабатывает MissingRequestHeaderException
-            // поэтому возвращается 500 Internal Server Error
             mockMvc.perform(get(ME_URL))
                     .andExpect(status().isInternalServerError());
         }

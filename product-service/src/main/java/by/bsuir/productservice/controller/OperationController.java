@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/operations")
 @RequiredArgsConstructor
+@Tag(name = "Складские операции", description = "API для управления складскими операциями: приемка, отгрузка, резервирование товаров")
 public class OperationController {
 
     private final ProductOperationService operationService;
@@ -101,12 +103,21 @@ public class OperationController {
         return ResponseEntity.ok(Map.of("message", "Товар зарезервирован"));
     }
 
+    @Operation(
+            summary = "Освободить резерв",
+            description = "Освобождает ранее зарезервированное количество товара"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Резерв освобождён"),
+            @ApiResponse(responseCode = "400", description = "Некорректные данные"),
+            @ApiResponse(responseCode = "403", description = "Недостаточно прав")
+    })
     @PostMapping("/release")
     public ResponseEntity<Map<String, String>> releaseReservation(
-            @RequestParam UUID productId,
-            @RequestParam UUID warehouseId,
-            @RequestParam java.math.BigDecimal quantity,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "ID товара", required = true) @RequestParam UUID productId,
+            @Parameter(description = "ID склада", required = true) @RequestParam UUID warehouseId,
+            @Parameter(description = "Количество для освобождения", required = true) @RequestParam java.math.BigDecimal quantity,
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -117,10 +128,19 @@ public class OperationController {
         return ResponseEntity.ok(Map.of("message", "Резерв освобождён"));
     }
 
+    @Operation(
+            summary = "Отгрузить товар по FEFO",
+            description = "Выполняет отгрузку товара с автоматическим подбором партий по принципу FEFO (First Expired, First Out)"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Товар успешно отгружен по FEFO"),
+            @ApiResponse(responseCode = "400", description = "Недостаточно товара или некорректные данные"),
+            @ApiResponse(responseCode = "403", description = "Недостаточно прав")
+    })
     @PostMapping("/ship-fefo")
     public ResponseEntity<Map<String, Object>> shipProductWithFEFO(
             @Valid @RequestBody ShipProductRequest request,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();

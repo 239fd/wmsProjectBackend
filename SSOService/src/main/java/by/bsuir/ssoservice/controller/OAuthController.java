@@ -58,33 +58,63 @@ public class OAuthController {
     @GetMapping("/callback/{provider}")
     public void handleOAuthCallback(
             @Parameter(description = "Провайдер OAuth", required = true) @PathVariable String provider,
-            @Parameter(description = "Код авторизации от провайдера", required = true) @RequestParam String code,
+            @Parameter(description = "Код авторизации от провайдера") @RequestParam(required = false) String code,
             @Parameter(description = "State параметр для защиты от CSRF") @RequestParam(required = false) String state,
+            @RequestParam(required = false) String error,
+            @RequestParam(required = false) String error_description,
             HttpServletRequest httpRequest,
             HttpServletResponse response) throws IOException {
 
-        Object result = oauthService.handleCallback(
-                provider,
-                code,
-                state,
-                RequestUtils.getClientIp(httpRequest),
-                RequestUtils.getUserAgent(httpRequest)
-        );
-
-        if (result instanceof AuthResponse authResponse) {
+        // Обработка ошибки от провайдера
+        if (error != null) {
+            String errorMessage = error_description != null ? error_description : error;
             String redirectUrl = String.format(
-                    "http://localhost:3000/auth/callback?access_token=%s&refresh_token=%s",
-                    URLEncoder.encode(authResponse.accessToken(), StandardCharsets.UTF_8),
-                    URLEncoder.encode(authResponse.refreshToken(), StandardCharsets.UTF_8)
+                    "http://localhost:3000/auth/callback?error=%s",
+                    URLEncoder.encode(errorMessage, StandardCharsets.UTF_8)
             );
             response.sendRedirect(redirectUrl);
+            return;
         }
-        else if (result instanceof OAuthRegistrationResponse regResponse) {
+
+        if (code == null) {
+            String redirectUrl = "http://localhost:3000/auth/callback?error=" +
+                    URLEncoder.encode("Не получен код авторизации", StandardCharsets.UTF_8);
+            response.sendRedirect(redirectUrl);
+            return;
+        }
+
+        try {
+            Object result = oauthService.handleCallback(
+                    provider,
+                    code,
+                    state,
+                    RequestUtils.getClientIp(httpRequest),
+                    RequestUtils.getUserAgent(httpRequest)
+            );
+
+            if (result instanceof AuthResponse authResponse) {
+                // Существующий пользователь - отправляем токены
+                String redirectUrl = String.format(
+                        "http://localhost:3000/auth/callback?access_token=%s&refresh_token=%s",
+                        URLEncoder.encode(authResponse.accessToken(), StandardCharsets.UTF_8),
+                        URLEncoder.encode(authResponse.refreshToken(), StandardCharsets.UTF_8)
+                );
+                response.sendRedirect(redirectUrl);
+            }
+            else if (result instanceof OAuthRegistrationResponse regResponse) {
+                // Новый пользователь - нужен выбор роли
+                String redirectUrl = String.format(
+                        "http://localhost:3000/auth/callback?token=%s&email=%s&name=%s",
+                        URLEncoder.encode(regResponse.temporaryToken(), StandardCharsets.UTF_8),
+                        URLEncoder.encode(regResponse.email() != null ? regResponse.email() : "", StandardCharsets.UTF_8),
+                        URLEncoder.encode(regResponse.fullName() != null ? regResponse.fullName() : "", StandardCharsets.UTF_8)
+                );
+                response.sendRedirect(redirectUrl);
+            }
+        } catch (Exception e) {
             String redirectUrl = String.format(
-                    "http://localhost:3000/role?token=%s&email=%s&name=%s",
-                    URLEncoder.encode(regResponse.temporaryToken(), StandardCharsets.UTF_8),
-                    URLEncoder.encode(regResponse.email(), StandardCharsets.UTF_8),
-                    URLEncoder.encode(regResponse.fullName(), StandardCharsets.UTF_8)
+                    "http://localhost:3000/auth/callback?error=%s",
+                    URLEncoder.encode(e.getMessage() != null ? e.getMessage() : "Ошибка авторизации", StandardCharsets.UTF_8)
             );
             response.sendRedirect(redirectUrl);
         }

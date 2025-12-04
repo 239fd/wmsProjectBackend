@@ -209,8 +209,17 @@ public class OrganizationController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Проверить инвитационный код",
+            description = "Проверяет валидность инвитационного кода и возвращает информацию о связанной организации и складе"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Код проверен"),
+            @ApiResponse(responseCode = "404", description = "Код не найден или недействителен")
+    })
     @GetMapping("/invitation-codes/{code}/validate")
-    public ResponseEntity<Map<String, Object>> validateInvitationCode(@PathVariable String code) {
+    public ResponseEntity<Map<String, Object>> validateInvitationCode(
+            @Parameter(description = "Инвитационный код", required = true) @PathVariable String code) {
         Map<String, Object> response = organizationService.validateInvitationCode(code);
         return ResponseEntity.ok(response);
     }

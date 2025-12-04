@@ -4,23 +4,31 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.Ordered;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
+import java.util.List;
+
 @Slf4j
 @Configuration
 public class CORSConfig {
 
+    /**
+     * CORS фильтр отключен по умолчанию при работе через API Gateway.
+     * Включается только для прямого доступа (профиль "standalone").
+     */
     @Bean
+    @Profile("standalone")
     public FilterRegistrationBean<CorsFilter> corsFilter() {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
 
         config.setAllowCredentials(true);
 
-        config.addAllowedOrigin("http://127.0.0.1:3000,http://localhost:3000");
+        config.setAllowedOrigins(List.of("http://localhost:3000", "http://127.0.0.1:3000"));
         config.addAllowedHeader(CorsConfiguration.ALL);
         config.addExposedHeader(CorsConfiguration.ALL);
         config.addAllowedMethod(CorsConfiguration.ALL);

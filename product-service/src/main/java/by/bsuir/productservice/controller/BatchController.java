@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
+@Tag(name = "Партии товаров", description = "API для управления партиями товаров: создание, получение информации о партиях")
 public class BatchController {
 
     private final BatchService batchService;
@@ -76,12 +78,27 @@ public class BatchController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Получить партию по ID",
+            description = "Возвращает информацию о конкретной партии товара"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Партия найдена",
+                    content = @Content(schema = @Schema(implementation = BatchResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Партия не найдена")
+    })
     @GetMapping("/batches/{batchId}")
-    public ResponseEntity<BatchResponse> getBatch(@PathVariable UUID batchId) {
+    public ResponseEntity<BatchResponse> getBatch(
+            @Parameter(description = "ID партии", required = true) @PathVariable UUID batchId) {
         BatchResponse response = batchService.getBatch(batchId);
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Получить все партии",
+            description = "Возвращает список всех партий товаров в системе"
+    )
+    @ApiResponse(responseCode = "200", description = "Список партий получен")
     @GetMapping("/batches")
     public ResponseEntity<List<BatchResponse>> getAllBatches() {
         List<BatchResponse> response = batchService.getAllBatches();

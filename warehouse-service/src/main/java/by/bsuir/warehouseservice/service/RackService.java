@@ -14,6 +14,7 @@ import by.bsuir.warehouseservice.model.entity.PalletPlace;
 import by.bsuir.warehouseservice.model.entity.RackEvent;
 import by.bsuir.warehouseservice.model.entity.RackReadModel;
 import by.bsuir.warehouseservice.model.entity.Shelf;
+import by.bsuir.warehouseservice.model.enums.PalletType;
 import by.bsuir.warehouseservice.model.enums.RackKind;
 import by.bsuir.warehouseservice.repository.CellRepository;
 import by.bsuir.warehouseservice.repository.FridgeRepository;
@@ -77,6 +78,7 @@ public class RackService {
                 .warehouseId(request.warehouseId())
                 .kind(request.kind())
                 .name(request.name())
+                .storageConditions(request.storageConditions())
                 .isActive(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -100,6 +102,7 @@ public class RackService {
 
         Shelf shelf = Shelf.builder()
                 .rackId(request.rackId())
+                .organizationId(resolveOrgIdForRack(rack))
                 .shelfCapacityKg(request.shelfCapacityKg())
                 .lengthCm(request.lengthCm())
                 .widthCm(request.widthCm())
@@ -107,6 +110,15 @@ public class RackService {
                 .build();
 
         shelfRepository.save(shelf);
+
+        Map<String, Object> eventData = new HashMap<>();
+        eventData.put("shelfId", shelf.getShelfId().toString());
+        eventData.put("shelfCapacityKg", request.shelfCapacityKg());
+        eventData.put("lengthCm", request.lengthCm());
+        eventData.put("widthCm", request.widthCm());
+        eventData.put("heightCm", request.heightCm());
+        saveRackEvent(request.rackId(), "SHELF_CREATED", eventData);
+
         log.info("Shelf created successfully with ID: {}", shelf.getShelfId());
     }
 
@@ -123,6 +135,7 @@ public class RackService {
 
         Cell cell = Cell.builder()
                 .rackId(request.rackId())
+                .organizationId(resolveOrgIdForRack(rack))
                 .maxWeightKg(request.maxWeightKg())
                 .lengthCm(request.lengthCm())
                 .widthCm(request.widthCm())
@@ -130,6 +143,15 @@ public class RackService {
                 .build();
 
         cellRepository.save(cell);
+
+        Map<String, Object> eventData = new HashMap<>();
+        eventData.put("cellId", cell.getCellId().toString());
+        eventData.put("maxWeightKg", request.maxWeightKg());
+        eventData.put("lengthCm", request.lengthCm());
+        eventData.put("widthCm", request.widthCm());
+        eventData.put("heightCm", request.heightCm());
+        saveRackEvent(request.rackId(), "CELL_CREATED", eventData);
+
         log.info("Cell created successfully with ID: {}", cell.getCellId());
     }
 
@@ -148,15 +170,30 @@ public class RackService {
             throw AppException.conflict("Холодильник уже создан для этого стеллажа");
         }
 
+        if (request.minTemperatureC().compareTo(request.maxTemperatureC()) > 0) {
+            throw AppException.badRequest("Минимальная температура не может быть больше максимальной");
+        }
+
         Fridge fridge = Fridge.builder()
                 .rackId(request.rackId())
-                .temperatureC(request.temperatureC())
+                .organizationId(resolveOrgIdForRack(rack))
+                .minTemperatureC(request.minTemperatureC())
+                .maxTemperatureC(request.maxTemperatureC())
                 .lengthCm(request.lengthCm())
                 .widthCm(request.widthCm())
                 .heightCm(request.heightCm())
                 .build();
 
         fridgeRepository.save(fridge);
+
+        Map<String, Object> eventData = new HashMap<>();
+        eventData.put("minTemperatureC", request.minTemperatureC());
+        eventData.put("maxTemperatureC", request.maxTemperatureC());
+        eventData.put("lengthCm", request.lengthCm());
+        eventData.put("widthCm", request.widthCm());
+        eventData.put("heightCm", request.heightCm());
+        saveRackEvent(request.rackId(), "FRIDGE_CREATED", eventData);
+
         log.info("Fridge created successfully for rack: {}", request.rackId());
     }
 
@@ -182,7 +219,51 @@ public class RackService {
                 .build();
 
         palletRepository.save(pallet);
-        log.info("Pallet created successfully for rack: {}", request.rackId());
+
+        PalletType palletType = request.palletType();
+        UUID rackOrgId = resolveOrgIdForRack(rack);
+        for (int i = 0; i < request.palletPlaceCount(); i++) {
+            PalletPlace place = PalletPlace.builder()
+                    .placeId(UUID.randomUUID())
+                    .rackId(request.rackId())
+                    .organizationId(rackOrgId)
+                    .lengthCm(palletType.getLengthCm())
+                    .widthCm(palletType.getWidthCm())
+                    .heightCm(palletType.getHeightCm())
+                    .build();
+            palletPlaceRepository.save(place);
+        }
+
+        Map<String, Object> eventData = new HashMap<>();
+        eventData.put("palletPlaceCount", request.palletPlaceCount());
+        eventData.put("maxWeightKg", request.maxWeightKg());
+        eventData.put("palletType", palletType.name());
+        saveRackEvent(request.rackId(), "PALLET_CREATED", eventData);
+
+        log.info("Pallet created successfully for rack: {} with {} places of type {}",
+                request.rackId(), request.palletPlaceCount(), palletType);
+    }
+
+
+    private UUID resolveOrgIdForRack(RackReadModel rack) {
+        if (rack == null || rack.getWarehouseId() == null) return null;
+        return warehouseRepository.findByWarehouseId(rack.getWarehouseId())
+                .map(w -> w.getOrgId())
+                .orElse(null);
+    }
+
+    private void saveRackEvent(UUID rackId, String eventType, Map<String, Object> eventData) {
+        Integer lastVersion = eventRepository.findMaxVersionByRackId(rackId);
+        int nextVersion = (lastVersion == null ? 0 : lastVersion) + 1;
+
+        RackEvent event = RackEvent.builder()
+                .rackId(rackId)
+                .eventType(eventType)
+                .eventData(objectMapper.valueToTree(eventData))
+                .eventVersion(nextVersion)
+                .createdAt(LocalDateTime.now())
+                .build();
+        eventRepository.save(event);
     }
 
     @Transactional(readOnly = true)
@@ -249,6 +330,19 @@ public class RackService {
         return cells;
     }
 
+    @Transactional(readOnly = true)
+    public Map<String, Object> getSlotsByRack(UUID rackId) {
+        RackReadModel rack = rackRepository.findById(rackId)
+                .orElseThrow(() -> AppException.notFound("Стеллаж не найден"));
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("rackId", rack.getRackId().toString());
+        result.put("rackName", rack.getName());
+        result.put("kind", rack.getKind().name());
+        result.put("slots", getCellsByRack(rackId));
+        return result;
+    }
+
     @Transactional
     public void deleteRack(UUID rackId) {
         log.info("Deleting rack: {}", rackId);
@@ -280,6 +374,7 @@ public class RackService {
                 model.getWarehouseId(),
                 model.getKind(),
                 model.getName(),
+                model.getStorageConditions(),
                 model.getIsActive(),
                 model.getCreatedAt(),
                 model.getUpdatedAt()

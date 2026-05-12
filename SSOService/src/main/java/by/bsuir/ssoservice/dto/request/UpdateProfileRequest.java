@@ -18,6 +18,8 @@ public record UpdateProfileRequest(
 
         @NotBlank(message = "Email не может быть пустым")
         @Email(message = "Некорректный формат email")
-        String email
+        String email,
+
+        String currentPassword
 ) {
 }

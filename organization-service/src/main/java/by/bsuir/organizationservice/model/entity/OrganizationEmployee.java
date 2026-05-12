@@ -37,6 +37,12 @@ public class OrganizationEmployee {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 
+    @Column(name = "is_blocked", nullable = false)
+    private Boolean isBlocked;
+
+    @Column(name = "blocked_at")
+    private LocalDateTime blockedAt;
+
     @PrePersist
     protected void onCreate() {
         if (joinedAt == null) {
@@ -44,6 +50,9 @@ public class OrganizationEmployee {
         }
         if (isActive == null) {
             isActive = true;
+        }
+        if (isBlocked == null) {
+            isBlocked = false;
         }
     }
 }

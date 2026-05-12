@@ -2,6 +2,7 @@ package by.bsuir.ssoservice.config;
 
 import by.bsuir.ssoservice.utils.JwkUtils;
 import com.nimbusds.jose.jwk.RSAKey;
+import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -22,6 +23,12 @@ public class SecurityBeansConfig {
 
     @Bean
     public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+
+    @Bean
+    @LoadBalanced
+    public RestTemplate loadBalancedRestTemplate() {
         return new RestTemplate();
     }
 

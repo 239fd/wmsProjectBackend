@@ -23,24 +23,43 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public List<InventoryResponse> getInventoryByWarehouse(UUID warehouseId) {
-        log.info("Getting inventory for warehouse: {}", warehouseId);
-        return inventoryRepository.findByWarehouseId(warehouseId).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        return getInventoryByWarehouse(warehouseId, null);
     }
 
     @Transactional(readOnly = true)
     public List<InventoryResponse> getInventoryByProduct(UUID productId) {
-        log.info("Getting inventory for product: {}", productId);
-        return inventoryRepository.findByProductId(productId).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        return getInventoryByProduct(productId, null);
     }
 
     @Transactional(readOnly = true)
     public InventoryResponse getInventoryByCell(UUID cellId) {
-        log.info("Getting inventory for cell: {}", cellId);
-        Inventory inventory = inventoryRepository.findByCellId(cellId)
+        return getInventoryByCell(cellId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<InventoryResponse> getInventoryByWarehouse(UUID warehouseId, UUID organizationId) {
+        log.info("Getting inventory for warehouse: {} (org: {})", warehouseId, organizationId);
+        List<Inventory> records = (organizationId != null)
+                ? inventoryRepository.findByOrganizationIdAndWarehouseId(organizationId, warehouseId)
+                : inventoryRepository.findByWarehouseId(warehouseId);
+        return records.stream().map(this::mapToResponse).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<InventoryResponse> getInventoryByProduct(UUID productId, UUID organizationId) {
+        log.info("Getting inventory for product: {} (org: {})", productId, organizationId);
+        List<Inventory> records = (organizationId != null)
+                ? inventoryRepository.findByOrganizationIdAndProductId(organizationId, productId)
+                : inventoryRepository.findByProductId(productId);
+        return records.stream().map(this::mapToResponse).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public InventoryResponse getInventoryByCell(UUID cellId, UUID organizationId) {
+        log.info("Getting inventory for cell: {} (org: {})", cellId, organizationId);
+        Inventory inventory = (organizationId != null
+                ? inventoryRepository.findByOrganizationIdAndCellId(organizationId, cellId)
+                : inventoryRepository.findByCellId(cellId))
                 .orElseThrow(() -> AppException.notFound("Запасы в ячейке не найдены"));
         return mapToResponse(inventory);
     }
@@ -87,8 +106,10 @@ public class InventoryService {
                 inventory.getInventoryId(),
                 inventory.getProductId(),
                 inventory.getBatchId(),
+                inventory.getOrganizationId(),
                 inventory.getWarehouseId(),
                 inventory.getCellId(),
+                inventory.getUnitSku(),
                 inventory.getQuantity(),
                 inventory.getReservedQuantity(),
                 availableQty,

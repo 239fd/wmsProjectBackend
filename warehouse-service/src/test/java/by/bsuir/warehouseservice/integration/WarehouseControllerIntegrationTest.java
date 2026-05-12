@@ -30,16 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/**
- * Интеграционные тесты для WarehouseController.
- *
- * Используем standalone MockMvc setup без поднятия Spring контекста.
- *
- * Тестируют веб-слой:
- * - HTTP маршрутизация
- * - Сериализация/десериализация JSON
- * - Проверка ролей (DIRECTOR, ACCOUNTANT)
- */
+
 @ExtendWith(MockitoExtension.class)
 @DisplayName("WarehouseController Integration Tests")
 class WarehouseControllerIntegrationTest {
@@ -168,16 +159,17 @@ class WarehouseControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("Получение всех складов - возвращает список")
+        @DisplayName("Получение всех складов организации - возвращает список")
         void getAllWarehouses_ShouldReturnList() throws Exception {
+            UUID orgId = UUID.randomUUID();
             List<WarehouseResponse> warehouses = List.of(
-                    new WarehouseResponse(UUID.randomUUID(), UUID.randomUUID(), "Склад 1", "Адрес 1", null, true, LocalDateTime.now(), LocalDateTime.now()),
-                    new WarehouseResponse(UUID.randomUUID(), UUID.randomUUID(), "Склад 2", "Адрес 2", null, true, LocalDateTime.now(), LocalDateTime.now())
+                    new WarehouseResponse(UUID.randomUUID(), orgId, "Склад 1", "Адрес 1", null, true, LocalDateTime.now(), LocalDateTime.now()),
+                    new WarehouseResponse(UUID.randomUUID(), orgId, "Склад 2", "Адрес 2", null, true, LocalDateTime.now(), LocalDateTime.now())
             );
 
-            when(warehouseService.getAllWarehouses()).thenReturn(warehouses);
+            when(warehouseService.getWarehousesByOrganization(orgId)).thenReturn(warehouses);
 
-            mockMvc.perform(get(BASE_URL))
+            mockMvc.perform(get(BASE_URL).header("X-Organization-Id", orgId.toString()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.length()").value(2))
                     .andExpect(jsonPath("$[0].name").value("Склад 1"))

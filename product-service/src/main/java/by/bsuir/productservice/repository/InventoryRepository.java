@@ -21,4 +21,16 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     Optional<Inventory> findByCellId(UUID cellId);
 
     List<Inventory> findByProductIdAndWarehouseIdAndQuantityGreaterThan(UUID productId, UUID warehouseId, BigDecimal quantity);
+
+    List<Inventory> findByOrganizationId(UUID organizationId);
+
+    List<Inventory> findByOrganizationIdAndWarehouseId(UUID organizationId, UUID warehouseId);
+
+    List<Inventory> findByOrganizationIdAndProductId(UUID organizationId, UUID productId);
+
+    Optional<Inventory> findByOrganizationIdAndCellId(UUID organizationId, UUID cellId);
+
+    Optional<Inventory> findByUnitSku(String unitSku);
+
+    Optional<Inventory> findByOrganizationIdAndUnitSku(UUID organizationId, String unitSku);
 }

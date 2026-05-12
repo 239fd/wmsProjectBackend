@@ -1,5 +1,6 @@
 package by.bsuir.ssoservice.controller;
 
+import by.bsuir.ssoservice.dto.request.ChangePasswordRequest;
 import by.bsuir.ssoservice.dto.request.UpdateProfileRequest;
 import by.bsuir.ssoservice.dto.response.SessionInfo;
 import by.bsuir.ssoservice.dto.response.UserResponse;
@@ -65,6 +66,22 @@ public class ProfileController {
         UUID userId = SecurityUtils.getCurrentUserId();
         UserResponse updatedUser = profileService.updateProfile(userId, request);
         return ResponseEntity.ok(updatedUser);
+    }
+
+    @Operation(
+            summary = "Сменить пароль",
+            description = "Меняет пароль пользователя. Требует ввода текущего пароля. Все сессии будут завершены"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Пароль изменён"),
+            @ApiResponse(responseCode = "400", description = "Некорректные данные"),
+            @ApiResponse(responseCode = "401", description = "Текущий пароль неверен")
+    })
+    @PutMapping("/password")
+    public ResponseEntity<Map<String, String>> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        profileService.changePassword(userId, request);
+        return ResponseEntity.ok(Map.of("message", "Пароль изменён, все сессии завершены"));
     }
 
     @Operation(

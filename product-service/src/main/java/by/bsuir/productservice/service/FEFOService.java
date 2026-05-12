@@ -3,6 +3,7 @@ package by.bsuir.productservice.service;
 import by.bsuir.productservice.exception.AppException;
 import by.bsuir.productservice.model.entity.Inventory;
 import by.bsuir.productservice.model.entity.ProductBatch;
+import by.bsuir.productservice.model.enums.AllocationStrategy;
 import by.bsuir.productservice.repository.InventoryRepository;
 import by.bsuir.productservice.repository.ProductBatchRepository;
 import lombok.Getter;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Slf4j
@@ -26,25 +28,51 @@ public class FEFOService {
             UUID productId,
             UUID warehouseId,
             BigDecimal requiredQuantity) {
+        return selectInventory(productId, warehouseId, requiredQuantity, AllocationStrategy.AUTO);
+    }
 
-        log.info("Selecting inventory by FEFO for product {} at warehouse {}, required quantity: {}",
-                productId, warehouseId, requiredQuantity);
+    public List<InventoryAllocation> selectInventory(
+            UUID productId,
+            UUID warehouseId,
+            BigDecimal requiredQuantity,
+            AllocationStrategy strategy) {
 
-        List<Inventory> availableInventory = inventoryRepository
-                .findByProductIdAndWarehouseId(productId, warehouseId)
-                .map(Collections::singletonList)
-                .orElse(new ArrayList<>());
+        log.info("Selecting inventory ({}) for product {} at warehouse {}, qty {}",
+                strategy, productId, warehouseId, requiredQuantity);
+
+        List<Inventory> availableInventory = inventoryRepository.findByWarehouseId(warehouseId).stream()
+                .filter(inv -> productId.equals(inv.getProductId()))
+                .toList();
 
         if (availableInventory.isEmpty()) {
             throw AppException.notFound("Товар отсутствует на складе");
         }
 
         List<InventoryWithBatch> inventoryWithBatches = enrichWithBatchInfo(availableInventory);
-        inventoryWithBatches.sort(Comparator.comparing(iwb ->
-                iwb.batch != null && iwb.batch.getExpiryDate() != null
-                    ? iwb.batch.getExpiryDate()
-                    : LocalDate.MAX
-        ));
+
+        AllocationStrategy effective = strategy;
+        if (strategy == AllocationStrategy.AUTO) {
+            boolean anyExpiry = inventoryWithBatches.stream()
+                    .anyMatch(iwb -> iwb.batch != null && iwb.batch.getExpiryDate() != null);
+            effective = anyExpiry ? AllocationStrategy.FEFO : AllocationStrategy.FIFO;
+            log.info("AUTO resolved to {} (anyExpiry={})", effective, anyExpiry);
+        }
+
+        Comparator<InventoryWithBatch> sorter = switch (effective) {
+            case FEFO -> Comparator.comparing(iwb ->
+                    iwb.batch != null && iwb.batch.getExpiryDate() != null
+                            ? iwb.batch.getExpiryDate()
+                            : LocalDate.MAX);
+            case FIFO -> Comparator.comparing((InventoryWithBatch iwb) ->
+                    iwb.batch != null && iwb.batch.getCreatedAt() != null
+                            ? iwb.batch.getCreatedAt()
+                            : LocalDateTime.MAX);
+            default -> Comparator.comparing(iwb ->
+                    iwb.batch != null && iwb.batch.getExpiryDate() != null
+                            ? iwb.batch.getExpiryDate()
+                            : LocalDate.MAX);
+        };
+        inventoryWithBatches.sort(sorter);
 
         LocalDate today = LocalDate.now();
         for (InventoryWithBatch iwb : inventoryWithBatches) {

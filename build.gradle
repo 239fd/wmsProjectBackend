@@ -1,6 +1,11 @@
 plugins {
     id 'java'
+    id 'jacoco'
     id 'com.diffplug.spotless' version '6.25.0'
+}
+
+jacoco {
+    toolVersion = '0.8.11'
 }
 
 group = 'by.bsuir'
@@ -181,13 +186,56 @@ tasks.register('allTestWithCoverage') {
 
     finalizedBy codeQualityServices.findAll { project(":$it") != null }
         .collect { ":${it}:jacocoTestReport" }
+    finalizedBy 'jacocoAggregateReport'
 
     doLast {
-        println """
-╔════════════════════════════════════════════════════════════════╗
-║           All Tests Completed with Coverage Reports            ║
-╚════════════════════════════════════════════════════════════════╝
-        """.stripIndent()
+        println ""
+        println "================================================================"
+        println "  All Tests Completed with Coverage Reports"
+        println "----------------------------------------------------------------"
+        println "  Per-service: */build/reports/jacoco/test/html/index.html"
+        println "  Aggregate:   build/reports/jacoco/aggregate/html/index.html"
+        println "================================================================"
+    }
+}
+
+tasks.register('allIntegrationTest') {
+    group = 'verification'
+    description = 'Run Testcontainers-backed integration tests for all services (requires Docker daemon).'
+
+    dependsOn codeQualityServices.findAll { project(":$it") != null }
+        .findAll { project(":$it").tasks.findByName('integrationTest') != null }
+        .collect { ":${it}:integrationTest" }
+
+    doLast {
+        println ""
+        println "================================================================"
+        println "  Integration Tests Completed (Testcontainers)"
+        println "================================================================"
+    }
+}
+
+tasks.register('jacocoAggregateReport', JacocoReport) {
+    group = 'verification'
+    description = 'Aggregate JaCoCo coverage across all included business services into a single report'
+
+    def aggregateProjects = codeQualityServices.findAll { project(":$it") != null }
+        .collect { project(":$it") }
+
+    dependsOn aggregateProjects.collect { "${it.path}:test" }
+
+    additionalSourceDirs.from = files(aggregateProjects.collect { it.sourceSets.main.allSource.srcDirs })
+    sourceDirectories.from   = files(aggregateProjects.collect { it.sourceSets.main.allSource.srcDirs })
+    classDirectories.from    = files(aggregateProjects.collect { it.sourceSets.main.output })
+    executionData.from       = files(aggregateProjects.collect { "${it.layout.buildDirectory.get()}/jacoco/test.exec" })
+            .filter { it.exists() }
+
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+        xml.outputLocation = layout.buildDirectory.file("reports/jacoco/aggregate/jacoco.xml")
+        html.outputLocation = layout.buildDirectory.dir("reports/jacoco/aggregate/html")
     }
 }
 

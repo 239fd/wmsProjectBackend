@@ -1,29 +1,37 @@
 package by.bsuir.organizationservice.service;
 
+import by.bsuir.organizationservice.config.RabbitMQConfig;
 import by.bsuir.organizationservice.dto.request.CreateOrganizationRequest;
 import by.bsuir.organizationservice.dto.request.UpdateOrganizationRequest;
 import by.bsuir.organizationservice.dto.response.OrganizationDumpResponse;
 import by.bsuir.organizationservice.dto.response.OrganizationResponse;
-import by.bsuir.organizationservice.dto.response.InvitationCodeResponse;
 import by.bsuir.organizationservice.exception.AppException;
+import by.bsuir.organizationservice.model.entity.OrganizationEmployee;
 import by.bsuir.organizationservice.model.entity.OrganizationEvent;
 import by.bsuir.organizationservice.model.entity.OrganizationReadModel;
-import by.bsuir.organizationservice.model.entity.OrganizationInvitationCode;
 import by.bsuir.organizationservice.model.enums.OrganizationStatus;
+import by.bsuir.organizationservice.repository.OrganizationEmployeeRepository;
 import by.bsuir.organizationservice.repository.OrganizationEventRepository;
+import by.bsuir.organizationservice.repository.OrganizationInvitationCodeRepository;
 import by.bsuir.organizationservice.repository.OrganizationReadModelRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,599 +39,370 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("OrganizationService Unit Tests")
+@DisplayName("OrganizationService — модульные тесты")
 class OrganizationServiceTest {
 
-    @Mock
-    private OrganizationReadModelRepository readModelRepository;
+    @Mock private OrganizationReadModelRepository readModelRepository;
+    @Mock private OrganizationEventRepository eventRepository;
+    @Mock private OrganizationInvitationCodeRepository invitationCodeRepository;
+    @Mock private OrganizationEmployeeRepository employeeRepository;
+    @Mock private RabbitTemplate rabbitTemplate;
+    @Mock private WarehouseClientService warehouseClientService;
+    @Mock private RestTemplate restTemplate;
+    @Spy  private ObjectMapper objectMapper = new ObjectMapper();
 
-    @Mock
-    private OrganizationEventRepository eventRepository;
+    @InjectMocks private OrganizationService organizationService;
 
-    @Mock
-    private ObjectMapper objectMapper;
+    private UUID directorUserId;
 
-    @Mock
-    private RabbitTemplate rabbitTemplate;
-
-    @Mock
-    private by.bsuir.organizationservice.repository.OrganizationInvitationCodeRepository invitationCodeRepository;
-
-    @Mock
-    private by.bsuir.organizationservice.service.WarehouseClientService warehouseClientService;
-
-    @InjectMocks
-    private OrganizationService organizationService;
+    @BeforeEach
+    void setUp() {
+        directorUserId = UUID.randomUUID();
+        ReflectionTestUtils.setField(organizationService, "invitationCodeTtlHours", 24);
+    }
 
     @Test
-    @DisplayName("createOrganization: Given valid request When creating organization Then should save and return response")
-    void createOrganization_GivenValidRequest_WhenCreatingOrganization_ThenShouldSaveAndReturnResponse() {
-        UUID directorUserId = UUID.randomUUID();
-        CreateOrganizationRequest request = new CreateOrganizationRequest(
-                "ООО Тестовая организация",
-                "Тестовая",
-                "123456789", "г. Минск, ул. Ленина, д. 1"
-        );
+    @DisplayName("createOrganization: валидный запрос → создаёт орг, employee директора, публикует событие")
+    void createOrganization_GivenValid_ShouldCreateAndPublish() {
+        CreateOrganizationRequest req = new CreateOrganizationRequest(
+                "ООО Ромашка", "Ромашка", "123456789", "Минск, ул. Ленина 1");
+        when(readModelRepository.existsByUnp("123456789")).thenReturn(false);
+        when(readModelRepository.existsByName("ООО Ромашка")).thenReturn(false);
 
-        when(readModelRepository.existsByUnp(anyString())).thenReturn(false);
-        when(readModelRepository.existsByName(anyString())).thenReturn(false);
-        when(objectMapper.valueToTree(any())).thenReturn(null);
-        when(eventRepository.save(any(OrganizationEvent.class))).thenReturn(null);
-        when(readModelRepository.save(any(OrganizationReadModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
-
-        OrganizationResponse response = organizationService.createOrganization(request, directorUserId);
+        OrganizationResponse response = organizationService.createOrganization(req, directorUserId);
 
         assertThat(response).isNotNull();
-        assertThat(response.name()).isEqualTo("ООО Тестовая организация");
-        assertThat(response.shortName()).isEqualTo("Тестовая");
+        assertThat(response.name()).isEqualTo("ООО Ромашка");
         assertThat(response.unp()).isEqualTo("123456789");
         assertThat(response.status()).isEqualTo(OrganizationStatus.ACTIVE);
 
-        verify(readModelRepository).existsByUnp("123456789");
-        verify(readModelRepository).existsByName("ООО Тестовая организация");
+        ArgumentCaptor<OrganizationReadModel> rmCaptor =
+                ArgumentCaptor.forClass(OrganizationReadModel.class);
+        verify(readModelRepository).save(rmCaptor.capture());
+        assertThat(rmCaptor.getValue().getStatus()).isEqualTo(OrganizationStatus.ACTIVE);
+
+        ArgumentCaptor<OrganizationEmployee> empCaptor =
+                ArgumentCaptor.forClass(OrganizationEmployee.class);
+        verify(employeeRepository).save(empCaptor.capture());
+        assertThat(empCaptor.getValue().getUserId()).isEqualTo(directorUserId);
+        assertThat(empCaptor.getValue().getRole()).isEqualTo("DIRECTOR");
+        assertThat(empCaptor.getValue().getIsActive()).isTrue();
+
         verify(eventRepository).save(any(OrganizationEvent.class));
-        verify(readModelRepository).save(any(OrganizationReadModel.class));
+        verify(restTemplate).patchForObject(anyString(), any(), eq(java.util.Map.class));
+        verify(rabbitTemplate).convertAndSend(
+                eq(RabbitMQConfig.ORGANIZATION_EXCHANGE),
+                eq(RabbitMQConfig.ORGANIZATION_CREATED_KEY),
+                any(Object.class));
     }
 
     @Test
-    @DisplayName("createOrganization: Given duplicate UNP When creating Then should throw conflict exception")
-    void createOrganization_GivenDuplicateUnp_WhenCreating_ThenShouldThrowConflictException() {
-        UUID directorUserId = UUID.randomUUID();
-        CreateOrganizationRequest request = new CreateOrganizationRequest(
-                "ООО Тестовая",
-                "Тестовая",
-                "123456789",
-                "Адрес"
-        );
-
+    @DisplayName("createOrganization: дубликат УНП → 409 conflict с русским сообщением")
+    void createOrganization_GivenDuplicateUnp_ShouldThrowConflict() {
+        CreateOrganizationRequest req = new CreateOrganizationRequest(
+                "ООО Ромашка", null, "123456789", "адрес");
         when(readModelRepository.existsByUnp("123456789")).thenReturn(true);
 
-        assertThatThrownBy(() -> organizationService.createOrganization(request, directorUserId))
+        assertThatThrownBy(() -> organizationService.createOrganization(req, directorUserId))
                 .isInstanceOf(AppException.class)
-                .hasMessageContaining("УНП уже существует");
+                .hasMessageContaining("УНП");
 
-        verify(readModelRepository).existsByUnp("123456789");
+        AppException ex = catchAppException(
+                () -> organizationService.createOrganization(req, directorUserId));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+        verify(readModelRepository, never()).save(any());
+        verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any(Object.class));
+    }
+
+    @Test
+    @DisplayName("createOrganization: дубликат наименования → 409 conflict")
+    void createOrganization_GivenDuplicateName_ShouldThrowConflict() {
+        CreateOrganizationRequest req = new CreateOrganizationRequest(
+                "ООО Ромашка", null, "123456789", "адрес");
+        when(readModelRepository.existsByUnp("123456789")).thenReturn(false);
+        when(readModelRepository.existsByName("ООО Ромашка")).thenReturn(true);
+
+        assertThatThrownBy(() -> organizationService.createOrganization(req, directorUserId))
+                .isInstanceOf(AppException.class)
+                .hasMessageContaining("наименование");
         verify(readModelRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("createOrganization: Given duplicate name When creating Then should throw conflict exception")
-    void createOrganization_GivenDuplicateName_WhenCreating_ThenShouldThrowConflictException() {
-        UUID directorUserId = UUID.randomUUID();
-        CreateOrganizationRequest request = new CreateOrganizationRequest(
-                "ООО Существующая",
-                "Существующая",
-                "123456789",
-                "Адрес"
-        );
+    @DisplayName("createOrganization: SSO PATCH упал → пробрасывает RuntimeException, save не доходит до публикации")
+    void createOrganization_WhenSsoUpdateFails_ShouldThrowRuntime() {
+        CreateOrganizationRequest req = new CreateOrganizationRequest(
+                "ООО Ромашка", null, "123456789", "адрес");
+        when(readModelRepository.existsByUnp("123456789")).thenReturn(false);
+        when(readModelRepository.existsByName("ООО Ромашка")).thenReturn(false);
+        when(restTemplate.patchForObject(anyString(), any(), eq(java.util.Map.class)))
+                .thenThrow(new RuntimeException("SSO down"));
 
-        when(readModelRepository.existsByUnp(anyString())).thenReturn(false);
-        when(readModelRepository.existsByName("ООО Существующая")).thenReturn(true);
-
-        assertThatThrownBy(() -> organizationService.createOrganization(request, directorUserId))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("наименованием уже существует");
-
-        verify(readModelRepository).existsByName("ООО Существующая");
-        verify(readModelRepository, never()).save(any());
+        assertThatThrownBy(() -> organizationService.createOrganization(req, directorUserId))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("привязку");
+        verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any(Object.class));
     }
 
     @Test
-    @DisplayName("getOrganization: Given existing org ID When getting Then should return organization")
-    void getOrganization_GivenExistingOrgId_WhenGetting_ThenShouldReturnOrganization() {
+    @DisplayName("getOrganization: существует → возвращает response")
+    void getOrganization_GivenExisting_ShouldReturn() {
         UUID orgId = UUID.randomUUID();
-        OrganizationReadModel org = OrganizationReadModel.builder()
-                .orgId(orgId)
-                .name("ООО Тест")
-                .shortName("Тест")
-                .unp("123456789")
-                .address("Адрес")
-                .status(OrganizationStatus.ACTIVE)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(org));
+        OrganizationReadModel rm = sampleOrg(orgId);
+        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(rm));
 
         OrganizationResponse response = organizationService.getOrganization(orgId);
 
-        assertThat(response).isNotNull();
         assertThat(response.orgId()).isEqualTo(orgId);
-        assertThat(response.name()).isEqualTo("ООО Тест");
-        assertThat(response.unp()).isEqualTo("123456789");
-
-        verify(readModelRepository).findByOrgId(orgId);
+        assertThat(response.name()).isEqualTo(rm.getName());
     }
 
     @Test
-    @DisplayName("getOrganization: Given non-existing org ID When getting Then should throw not found exception")
-    void getOrganization_GivenNonExistingOrgId_WhenGetting_ThenShouldThrowNotFoundException() {
+    @DisplayName("getOrganization: не найдена → 404 not found")
+    void getOrganization_GivenMissing_ShouldThrowNotFound() {
         UUID orgId = UUID.randomUUID();
         when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> organizationService.getOrganization(orgId))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("не найдена");
-
-        verify(readModelRepository).findByOrgId(orgId);
+        AppException ex = catchAppException(() -> organizationService.getOrganization(orgId));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(ex.getMessage()).contains("не найдена");
     }
 
     @Test
-    @DisplayName("getAllOrganizations: Should return all organizations")
-    void getAllOrganizations_ShouldReturnAllOrganizations() {
-        OrganizationReadModel org1 = OrganizationReadModel.builder()
-                .orgId(UUID.randomUUID())
-                .name("ООО Тест 1")
-                .status(OrganizationStatus.ACTIVE)
-                .build();
-
-        OrganizationReadModel org2 = OrganizationReadModel.builder()
-                .orgId(UUID.randomUUID())
-                .name("ООО Тест 2")
-                .status(OrganizationStatus.BLOCKED)
-                .build();
-
-        when(readModelRepository.findAll()).thenReturn(List.of(org1, org2));
-
-        List<OrganizationResponse> responses = organizationService.getAllOrganizations();
-
-        assertThat(responses).hasSize(2);
-        verify(readModelRepository).findAll();
-    }
-
-    @Test
-    @DisplayName("getOrganizationsByStatus: Given status Should return filtered organizations")
-    void getOrganizationsByStatus_GivenStatus_ShouldReturnFilteredOrganizations() {
-        OrganizationReadModel org1 = OrganizationReadModel.builder()
-                .orgId(UUID.randomUUID())
-                .name("ООО Тест 1")
-                .status(OrganizationStatus.ACTIVE)
-                .build();
-
-        when(readModelRepository.findAllByStatus(OrganizationStatus.ACTIVE)).thenReturn(List.of(org1));
-
-        List<OrganizationResponse> responses = organizationService.getOrganizationsByStatus(OrganizationStatus.ACTIVE);
-
-        assertThat(responses).hasSize(1);
-        assertThat(responses.getFirst().status()).isEqualTo(OrganizationStatus.ACTIVE);
-        verify(readModelRepository).findAllByStatus(OrganizationStatus.ACTIVE);
-    }
-
-    @Test
-    @DisplayName("updateOrganization: Given valid request Should update and return response")
-    void updateOrganization_GivenValidRequest_ShouldUpdateAndReturnResponse() {
+    @DisplayName("updateOrganization: меняем УНП на свободный → успешно сохраняет и публикует событие updated")
+    void updateOrganization_GivenChangedUnpFree_ShouldSucceed() {
         UUID orgId = UUID.randomUUID();
-        UpdateOrganizationRequest request = new UpdateOrganizationRequest(
-                "Новое название",
-                "Новое",
-                "987654321",
-                "Новый адрес"
-        );
+        OrganizationReadModel rm = sampleOrg(orgId);
+        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(rm));
+        when(readModelRepository.existsByUnp("999999999")).thenReturn(false);
 
-        OrganizationReadModel existingOrg = OrganizationReadModel.builder()
-                .orgId(orgId)
-                .name("Старое название")
-                .shortName("Старое")
-                .unp("123456789")
-                .address("Старый адрес")
-                .status(OrganizationStatus.ACTIVE)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
+        UpdateOrganizationRequest req = new UpdateOrganizationRequest(
+                null, null, "999999999", null);
+        OrganizationResponse response = organizationService.updateOrganization(orgId, req);
 
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(existingOrg));
-        when(readModelRepository.existsByUnp("987654321")).thenReturn(false);
-        when(readModelRepository.existsByName("Новое название")).thenReturn(false);
-        when(objectMapper.valueToTree(any())).thenReturn(null);
-        when(eventRepository.save(any(OrganizationEvent.class))).thenReturn(null);
-        when(readModelRepository.save(any(OrganizationReadModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
-
-        OrganizationResponse response = organizationService.updateOrganization(orgId, request);
-
-        assertThat(response).isNotNull();
-        assertThat(response.name()).isEqualTo("Новое название");
-        assertThat(response.unp()).isEqualTo("987654321");
-
-        verify(readModelRepository).findByOrgId(orgId);
-        verify(readModelRepository).save(any(OrganizationReadModel.class));
+        assertThat(response.unp()).isEqualTo("999999999");
         verify(eventRepository).save(any(OrganizationEvent.class));
+        verify(rabbitTemplate).convertAndSend(
+                eq(RabbitMQConfig.ORGANIZATION_EXCHANGE),
+                eq(RabbitMQConfig.ORGANIZATION_UPDATED_KEY),
+                any(Object.class));
     }
 
     @Test
-    @DisplayName("updateOrganization: Given duplicate UNP Should throw conflict exception")
-    void updateOrganization_GivenDuplicateUnp_ShouldThrowConflictException() {
+    @DisplayName("updateOrganization: меняем УНП на занятый → 409 conflict")
+    void updateOrganization_GivenChangedUnpTaken_ShouldThrowConflict() {
         UUID orgId = UUID.randomUUID();
-        UpdateOrganizationRequest request = new UpdateOrganizationRequest(
-                null,
-                null,
-                "987654321",
-                null
-        );
+        OrganizationReadModel rm = sampleOrg(orgId);
+        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(rm));
+        when(readModelRepository.existsByUnp("999999999")).thenReturn(true);
 
-        OrganizationReadModel existingOrg = OrganizationReadModel.builder()
-                .orgId(orgId)
-                .name("Название")
-                .unp("123456789")
-                .status(OrganizationStatus.ACTIVE)
-                .build();
-
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(existingOrg));
-        when(readModelRepository.existsByUnp("987654321")).thenReturn(true);
-
-        assertThatThrownBy(() -> organizationService.updateOrganization(orgId, request))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("УНП уже существует");
-
-        verify(readModelRepository).findByOrgId(orgId);
+        UpdateOrganizationRequest req = new UpdateOrganizationRequest(
+                null, null, "999999999", null);
+        AppException ex = catchAppException(
+                () -> organizationService.updateOrganization(orgId, req));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
         verify(readModelRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("updateOrganization: Given non-existing org Should throw not found exception")
-    void updateOrganization_GivenNonExistingOrg_ShouldThrowNotFoundException() {
+    @DisplayName("updateOrganization: УНП не меняется → uniqueness check не вызывается")
+    void updateOrganization_GivenSameUnp_ShouldSkipUniqueCheck() {
         UUID orgId = UUID.randomUUID();
-        UpdateOrganizationRequest request = new UpdateOrganizationRequest("Название", null, null, null);
+        OrganizationReadModel rm = sampleOrg(orgId);
+        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(rm));
 
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.empty());
+        UpdateOrganizationRequest req = new UpdateOrganizationRequest(
+                null, null, rm.getUnp(), null);
+        organizationService.updateOrganization(orgId, req);
 
-        assertThatThrownBy(() -> organizationService.updateOrganization(orgId, request))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("не найдена");
-
-        verify(readModelRepository).findByOrgId(orgId);
-        verify(readModelRepository, never()).save(any());
+        verify(readModelRepository, never()).existsByUnp(anyString());
     }
 
     @Test
-    @DisplayName("deleteOrganization: Given existing org Should delete and return dump")
-    void deleteOrganization_GivenExistingOrg_ShouldDeleteAndReturnDump() {
+    @DisplayName("deleteOrganization: активная орг → переводится в ARCHIVED, сотрудники кроме DIRECTOR увольняются")
+    void deleteOrganization_GivenActive_ShouldArchiveAndFireNonDirectors() {
         UUID orgId = UUID.randomUUID();
-        UUID deletedByUserId = UUID.randomUUID();
-
-        OrganizationReadModel org = OrganizationReadModel.builder()
-                .orgId(orgId)
-                .name("ООО Тест")
-                .shortName("Тест")
-                .unp("123456789")
-                .address("Адрес")
-                .status(OrganizationStatus.ACTIVE)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(org));
+        OrganizationReadModel rm = sampleOrg(orgId);
+        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(rm));
         when(eventRepository.findByOrgIdOrderByCreatedAtAsc(orgId)).thenReturn(List.of());
-        when(objectMapper.valueToTree(any())).thenReturn(null);
-        when(eventRepository.save(any(OrganizationEvent.class))).thenReturn(null);
-        doNothing().when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
-        doNothing().when(invitationCodeRepository).deactivateAllByOrgId(orgId);
-        doNothing().when(readModelRepository).delete(org);
+        when(eventRepository.findMaxVersionByOrgId(orgId)).thenReturn(1);
 
-        OrganizationDumpResponse response = organizationService.deleteOrganization(orgId, deletedByUserId);
+        OrganizationEmployee director = OrganizationEmployee.builder()
+                .userId(directorUserId).orgId(orgId).role("DIRECTOR")
+                .joinedAt(LocalDateTime.now().minusDays(30)).isActive(true).build();
+        OrganizationEmployee worker = OrganizationEmployee.builder()
+                .userId(UUID.randomUUID()).orgId(orgId).role("WORKER")
+                .joinedAt(LocalDateTime.now().minusDays(5)).isActive(true).build();
+        OrganizationEmployee accountant = OrganizationEmployee.builder()
+                .userId(UUID.randomUUID()).orgId(orgId).role("ACCOUNTANT")
+                .joinedAt(LocalDateTime.now().minusDays(15)).isActive(true).build();
+        when(employeeRepository.findByOrgIdAndIsActiveTrue(orgId))
+                .thenReturn(new ArrayList<>(List.of(director, worker, accountant)));
 
-        assertThat(response).isNotNull();
-        assertThat(response.message()).contains("успешно удалена");
-        assertThat(response.organizationData()).isNotNull();
+        OrganizationDumpResponse dump = organizationService.deleteOrganization(orgId, directorUserId);
 
-        verify(readModelRepository).findByOrgId(orgId);
-        verify(readModelRepository).delete(org);
+        assertThat(dump).isNotNull();
+        assertThat(dump.organizationData()).containsKey("orgId");
+        assertThat(rm.getStatus()).isEqualTo(OrganizationStatus.ARCHIVED);
+
+        assertThat(director.getIsActive()).isTrue();
+        assertThat(worker.getIsActive()).isFalse();
+        assertThat(accountant.getIsActive()).isFalse();
+        assertThat(worker.getRemovedAt()).isNotNull();
+        assertThat(accountant.getRemovedAt()).isNotNull();
+
+        verify(employeeRepository, times(2)).save(any(OrganizationEmployee.class));
         verify(invitationCodeRepository).deactivateAllByOrgId(orgId);
-        verify(eventRepository).save(any(OrganizationEvent.class));
+        verify(rabbitTemplate).convertAndSend(
+                eq(RabbitMQConfig.ORGANIZATION_EXCHANGE),
+                eq(RabbitMQConfig.ORGANIZATION_ARCHIVED_KEY),
+                any(Object.class));
     }
 
     @Test
-    @DisplayName("deleteOrganization: Given non-existing org Should throw not found exception")
-    void deleteOrganization_GivenNonExistingOrg_ShouldThrowNotFoundException() {
+    @DisplayName("deleteOrganization: уже архивирована → 409 conflict")
+    void deleteOrganization_GivenAlreadyArchived_ShouldThrowConflict() {
         UUID orgId = UUID.randomUUID();
-        UUID deletedByUserId = UUID.randomUUID();
+        OrganizationReadModel rm = sampleOrg(orgId);
+        rm.setStatus(OrganizationStatus.ARCHIVED);
+        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(rm));
 
+        AppException ex = catchAppException(
+                () -> organizationService.deleteOrganization(orgId, directorUserId));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+        verify(employeeRepository, never()).findByOrgIdAndIsActiveTrue(any());
+    }
+
+    @Test
+    @DisplayName("deleteOrganization: орг не найдена → 404")
+    void deleteOrganization_GivenMissing_ShouldThrowNotFound() {
+        UUID orgId = UUID.randomUUID();
         when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> organizationService.deleteOrganization(orgId, deletedByUserId))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("не найдена");
-
-        verify(readModelRepository).findByOrgId(orgId);
-        verify(readModelRepository, never()).delete(any());
+        AppException ex = catchAppException(
+                () -> organizationService.deleteOrganization(orgId, directorUserId));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
-    @DisplayName("generateInvitationCodes: Given active organization Should generate codes")
-    void generateInvitationCodes_GivenActiveOrganization_ShouldGenerateCodes() {
+    @DisplayName("archiveOrganizationOnDirectorDelete: активная → архивирует, увольняет не-DIRECTOR")
+    void archiveOnDirectorDelete_GivenActive_ShouldArchive() {
         UUID orgId = UUID.randomUUID();
+        OrganizationReadModel rm = sampleOrg(orgId);
+        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(rm));
+        when(eventRepository.findMaxVersionByOrgId(orgId)).thenReturn(0);
+        OrganizationEmployee worker = OrganizationEmployee.builder()
+                .userId(UUID.randomUUID()).orgId(orgId).role("WORKER")
+                .joinedAt(LocalDateTime.now()).isActive(true).build();
+        when(employeeRepository.findByOrgIdAndIsActiveTrue(orgId))
+                .thenReturn(new ArrayList<>(List.of(worker)));
 
-        OrganizationReadModel org = OrganizationReadModel.builder()
-                .orgId(orgId)
-                .name("ООО Тест")
-                .status(OrganizationStatus.ACTIVE)
-                .build();
+        organizationService.archiveOrganizationOnDirectorDelete(orgId, directorUserId);
 
-        List<Map<String, Object>> warehouses = List.of(
-                Map.of("warehouseId", UUID.randomUUID().toString(), "name", "Warehouse 1")
-        );
-
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(org));
-        when(warehouseClientService.getWarehousesByOrganization(orgId)).thenReturn(warehouses);
-        doNothing().when(invitationCodeRepository).deactivateAllByOrgId(orgId);
-        when(invitationCodeRepository.save(any(OrganizationInvitationCode.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        List<InvitationCodeResponse> codes = organizationService.generateInvitationCodes(orgId);
-
-        assertThat(codes).hasSize(1);
-        verify(readModelRepository).findByOrgId(orgId);
+        assertThat(rm.getStatus()).isEqualTo(OrganizationStatus.ARCHIVED);
+        assertThat(worker.getIsActive()).isFalse();
         verify(invitationCodeRepository).deactivateAllByOrgId(orgId);
-        verify(invitationCodeRepository).save(any(OrganizationInvitationCode.class));
+        verify(rabbitTemplate).convertAndSend(
+                eq(RabbitMQConfig.ORGANIZATION_EXCHANGE),
+                eq(RabbitMQConfig.ORGANIZATION_ARCHIVED_KEY),
+                any(Object.class));
     }
 
     @Test
-    @DisplayName("generateInvitationCodes: Given inactive organization Should throw exception")
-    void generateInvitationCodes_GivenInactiveOrganization_ShouldThrowException() {
+    @DisplayName("archiveOrganizationOnDirectorDelete: уже архивирована → no-op без событий")
+    void archiveOnDirectorDelete_GivenAlreadyArchived_ShouldNoOp() {
         UUID orgId = UUID.randomUUID();
+        OrganizationReadModel rm = sampleOrg(orgId);
+        rm.setStatus(OrganizationStatus.ARCHIVED);
+        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(rm));
 
-        OrganizationReadModel org = OrganizationReadModel.builder()
-                .orgId(orgId)
-                .name("ООО Тест")
-                .status(OrganizationStatus.BLOCKED)
-                .build();
+        organizationService.archiveOrganizationOnDirectorDelete(orgId, directorUserId);
 
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(org));
-
-        assertThatThrownBy(() -> organizationService.generateInvitationCodes(orgId))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("неактивной организации");
-
-        verify(readModelRepository).findByOrgId(orgId);
-        verify(invitationCodeRepository, never()).save(any());
+        verify(employeeRepository, never()).findByOrgIdAndIsActiveTrue(any());
+        verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any(Object.class));
     }
 
     @Test
-    @DisplayName("generateInvitationCodes: Given non-existing org Should throw not found exception")
-    void generateInvitationCodes_GivenNonExistingOrg_ShouldThrowNotFoundException() {
+    @DisplayName("archiveOrganizationOnDirectorDelete: орг не найдена → no-op (warning в логах)")
+    void archiveOnDirectorDelete_GivenMissing_ShouldNoOp() {
         UUID orgId = UUID.randomUUID();
-
         when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> organizationService.generateInvitationCodes(orgId))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("не найдена");
+        organizationService.archiveOrganizationOnDirectorDelete(orgId, directorUserId);
 
-        verify(readModelRepository).findByOrgId(orgId);
-    }
-
-    @Test
-    @DisplayName("updateOrganization: Given duplicate name Should throw conflict exception")
-    void updateOrganization_GivenDuplicateName_ShouldThrowConflictException() {
-        UUID orgId = UUID.randomUUID();
-        UpdateOrganizationRequest request = new UpdateOrganizationRequest(
-                "Existing Name",
-                null,
-                null,
-                null
-        );
-
-        OrganizationReadModel existingOrg = OrganizationReadModel.builder()
-                .orgId(orgId)
-                .name("Old Name")
-                .unp("123456789")
-                .status(OrganizationStatus.ACTIVE)
-                .build();
-
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(existingOrg));
-        when(readModelRepository.existsByName("Existing Name")).thenReturn(true);
-
-        assertThatThrownBy(() -> organizationService.updateOrganization(orgId, request))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("наименованием уже существует");
-
-        verify(readModelRepository).findByOrgId(orgId);
         verify(readModelRepository, never()).save(any());
+        verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any(Object.class));
     }
 
     @Test
-    @DisplayName("regenerateInvitationCodeForWarehouse: Given valid orgId and warehouseId Should regenerate code")
-    void regenerateInvitationCodeForWarehouse_GivenValidOrgIdAndWarehouseId_ShouldRegenerateCode() {
-        UUID orgId = UUID.randomUUID();
-        UUID warehouseId = UUID.randomUUID();
+    @DisplayName("getAllOrganizations: маппит репозиторий в список response")
+    void getAllOrganizations_ShouldMapAll() {
+        OrganizationReadModel rm1 = sampleOrg(UUID.randomUUID());
+        OrganizationReadModel rm2 = sampleOrg(UUID.randomUUID());
+        when(readModelRepository.findAll()).thenReturn(List.of(rm1, rm2));
 
-        OrganizationReadModel org = OrganizationReadModel.builder()
-                .orgId(orgId)
-                .name("ООО Тест")
-                .status(OrganizationStatus.ACTIVE)
-                .build();
+        List<OrganizationResponse> all = organizationService.getAllOrganizations();
 
-        Map<String, Object> warehouseInfo = Map.of(
-                "warehouseId", warehouseId.toString(),
-                "name", "Main Warehouse"
-        );
+        assertThat(all).hasSize(2);
+    }
 
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(org));
-        doNothing().when(invitationCodeRepository).deactivateAllByOrgIdAndWarehouseId(orgId, warehouseId);
-        when(warehouseClientService.getWarehouseInfo(warehouseId)).thenReturn(warehouseInfo);
-        when(invitationCodeRepository.save(any(OrganizationInvitationCode.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+    @Test
+    @DisplayName("getOrganizationsByStatus: фильтр по статусу делегирует в репозиторий")
+    void getOrganizationsByStatus_ShouldDelegate() {
+        when(readModelRepository.findAllByStatus(OrganizationStatus.ARCHIVED))
+                .thenReturn(List.of(sampleOrg(UUID.randomUUID())));
 
-        InvitationCodeResponse response = organizationService.regenerateInvitationCodeForWarehouse(orgId, warehouseId);
+        List<OrganizationResponse> archived =
+                organizationService.getOrganizationsByStatus(OrganizationStatus.ARCHIVED);
+
+        assertThat(archived).hasSize(1);
+        verify(readModelRepository).findAllByStatus(OrganizationStatus.ARCHIVED);
+    }
+
+    @Test
+    @DisplayName("createOrganization: RabbitMQ упал → орг всё равно создаётся (graceful)")
+    void createOrganization_WhenRabbitFails_ShouldStillSucceed() {
+        CreateOrganizationRequest req = new CreateOrganizationRequest(
+                "ООО Ромашка", null, "123456789", "адрес");
+        when(readModelRepository.existsByUnp("123456789")).thenReturn(false);
+        when(readModelRepository.existsByName("ООО Ромашка")).thenReturn(false);
+        lenient().doThrow(new RuntimeException("rabbit down"))
+                .when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
+
+        OrganizationResponse response = organizationService.createOrganization(req, directorUserId);
 
         assertThat(response).isNotNull();
-        assertThat(response.warehouseId()).isEqualTo(warehouseId);
-        assertThat(response.warehouseName()).isEqualTo("Main Warehouse");
-        verify(readModelRepository).findByOrgId(orgId);
-        verify(invitationCodeRepository).deactivateAllByOrgIdAndWarehouseId(orgId, warehouseId);
-        verify(invitationCodeRepository).save(any(OrganizationInvitationCode.class));
+        assertThat(response.unp()).isEqualTo("123456789");
+        verify(readModelRepository).save(any());
     }
 
-    @Test
-    @DisplayName("regenerateInvitationCodeForWarehouse: Given non-existing org Should throw exception")
-    void regenerateInvitationCodeForWarehouse_GivenNonExistingOrg_ShouldThrowException() {
-        UUID orgId = UUID.randomUUID();
-        UUID warehouseId = UUID.randomUUID();
-
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> organizationService.regenerateInvitationCodeForWarehouse(orgId, warehouseId))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("не найдена");
-
-        verify(readModelRepository).findByOrgId(orgId);
-    }
-
-    @Test
-    @DisplayName("getActiveInvitationCodes: Should return list of active codes")
-    void getActiveInvitationCodes_ShouldReturnListOfActiveCodes() {
-        UUID orgId = UUID.randomUUID();
-        UUID warehouseId = UUID.randomUUID();
-
-        OrganizationInvitationCode code1 = OrganizationInvitationCode.builder()
-                .codeId(UUID.randomUUID())
+    private OrganizationReadModel sampleOrg(UUID orgId) {
+        return OrganizationReadModel.builder()
                 .orgId(orgId)
-                .warehouseId(warehouseId)
-                .invitationCode("CODE123")
-                .expiresAt(LocalDateTime.now().plusDays(1))
-                .isActive(true)
-                .build();
-
-        when(invitationCodeRepository.findByOrgIdAndIsActiveTrue(orgId)).thenReturn(List.of(code1));
-        when(warehouseClientService.getWarehouseInfo(warehouseId))
-                .thenReturn(Map.of("name", "Test Warehouse"));
-
-        List<InvitationCodeResponse> codes = organizationService.getActiveInvitationCodes(orgId);
-
-        assertThat(codes).hasSize(1);
-        assertThat(codes.get(0).invitationCode()).isEqualTo("CODE123");
-        verify(invitationCodeRepository).findByOrgIdAndIsActiveTrue(orgId);
-    }
-
-    @Test
-    @DisplayName("getActiveInvitationCodes: Given no active codes Should return empty list")
-    void getActiveInvitationCodes_GivenNoActiveCodes_ShouldReturnEmptyList() {
-        UUID orgId = UUID.randomUUID();
-
-        when(invitationCodeRepository.findByOrgIdAndIsActiveTrue(orgId)).thenReturn(List.of());
-
-        List<InvitationCodeResponse> codes = organizationService.getActiveInvitationCodes(orgId);
-
-        assertThat(codes).isEmpty();
-        verify(invitationCodeRepository).findByOrgIdAndIsActiveTrue(orgId);
-    }
-
-    @Test
-    @DisplayName("validateInvitationCode: Given valid code Should return organization and warehouse info")
-    void validateInvitationCode_GivenValidCode_ShouldReturnOrganizationAndWarehouseInfo() {
-        UUID orgId = UUID.randomUUID();
-        UUID warehouseId = UUID.randomUUID();
-        String code = "VALIDCODE123";
-
-        OrganizationInvitationCode invitationCode = OrganizationInvitationCode.builder()
-                .codeId(UUID.randomUUID())
-                .orgId(orgId)
-                .warehouseId(warehouseId)
-                .invitationCode(code)
-                .expiresAt(LocalDateTime.now().plusDays(1))
-                .isActive(true)
-                .build();
-
-        OrganizationReadModel org = OrganizationReadModel.builder()
-                .orgId(orgId)
-                .name("ООО Тест")
+                .name("ООО Ромашка")
+                .shortName("Ромашка")
+                .unp("123456789")
+                .address("Минск, ул. Ленина 1")
                 .status(OrganizationStatus.ACTIVE)
+                .createdAt(LocalDateTime.now().minusDays(10))
+                .updatedAt(LocalDateTime.now().minusDays(10))
                 .build();
-
-        when(invitationCodeRepository.findByInvitationCode(code)).thenReturn(Optional.of(invitationCode));
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(org));
-
-        Map<String, Object> result = organizationService.validateInvitationCode(code);
-
-        assertThat(result).isNotNull();
-        assertThat(result.get("orgId")).isEqualTo(orgId);
-        assertThat(result.get("orgName")).isEqualTo("ООО Тест");
-        assertThat(result.get("warehouseId")).isEqualTo(warehouseId);
-        verify(invitationCodeRepository).findByInvitationCode(code);
-        verify(readModelRepository).findByOrgId(orgId);
     }
 
-    @Test
-    @DisplayName("validateInvitationCode: Given non-existing code Should throw exception")
-    void validateInvitationCode_GivenNonExistingCode_ShouldThrowException() {
-        String code = "INVALIDCODE";
-
-        when(invitationCodeRepository.findByInvitationCode(code)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> organizationService.validateInvitationCode(code))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("не найден");
-
-        verify(invitationCodeRepository).findByInvitationCode(code);
-    }
-
-    @Test
-    @DisplayName("validateInvitationCode: Given expired code Should throw exception")
-    void validateInvitationCode_GivenExpiredCode_ShouldThrowException() {
-        UUID orgId = UUID.randomUUID();
-        String code = "EXPIREDCODE";
-
-        OrganizationInvitationCode invitationCode = OrganizationInvitationCode.builder()
-                .codeId(UUID.randomUUID())
-                .orgId(orgId)
-                .invitationCode(code)
-                .expiresAt(LocalDateTime.now().minusDays(1))
-                .isActive(true)
-                .build();
-
-        when(invitationCodeRepository.findByInvitationCode(code)).thenReturn(Optional.of(invitationCode));
-
-        assertThatThrownBy(() -> organizationService.validateInvitationCode(code))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("недействителен или истёк");
-
-        verify(invitationCodeRepository).findByInvitationCode(code);
-    }
-
-    @Test
-    @DisplayName("validateInvitationCode: Given inactive code Should throw exception")
-    void validateInvitationCode_GivenInactiveCode_ShouldThrowException() {
-        UUID orgId = UUID.randomUUID();
-        String code = "INACTIVECODE";
-
-        OrganizationInvitationCode invitationCode = OrganizationInvitationCode.builder()
-                .codeId(UUID.randomUUID())
-                .orgId(orgId)
-                .invitationCode(code)
-                .expiresAt(LocalDateTime.now().plusDays(1))
-                .isActive(false)
-                .build();
-
-        when(invitationCodeRepository.findByInvitationCode(code)).thenReturn(Optional.of(invitationCode));
-
-        assertThatThrownBy(() -> organizationService.validateInvitationCode(code))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("недействителен или истёк");
-
-        verify(invitationCodeRepository).findByInvitationCode(code);
+    private static AppException catchAppException(Runnable r) {
+        try {
+            r.run();
+        } catch (AppException e) {
+            return e;
+        }
+        throw new AssertionError("Expected AppException but none was thrown");
     }
 }

@@ -110,32 +110,32 @@ class WarehouseMessageListenerTest {
     }
 
     @Test
-    @DisplayName("handleOrganizationDeleted: Should delete warehouses for organization")
-    void handleOrganizationDeleted_ShouldDeleteWarehousesForOrganization() {
+    @DisplayName("handleOrganizationArchived: Should delete warehouses for organization")
+    void handleOrganizationArchived_ShouldDeleteWarehousesForOrganization() {
         UUID orgId = UUID.randomUUID();
         Map<String, Object> message = new HashMap<>();
         message.put("orgId", orgId.toString());
 
-        doNothing().when(warehouseService).deleteWarehousesByOrganization(orgId);
+        doNothing().when(warehouseService).deactivateWarehousesByOrganization(orgId);
 
-        messageListener.handleOrganizationDeleted(message);
+        messageListener.handleOrganizationArchived(message);
 
-        verify(warehouseService).deleteWarehousesByOrganization(orgId);
+        verify(warehouseService).deactivateWarehousesByOrganization(orgId);
     }
 
     @Test
-    @DisplayName("handleOrganizationDeleted: Exception Should be logged")
-    void handleOrganizationDeleted_Exception_ShouldBeLogged() {
+    @DisplayName("handleOrganizationArchived: Exception Should be logged")
+    void handleOrganizationArchived_Exception_ShouldBeLogged() {
         UUID orgId = UUID.randomUUID();
         Map<String, Object> message = new HashMap<>();
         message.put("orgId", orgId.toString());
 
         doThrow(new RuntimeException("Test error"))
-                .when(warehouseService).deleteWarehousesByOrganization(orgId);
+                .when(warehouseService).deactivateWarehousesByOrganization(orgId);
 
-        messageListener.handleOrganizationDeleted(message);
+        messageListener.handleOrganizationArchived(message);
 
-        verify(warehouseService).deleteWarehousesByOrganization(orgId);
+        verify(warehouseService).deactivateWarehousesByOrganization(orgId);
     }
 }
 

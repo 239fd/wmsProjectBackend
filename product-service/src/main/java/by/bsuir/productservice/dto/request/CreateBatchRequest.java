@@ -1,5 +1,6 @@
 package by.bsuir.productservice.dto.request;
 
+import by.bsuir.productservice.model.enums.StorageConditions;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
@@ -20,6 +21,10 @@ public record CreateBatchRequest(
         String supplier,
 
         @Positive(message = "Закупочная цена должна быть положительной")
-        BigDecimal purchasePrice
+        BigDecimal purchasePrice,
+
+        UUID supplyId,
+
+        StorageConditions storageConditions
 ) {
 }

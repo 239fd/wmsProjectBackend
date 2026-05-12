@@ -238,6 +238,37 @@ public class WarehouseService {
     }
 
     @Transactional
+    public void deactivateWarehousesByOrganization(UUID orgId) {
+        log.info("Deactivating all warehouses for archived organization: {}", orgId);
+
+        List<WarehouseReadModel> warehouses = readModelRepository.findByOrgIdAndIsActiveTrue(orgId);
+
+        for (WarehouseReadModel warehouse : warehouses) {
+            Map<String, Object> eventData = new HashMap<>();
+            eventData.put("warehouseId", warehouse.getWarehouseId().toString());
+            eventData.put("orgId", orgId.toString());
+            eventData.put("name", warehouse.getName());
+            eventData.put("isActive", false);
+            eventData.put("reason", "ORGANIZATION_ARCHIVED");
+
+            WarehouseEvent warehouseEvent = WarehouseEvent.builder()
+                    .warehouseId(warehouse.getWarehouseId())
+                    .eventType("WAREHOUSE_DEACTIVATED")
+                    .eventData(objectMapper.valueToTree(eventData))
+                    .eventVersion(1)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            eventRepository.save(warehouseEvent);
+
+            warehouse.setIsActive(false);
+            warehouse.setUpdatedAt(LocalDateTime.now());
+            readModelRepository.save(warehouse);
+        }
+
+        log.info("Deactivated {} warehouses for organization: {}", warehouses.size(), orgId);
+    }
+
+    @Transactional
     public void deleteWarehousesByOrganization(UUID orgId) {
         log.info("Deleting all warehouses for organization: {}", orgId);
 

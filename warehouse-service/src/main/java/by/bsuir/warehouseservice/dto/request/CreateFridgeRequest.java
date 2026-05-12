@@ -10,8 +10,11 @@ public record CreateFridgeRequest(
         @NotNull(message = "ID стеллажа обязателен")
         UUID rackId,
 
-        @NotNull(message = "Температура обязательна")
-        BigDecimal temperatureC,
+        @NotNull(message = "Минимальная температура обязательна")
+        BigDecimal minTemperatureC,
+
+        @NotNull(message = "Максимальная температура обязательна")
+        BigDecimal maxTemperatureC,
 
         @NotNull(message = "Длина обязательна")
         @Positive(message = "Длина должна быть положительной")

@@ -1,8 +1,10 @@
 package by.bsuir.ssoservice.service;
 
 import by.bsuir.ssoservice.dto.request.LoginRequest;
-import by.bsuir.ssoservice.dto.request.RegisterRequest;
+import by.bsuir.ssoservice.dto.request.RegisterDirectorRequest;
+import by.bsuir.ssoservice.dto.request.RegisterWithInvitationRequest;
 import by.bsuir.ssoservice.dto.response.AuthResponse;
+import by.bsuir.ssoservice.dto.response.InvitationValidationResponse;
 import by.bsuir.ssoservice.dto.response.UserResponse;
 import by.bsuir.ssoservice.exception.AppException;
 import by.bsuir.ssoservice.model.entity.LoginAudit;
@@ -17,715 +19,390 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("UserService Unit Tests")
+@DisplayName("UserService — модульные тесты")
 class UserServiceTest {
 
-    @Mock
-    private UserEventRepository eventRepository;
+    @Mock private UserEventRepository eventRepository;
+    @Mock private UserReadModelRepository readModelRepository;
+    @Mock private PasswordEncoder passwordEncoder;
+    @Mock private JwtTokenService jwtTokenService;
+    @Mock private RefreshTokenService refreshTokenService;
+    @Mock private LoginAuditRepository loginAuditRepository;
+    @Spy  private ObjectMapper objectMapper = new ObjectMapper();
+    @Mock private InvitationValidationService invitationValidationService;
 
-    @Mock
-    private UserReadModelRepository readModelRepository;
-
-    @Mock
-    private PasswordEncoder passwordEncoder;
-
-    @Mock
-    private JwtTokenService jwtTokenService;
-
-    @Mock
-    private RefreshTokenService refreshTokenService;
-
-    @Mock
-    private LoginAuditRepository loginAuditRepository;
-
-    @Mock
-    private ObjectMapper objectMapper;
-
-    @InjectMocks
-    private UserService userService;
+    @InjectMocks private UserService userService;
 
     @Test
-    @DisplayName("register: Given valid DIRECTOR request When registering Then should create user and return auth response")
-    void register_GivenValidDirectorRequest_WhenRegistering_ThenShouldCreateUserAndReturnAuthResponse() {
-        RegisterRequest request = new RegisterRequest(
-                "test@example.com",
-                "John",
-                "Doe",
-                null,
-                "password123",
-                UserRole.DIRECTOR,
-                null
-        );
+    @DisplayName("registerDirector: новый email → создаёт DIRECTOR-пользователя и audit-запись")
+    void registerDirector_GivenNewEmail_ShouldCreateAndAudit() {
+        RegisterDirectorRequest req = new RegisterDirectorRequest(
+                "boss@example.com", "P@ssword123", "Александр", "Сидоров", "Петрович");
+        when(readModelRepository.existsByEmail("boss@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("P@ssword123")).thenReturn("hash");
+        when(jwtTokenService.generateAccessToken(any(), eq("boss@example.com"), eq(UserRole.DIRECTOR), any(), any()))
+                .thenReturn("access-jwt");
+        when(jwtTokenService.generateRefreshToken()).thenReturn("refresh-uuid");
+        when(jwtTokenService.getAccessTokenValidity()).thenReturn(14400L);
+        when(jwtTokenService.getRefreshTokenValidity()).thenReturn(2592000L);
+        when(passwordEncoder.encode("refresh-uuid")).thenReturn("refresh-hash");
 
-        String encodedPassword = "encodedPassword123";
-        String accessToken = "accessToken";
-        String refreshToken = "refreshToken";
+        AuthResponse response = userService.registerDirector(req, "127.0.0.1", "Mozilla");
 
-        when(readModelRepository.existsByEmail(anyString())).thenReturn(false);
-        when(passwordEncoder.encode(anyString())).thenReturn(encodedPassword);
-        when(objectMapper.valueToTree(any())).thenReturn(null);
-        when(eventRepository.save(any(UserEvent.class))).thenReturn(null);
-        when(readModelRepository.save(any(UserReadModel.class))).thenAnswer(invocation -> {
-            UserReadModel model = invocation.getArgument(0);
-            model.setUserId(UUID.randomUUID());
-            return model;
-        });
-        when(jwtTokenService.generateAccessToken(any(UUID.class), anyString(), any(UserRole.class)))
-                .thenReturn(accessToken);
-        when(jwtTokenService.generateRefreshToken()).thenReturn(refreshToken);
-        doNothing().when(refreshTokenService).saveRefreshToken(anyString(), any(UUID.class), any(Duration.class));
-        when(loginAuditRepository.save(any(LoginAudit.class))).thenReturn(null);
+        assertThat(response.accessToken()).isEqualTo("access-jwt");
+        assertThat(response.refreshToken()).isEqualTo("refresh-uuid");
 
-        AuthResponse response = userService.register(request, "127.0.0.1", "Mozilla");
+        ArgumentCaptor<UserReadModel> rmCaptor = ArgumentCaptor.forClass(UserReadModel.class);
+        verify(readModelRepository).save(rmCaptor.capture());
+        UserReadModel saved = rmCaptor.getValue();
+        assertThat(saved.getEmail()).isEqualTo("boss@example.com");
+        assertThat(saved.getRole()).isEqualTo(UserRole.DIRECTOR);
+        assertThat(saved.getProvider()).isEqualTo(AuthProvider.LOCAL);
+        assertThat(saved.getFullName()).isEqualTo("Сидоров Александр Петрович");
+        assertThat(saved.getOrganizationId()).isNull();
 
-        assertThat(response).isNotNull();
-        assertThat(response.accessToken()).isEqualTo(accessToken);
-        assertThat(response.refreshToken()).isEqualTo(refreshToken);
-
-        verify(readModelRepository).existsByEmail("test@example.com");
-        verify(passwordEncoder).encode("password123");
         verify(eventRepository).save(any(UserEvent.class));
-        verify(readModelRepository).save(any(UserReadModel.class));
-        verify(jwtTokenService).generateAccessToken(any(UUID.class), eq("test@example.com"), eq(UserRole.DIRECTOR));
-        verify(refreshTokenService).saveRefreshToken(eq(refreshToken), any(UUID.class), any(Duration.class));
-    }
-
-    @Test
-    @DisplayName("register: Given duplicate email When registering Then should throw conflict exception")
-    void register_GivenDuplicateEmail_WhenRegistering_ThenShouldThrowConflictException() {
-        RegisterRequest request = new RegisterRequest(
-                "existing@example.com",
-                "John",
-                "Doe",
-                null,
-                "password123",
-                UserRole.DIRECTOR,
-                null
-        );
-
-        when(readModelRepository.existsByEmail("existing@example.com")).thenReturn(true);
-
-        assertThatThrownBy(() -> userService.register(request, "127.0.0.1", "Mozilla"))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("email уже существует");
-
-        verify(readModelRepository).existsByEmail("existing@example.com");
-        verify(passwordEncoder, never()).encode(anyString());
-        verify(readModelRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("register: Given WORKER without organization code When registering Then should throw bad request exception")
-    void register_GivenWorkerWithoutOrgCode_WhenRegistering_ThenShouldThrowBadRequestException() {
-        RegisterRequest request = new RegisterRequest(
-                "worker@example.com",
-                "Jane",
-                "Smith",
-                null,
-                "password123",
-                UserRole.WORKER,
-                null
-        );
-
-        when(readModelRepository.existsByEmail(anyString())).thenReturn(false);
-
-        assertThatThrownBy(() -> userService.register(request, "127.0.0.1", "Mozilla"))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("код предприятия");
-
-        verify(readModelRepository).existsByEmail("worker@example.com");
-        verify(readModelRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("login: Given valid credentials When logging in Then should return auth response")
-    void login_GivenValidCredentials_WhenLoggingIn_ThenShouldReturnAuthResponse() {
-        LoginRequest request = new LoginRequest("test@example.com", "password123");
-        UUID userId = UUID.randomUUID();
-        String encodedPassword = "encodedPassword123";
-        String accessToken = "accessToken";
-        String refreshToken = "refreshToken";
-
-        UserReadModel user = UserReadModel.builder()
-                .userId(userId)
-                .email("test@example.com")
-                .fullName("John Doe")
-                .role(UserRole.DIRECTOR)
-                .passwordHash(encodedPassword)
-                .provider(AuthProvider.LOCAL)
-                .isActive(true)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-
-        when(readModelRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("password123", encodedPassword)).thenReturn(true);
-        when(jwtTokenService.generateAccessToken(userId, "test@example.com", UserRole.DIRECTOR))
-                .thenReturn(accessToken);
-        when(jwtTokenService.generateRefreshToken()).thenReturn(refreshToken);
-        doNothing().when(refreshTokenService).saveRefreshToken(anyString(), any(UUID.class), any(Duration.class));
-        when(loginAuditRepository.save(any(LoginAudit.class))).thenReturn(null);
-
-        AuthResponse response = userService.login(request, "127.0.0.1", "Mozilla");
-
-        assertThat(response).isNotNull();
-        assertThat(response.accessToken()).isEqualTo(accessToken);
-        assertThat(response.refreshToken()).isEqualTo(refreshToken);
-
-        verify(readModelRepository).findByEmail("test@example.com");
-        verify(passwordEncoder).matches("password123", encodedPassword);
-        verify(jwtTokenService).generateAccessToken(userId, "test@example.com", UserRole.DIRECTOR);
-        verify(refreshTokenService).saveRefreshToken(eq(refreshToken), eq(userId), any(Duration.class));
+        verify(refreshTokenService).saveRefreshToken(eq("refresh-uuid"), any(UUID.class), any(Duration.class));
         verify(loginAuditRepository).save(any(LoginAudit.class));
     }
 
     @Test
-    @DisplayName("login: Given invalid email When logging in Then should throw unauthorized exception")
-    void login_GivenInvalidEmail_WhenLoggingIn_ThenShouldThrowUnauthorizedException() {
-        LoginRequest request = new LoginRequest("invalid@example.com", "password123");
+    @DisplayName("registerDirector: дубликат email → 409 conflict")
+    void registerDirector_GivenDuplicateEmail_ShouldThrowConflict() {
+        RegisterDirectorRequest req = new RegisterDirectorRequest(
+                "boss@example.com", "P@ssword123", "A", "S", null);
+        when(readModelRepository.existsByEmail("boss@example.com")).thenReturn(true);
 
-        when(readModelRepository.findByEmail("invalid@example.com")).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> userService.login(request, "127.0.0.1", "Mozilla"))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("Неверный email или пароль");
-
-        verify(readModelRepository).findByEmail("invalid@example.com");
-        verify(passwordEncoder, never()).matches(anyString(), anyString());
-        verify(jwtTokenService, never()).generateAccessToken(any(), anyString(), any());
+        AppException ex = catchApp(() -> userService.registerDirector(req, "ip", "ua"));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+        verify(readModelRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("login: Given invalid password When logging in Then should throw unauthorized exception")
-    void login_GivenInvalidPassword_WhenLoggingIn_ThenShouldThrowUnauthorizedException() {
-        LoginRequest request = new LoginRequest("test@example.com", "wrongPassword");
-        UserReadModel user = UserReadModel.builder()
-                .userId(UUID.randomUUID())
-                .email("test@example.com")
-                .passwordHash("encodedPassword123")
-                .role(UserRole.DIRECTOR)
-                .isActive(true)
-                .provider(AuthProvider.LOCAL)
-                .build();
+    @DisplayName("registerWithInvitation: валидное приглашение + совпадающий email → создаёт пользователя в орг и помечает invite использованным")
+    void registerWithInvitation_GivenValid_ShouldCreateAndMarkUsed() {
+        UUID token = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+        UUID warehouseId = UUID.randomUUID();
+        RegisterWithInvitationRequest req = new RegisterWithInvitationRequest(
+                token, "worker@example.com", "P@ssword123", "Иван", "Петров", null);
 
-        when(readModelRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("wrongPassword", "encodedPassword123")).thenReturn(false);
+        when(invitationValidationService.validateInvitation(token)).thenReturn(
+                new InvitationValidationResponse(true, "ООО Ромашка", "WORKER",
+                        "worker@example.com", orgId, warehouseId, "OK"));
+        when(readModelRepository.existsByEmail("worker@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("P@ssword123")).thenReturn("hash");
+        when(jwtTokenService.generateAccessToken(any(), eq("worker@example.com"),
+                eq(UserRole.WORKER), eq(orgId), eq(warehouseId))).thenReturn("access");
+        when(jwtTokenService.generateRefreshToken()).thenReturn("refresh");
+        when(jwtTokenService.getAccessTokenValidity()).thenReturn(14400L);
+        when(jwtTokenService.getRefreshTokenValidity()).thenReturn(2592000L);
+        when(passwordEncoder.encode("refresh")).thenReturn("refresh-hash");
 
-        assertThatThrownBy(() -> userService.login(request, "127.0.0.1", "Mozilla"))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("Неверный email или пароль");
+        AuthResponse response = userService.registerWithInvitation(req, "ip", "ua");
 
-        verify(readModelRepository).findByEmail("test@example.com");
-        verify(passwordEncoder).matches("wrongPassword", "encodedPassword123");
-        verify(jwtTokenService, never()).generateAccessToken(any(), anyString(), any());
+        assertThat(response.accessToken()).isEqualTo("access");
+
+        ArgumentCaptor<UserReadModel> rmCaptor = ArgumentCaptor.forClass(UserReadModel.class);
+        verify(readModelRepository).save(rmCaptor.capture());
+        UserReadModel saved = rmCaptor.getValue();
+        assertThat(saved.getRole()).isEqualTo(UserRole.WORKER);
+        assertThat(saved.getOrganizationId()).isEqualTo(orgId);
+        assertThat(saved.getWarehouseId()).isEqualTo(warehouseId);
+
+        verify(invitationValidationService).addEmployeeToOrganization(orgId, saved.getUserId(), "WORKER");
+        verify(invitationValidationService).markInvitationAsUsed(eq(token), eq(saved.getUserId()));
     }
 
     @Test
-    @DisplayName("login: Given inactive user When logging in Then should throw forbidden exception")
-    void login_GivenInactiveUser_WhenLoggingIn_ThenShouldThrowForbiddenException() {
-        LoginRequest request = new LoginRequest("test@example.com", "password123");
-        UserReadModel user = UserReadModel.builder()
-                .userId(UUID.randomUUID())
-                .email("test@example.com")
-                .passwordHash("encodedPassword123")
-                .role(UserRole.DIRECTOR)
-                .isActive(false)
-                .provider(AuthProvider.LOCAL)
-                .build();
+    @DisplayName("registerWithInvitation: invitation invalid → 400 bad request, без сохранения и markUsed")
+    void registerWithInvitation_GivenInvalid_ShouldThrowBadRequest() {
+        UUID token = UUID.randomUUID();
+        when(invitationValidationService.validateInvitation(token)).thenReturn(
+                new InvitationValidationResponse(false, null, null, null, null, null, "Истёк"));
 
-        when(readModelRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+        RegisterWithInvitationRequest req = new RegisterWithInvitationRequest(
+                token, "x@y.com", "P@ssword123", "A", "B", null);
 
-        assertThatThrownBy(() -> userService.login(request, "127.0.0.1", "Mozilla"))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("Аккаунт деактивирован");
-
-        verify(readModelRepository).findByEmail("test@example.com");
-        verify(passwordEncoder, never()).matches(anyString(), anyString());
-        verify(jwtTokenService, never()).generateAccessToken(any(), anyString(), any());
+        AppException ex = catchApp(() -> userService.registerWithInvitation(req, "ip", "ua"));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(readModelRepository, never()).save(any());
+        verify(invitationValidationService, never()).markInvitationAsUsed(any(), any());
     }
 
     @Test
-    @DisplayName("getUserInfo: Given existing user ID When getting user info Then should return user response")
-    void getUserInfo_GivenExistingUserId_WhenGettingUserInfo_ThenShouldReturnUserResponse() {
+    @DisplayName("registerWithInvitation: email пользователя не совпадает с email в приглашении → 400")
+    void registerWithInvitation_GivenEmailMismatch_ShouldThrowBadRequest() {
+        UUID token = UUID.randomUUID();
+        when(invitationValidationService.validateInvitation(token)).thenReturn(
+                new InvitationValidationResponse(true, "ООО Ромашка", "WORKER",
+                        "real@invitation.com", UUID.randomUUID(), null, "OK"));
+
+        RegisterWithInvitationRequest req = new RegisterWithInvitationRequest(
+                token, "fraud@evil.com", "P@ssword123", "A", "B", null);
+
+        AppException ex = catchApp(() -> userService.registerWithInvitation(req, "ip", "ua"));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ex.getMessage()).contains("Email");
+        verify(readModelRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("registerWithInvitation: дубликат email после валидного приглашения → 409 conflict")
+    void registerWithInvitation_GivenDuplicateEmail_ShouldThrowConflict() {
+        UUID token = UUID.randomUUID();
+        when(invitationValidationService.validateInvitation(token)).thenReturn(
+                new InvitationValidationResponse(true, "ООО Ромашка", "WORKER",
+                        "worker@example.com", UUID.randomUUID(), null, "OK"));
+        when(readModelRepository.existsByEmail("worker@example.com")).thenReturn(true);
+
+        RegisterWithInvitationRequest req = new RegisterWithInvitationRequest(
+                token, "worker@example.com", "P@ssword123", "A", "B", null);
+
+        AppException ex = catchApp(() -> userService.registerWithInvitation(req, "ip", "ua"));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("registerWithInvitation: приглашение с ролью DIRECTOR → 400 bad request")
+    void registerWithInvitation_GivenDirectorRole_ShouldThrowBadRequest() {
+        UUID token = UUID.randomUUID();
+        when(invitationValidationService.validateInvitation(token)).thenReturn(
+                new InvitationValidationResponse(true, "ООО Ромашка", "DIRECTOR",
+                        "x@y.com", UUID.randomUUID(), null, "OK"));
+        when(readModelRepository.existsByEmail("x@y.com")).thenReturn(false);
+
+        RegisterWithInvitationRequest req = new RegisterWithInvitationRequest(
+                token, "x@y.com", "P@ssword123", "A", "B", null);
+
+        AppException ex = catchApp(() -> userService.registerWithInvitation(req, "ip", "ua"));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ex.getMessage()).contains("DIRECTOR");
+    }
+
+    @Test
+    @DisplayName("login: валидные креды → выдаёт токены и audit")
+    void login_GivenValidCredentials_ShouldReturnTokens() {
         UUID userId = UUID.randomUUID();
-        UserReadModel user = UserReadModel.builder()
-                .userId(userId)
-                .email("test@example.com")
-                .fullName("John Doe")
-                .role(UserRole.DIRECTOR)
-                .provider(AuthProvider.LOCAL)
-                .isActive(true)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
+        UserReadModel user = sampleUser(userId, "ivan@example.com", UserRole.WORKER, "hash", true);
+        when(readModelRepository.findByEmail("ivan@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("P@ssword123", "hash")).thenReturn(true);
+        when(jwtTokenService.generateAccessToken(eq(userId), eq("ivan@example.com"), eq(UserRole.WORKER), any(), any()))
+                .thenReturn("access");
+        when(jwtTokenService.generateRefreshToken()).thenReturn("refresh");
+        when(jwtTokenService.getAccessTokenValidity()).thenReturn(14400L);
+        when(jwtTokenService.getRefreshTokenValidity()).thenReturn(2592000L);
+        when(passwordEncoder.encode("refresh")).thenReturn("refresh-hash");
 
+        AuthResponse response = userService.login(new LoginRequest("ivan@example.com", "P@ssword123"), "ip", "ua");
+
+        assertThat(response.accessToken()).isEqualTo("access");
+        verify(loginAuditRepository).save(any(LoginAudit.class));
+    }
+
+    @Test
+    @DisplayName("login: неверный пароль → 401 unauthorized")
+    void login_GivenWrongPassword_ShouldThrowUnauthorized() {
+        UserReadModel user = sampleUser(UUID.randomUUID(), "x@y.z", UserRole.WORKER, "hash", true);
+        when(readModelRepository.findByEmail("x@y.z")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong", "hash")).thenReturn(false);
+
+        AppException ex = catchApp(() -> userService.login(new LoginRequest("x@y.z", "wrong"), "ip", "ua"));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verify(loginAuditRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("login: пользователь не найден → 401 (не leak'ает существование email)")
+    void login_GivenMissingUser_ShouldThrowUnauthorized() {
+        when(readModelRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+
+        AppException ex = catchApp(() -> userService.login(
+                new LoginRequest("ghost@example.com", "any"), "ip", "ua"));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("login: деактивированный аккаунт → 403 forbidden")
+    void login_GivenInactiveUser_ShouldThrowForbidden() {
+        UserReadModel user = sampleUser(UUID.randomUUID(), "x@y.z", UserRole.WORKER, "hash", false);
+        when(readModelRepository.findByEmail("x@y.z")).thenReturn(Optional.of(user));
+
+        AppException ex = catchApp(() -> userService.login(
+                new LoginRequest("x@y.z", "P@ssword123"), "ip", "ua"));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("refreshToken: валидный → выдаёт новые токены, старый удаляется")
+    void refreshToken_GivenValid_ShouldRotate() {
+        UUID userId = UUID.randomUUID();
+        UserReadModel user = sampleUser(userId, "ivan@example.com", UserRole.WORKER, "hash", true);
+        when(refreshTokenService.getUserIdByRefreshToken("old-refresh")).thenReturn(userId);
+        when(readModelRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(jwtTokenService.generateAccessToken(eq(userId), any(), any(), any(), any())).thenReturn("new-access");
+        when(jwtTokenService.generateRefreshToken()).thenReturn("new-refresh");
+        when(jwtTokenService.getAccessTokenValidity()).thenReturn(14400L);
+        when(jwtTokenService.getRefreshTokenValidity()).thenReturn(2592000L);
+
+        AuthResponse response = userService.refreshToken("old-refresh");
+
+        assertThat(response.accessToken()).isEqualTo("new-access");
+        assertThat(response.refreshToken()).isEqualTo("new-refresh");
+        verify(refreshTokenService).deleteRefreshToken("old-refresh");
+    }
+
+    @Test
+    @DisplayName("refreshToken: неизвестный refresh → 401")
+    void refreshToken_GivenUnknownRefresh_ShouldThrowUnauthorized() {
+        when(refreshTokenService.getUserIdByRefreshToken("bad")).thenReturn(null);
+
+        AppException ex = catchApp(() -> userService.refreshToken("bad"));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("refreshToken: деактивированный аккаунт → 403, рефреш не удаляется (важно для аудита)")
+    void refreshToken_GivenInactive_ShouldThrowForbidden() {
+        UUID userId = UUID.randomUUID();
+        UserReadModel user = sampleUser(userId, "x@y.z", UserRole.WORKER, "hash", false);
+        when(refreshTokenService.getUserIdByRefreshToken("ok-refresh")).thenReturn(userId);
         when(readModelRepository.findById(userId)).thenReturn(Optional.of(user));
 
-        UserResponse response = userService.getUserInfo(userId);
-
-        assertThat(response).isNotNull();
-        assertThat(response.userId()).isEqualTo(userId);
-        assertThat(response.email()).isEqualTo("test@example.com");
-        assertThat(response.fullName()).isEqualTo("John Doe");
-        assertThat(response.role()).isEqualTo(UserRole.DIRECTOR);
-
-        verify(readModelRepository).findById(userId);
+        AppException ex = catchApp(() -> userService.refreshToken("ok-refresh"));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        verify(refreshTokenService, never()).deleteRefreshToken(anyString());
     }
 
     @Test
-    @DisplayName("getUserInfo: Given non-existing user ID When getting user info Then should throw not found exception")
-    void getUserInfo_GivenNonExistingUserId_WhenGettingUserInfo_ThenShouldThrowNotFoundException() {
+    @DisplayName("logout: валидный refresh → деактивирует session и удаляет токен")
+    void logout_GivenValidRefresh_ShouldDeactivateSession() {
         UUID userId = UUID.randomUUID();
-        when(readModelRepository.findById(userId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> userService.getUserInfo(userId))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("Пользователь не найден");
-
-        verify(readModelRepository).findById(userId);
-    }
-
-    @Test
-    @DisplayName("refreshToken: Given valid refresh token Should return new tokens")
-    void refreshToken_GivenValidRefreshToken_ShouldReturnNewTokens() {
-        String refreshToken = "valid-refresh-token";
-        UUID userId = UUID.randomUUID();
-        String accessToken = "new-access-token";
-        String newRefreshToken = "new-refresh-token";
-
-        UserReadModel user = UserReadModel.builder()
-                .userId(userId)
-                .email("test@example.com")
-                .fullName("John Doe")
-                .role(UserRole.DIRECTOR)
-                .provider(AuthProvider.LOCAL)
-                .isActive(true)
-                .build();
-
-        when(refreshTokenService.getUserIdByRefreshToken(refreshToken)).thenReturn(userId);
-        when(readModelRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(jwtTokenService.generateAccessToken(userId, "test@example.com", UserRole.DIRECTOR))
-                .thenReturn(accessToken);
-        when(jwtTokenService.generateRefreshToken()).thenReturn(newRefreshToken);
-        doNothing().when(refreshTokenService).deleteRefreshToken(refreshToken);
-
-        AuthResponse response = userService.refreshToken(refreshToken);
-
-        assertThat(response).isNotNull();
-        assertThat(response.accessToken()).isEqualTo(accessToken);
-        assertThat(response.refreshToken()).isEqualTo(newRefreshToken);
-
-        verify(refreshTokenService).getUserIdByRefreshToken(refreshToken);
-        verify(refreshTokenService).deleteRefreshToken(refreshToken);
-        verify(readModelRepository).findById(userId);
-    }
-
-    @Test
-    @DisplayName("refreshToken: Given invalid refresh token Should throw unauthorized exception")
-    void refreshToken_GivenInvalidRefreshToken_ShouldThrowUnauthorizedException() {
-        String refreshToken = "invalid-refresh-token";
-
-        when(refreshTokenService.getUserIdByRefreshToken(refreshToken)).thenReturn(null);
-
-        assertThatThrownBy(() -> userService.refreshToken(refreshToken))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("Недействительный refresh token");
-
-        verify(refreshTokenService).getUserIdByRefreshToken(refreshToken);
-        verify(readModelRepository, never()).findById(any());
-    }
-
-    @Test
-    @DisplayName("refreshToken: Given inactive user Should throw forbidden exception")
-    void refreshToken_GivenInactiveUser_ShouldThrowForbiddenException() {
-        String refreshToken = "valid-refresh-token";
-        UUID userId = UUID.randomUUID();
-
-        UserReadModel user = UserReadModel.builder()
-                .userId(userId)
-                .email("test@example.com")
-                .isActive(false)
-                .provider(AuthProvider.LOCAL)
-                .build();
-
-        when(refreshTokenService.getUserIdByRefreshToken(refreshToken)).thenReturn(userId);
-        when(readModelRepository.findById(userId)).thenReturn(Optional.of(user));
-
-        assertThatThrownBy(() -> userService.refreshToken(refreshToken))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("Аккаунт деактивирован");
-
-        verify(refreshTokenService).getUserIdByRefreshToken(refreshToken);
-        verify(readModelRepository).findById(userId);
-    }
-
-    @Test
-    @DisplayName("logout: Given valid refresh token Should deactivate session and delete token")
-    void logout_GivenValidRefreshToken_ShouldDeactivateSessionAndDeleteToken() {
-        String refreshToken = "valid-refresh-token";
-        UUID userId = UUID.randomUUID();
-        String hashedToken = "hashed-token";
-
+        when(refreshTokenService.getUserIdByRefreshToken("refresh-X")).thenReturn(userId);
         LoginAudit session = LoginAudit.builder()
-                .id(1)
-                .userId(userId)
-                .refreshTokenHash(hashedToken)
-                .isActive(true)
-                .build();
+                .userId(userId).refreshTokenHash("hash-of-refresh-X").isActive(true).build();
+        when(loginAuditRepository.findByUserIdAndIsActiveTrue(userId)).thenReturn(List.of(session));
+        when(passwordEncoder.matches("refresh-X", "hash-of-refresh-X")).thenReturn(true);
 
-        when(refreshTokenService.getUserIdByRefreshToken(refreshToken)).thenReturn(userId);
-        when(loginAuditRepository.findByUserIdAndIsActiveTrue(userId)).thenReturn(java.util.List.of(session));
-        when(passwordEncoder.matches(refreshToken, hashedToken)).thenReturn(true);
+        userService.logout("refresh-X");
 
-        userService.logout(refreshToken);
-
-        verify(refreshTokenService).getUserIdByRefreshToken(refreshToken);
-        verify(loginAuditRepository).findByUserIdAndIsActiveTrue(userId);
-        verify(loginAuditRepository).save(any(LoginAudit.class));
-        verify(refreshTokenService).deleteRefreshToken(refreshToken);
+        assertThat(session.getIsActive()).isFalse();
+        assertThat(session.getLogoutAt()).isNotNull();
+        verify(loginAuditRepository).save(session);
+        verify(refreshTokenService).deleteRefreshToken("refresh-X");
     }
 
     @Test
-    @DisplayName("logout: Given null refresh token Should throw bad request exception")
-    void logout_GivenNullRefreshToken_ShouldThrowBadRequestException() {
-        assertThatThrownBy(() -> userService.logout(null))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("Refresh token обязателен");
-
-        verify(refreshTokenService, never()).getUserIdByRefreshToken(any());
+    @DisplayName("logout: refresh пуст → 400 bad request")
+    void logout_GivenBlankRefresh_ShouldThrowBadRequest() {
+        AppException ex = catchApp(() -> userService.logout(""));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
-    @DisplayName("logoutAll: Should deactivate all sessions and delete all tokens")
-    void logoutAll_ShouldDeactivateAllSessionsAndDeleteAllTokens() {
+    @DisplayName("logoutAll: чистит сессии в audit и Redis")
+    void logoutAll_ShouldDeactivateAllAndClearRedis() {
         UUID userId = UUID.randomUUID();
-
         userService.logoutAll(userId);
-
         verify(loginAuditRepository).deactivateAllUserSessions(userId);
         verify(refreshTokenService).deleteAllUserTokens(userId);
     }
 
     @Test
-    @DisplayName("loginOAuthUser: Given active user Should return auth response")
-    void loginOAuthUser_GivenActiveUser_ShouldReturnAuthResponse() {
+    @DisplayName("getUserInfo: существующий → возвращает UserResponse, photo сериализуется в Base64")
+    void getUserInfo_GivenExistingUser_ShouldReturnResponseWithPhotoBase64() {
         UUID userId = UUID.randomUUID();
-        String accessToken = "access-token";
-        String refreshToken = "refresh-token";
-
-        UserReadModel user = UserReadModel.builder()
-                .userId(userId)
-                .email("test@example.com")
-                .fullName("John Doe")
-                .role(UserRole.DIRECTOR)
-                .provider(AuthProvider.GOOGLE)
-                .isActive(true)
-                .build();
-
-        when(jwtTokenService.generateAccessToken(userId, "test@example.com", UserRole.DIRECTOR))
-                .thenReturn(accessToken);
-        when(jwtTokenService.generateRefreshToken()).thenReturn(refreshToken);
-        when(loginAuditRepository.save(any(LoginAudit.class))).thenReturn(null);
-
-        AuthResponse response = userService.loginOAuthUser(user, "127.0.0.1", "Mozilla");
-
-        assertThat(response).isNotNull();
-        assertThat(response.accessToken()).isEqualTo(accessToken);
-        assertThat(response.refreshToken()).isEqualTo(refreshToken);
-
-        verify(jwtTokenService).generateAccessToken(userId, "test@example.com", UserRole.DIRECTOR);
-        verify(loginAuditRepository).save(any(LoginAudit.class));
-    }
-
-    @Test
-    @DisplayName("loginOAuthUser: Given inactive user Should throw forbidden exception")
-    void loginOAuthUser_GivenInactiveUser_ShouldThrowForbiddenException() {
-        UserReadModel user = UserReadModel.builder()
-                .userId(UUID.randomUUID())
-                .email("test@example.com")
-                .isActive(false)
-                .provider(AuthProvider.GOOGLE)
-                .build();
-
-        assertThatThrownBy(() -> userService.loginOAuthUser(user, "127.0.0.1", "Mozilla"))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("Аккаунт деактивирован");
-
-        verify(jwtTokenService, never()).generateAccessToken(any(), anyString(), any());
-    }
-
-    @Test
-    @DisplayName("createOAuthUser: Given valid data Should create user")
-    void createOAuthUser_GivenValidData_ShouldCreateUser() {
-        String email = "oauth@example.com";
-        String fullName = "OAuth User";
-        String provider = "google";
-        UserRole role = UserRole.DIRECTOR;
-
-        when(readModelRepository.existsByEmail(email)).thenReturn(false);
-        when(objectMapper.valueToTree(any())).thenReturn(null);
-        when(eventRepository.save(any(UserEvent.class))).thenReturn(null);
-        when(readModelRepository.save(any(UserReadModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        UserReadModel result = userService.createOAuthUser(email, fullName, provider, null, role, null, null);
-
-        assertThat(result).isNotNull();
-        assertThat(result.getEmail()).isEqualTo(email);
-        assertThat(result.getFullName()).isEqualTo(fullName);
-        assertThat(result.getRole()).isEqualTo(role);
-        assertThat(result.getProvider()).isEqualTo(AuthProvider.GOOGLE);
-
-        verify(readModelRepository).existsByEmail(email);
-        verify(eventRepository).save(any(UserEvent.class));
-        verify(readModelRepository).save(any(UserReadModel.class));
-    }
-
-    @Test
-    @DisplayName("createOAuthUser: Given existing email Should throw conflict exception")
-    void createOAuthUser_GivenExistingEmail_ShouldThrowConflictException() {
-        String email = "existing@example.com";
-
-        when(readModelRepository.existsByEmail(email)).thenReturn(true);
-
-        assertThatThrownBy(() -> userService.createOAuthUser(email, "Name", "google", null, UserRole.DIRECTOR, null, null))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("email уже существует");
-
-        verify(readModelRepository).existsByEmail(email);
-        verify(readModelRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("register: Given WORKER with organization code Should create user with organization and warehouse")
-    void register_GivenWorkerWithOrgCode_ShouldCreateUserWithOrgAndWarehouse() {
-        RegisterRequest request = new RegisterRequest(
-                "worker@example.com",
-                "Jane",
-                "Worker",
-                null,
-                "password123",
-                UserRole.WORKER,
-                "ORG-CODE"
-        );
-
-        when(readModelRepository.existsByEmail(anyString())).thenReturn(false);
-        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
-        when(objectMapper.valueToTree(any())).thenReturn(null);
-        when(eventRepository.save(any(UserEvent.class))).thenReturn(null);
-        when(readModelRepository.save(any(UserReadModel.class))).thenAnswer(invocation -> {
-            UserReadModel model = invocation.getArgument(0);
-            model.setUserId(UUID.randomUUID());
-            return model;
-        });
-        when(jwtTokenService.generateAccessToken(any(UUID.class), anyString(), any(UserRole.class)))
-                .thenReturn("accessToken");
-        when(jwtTokenService.generateRefreshToken()).thenReturn("refreshToken");
-        when(loginAuditRepository.save(any(LoginAudit.class))).thenReturn(null);
-
-        AuthResponse response = userService.register(request, "127.0.0.1", "Mozilla");
-
-        assertThat(response).isNotNull();
-
-        verify(readModelRepository).save(any(UserReadModel.class));
-    }
-
-    @Test
-    @DisplayName("register: Given ACCOUNTANT without organization code Should throw bad request exception")
-    void register_GivenAccountantWithoutOrgCode_ShouldThrowBadRequestException() {
-        RegisterRequest request = new RegisterRequest(
-                "accountant@example.com",
-                "Jane",
-                "Accountant",
-                null,
-                "password123",
-                UserRole.ACCOUNTANT,
-                null
-        );
-
-        when(readModelRepository.existsByEmail(anyString())).thenReturn(false);
-
-        assertThatThrownBy(() -> userService.register(request, "127.0.0.1", "Mozilla"))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("код предприятия");
-    }
-
-    @Test
-    @DisplayName("register: Given ACCOUNTANT with organization code Should create user with organization")
-    void register_GivenAccountantWithOrgCode_ShouldCreateUserWithOrg() {
-        RegisterRequest request = new RegisterRequest(
-                "accountant@example.com",
-                "Jane",
-                "Accountant",
-                null,
-                "password123",
-                UserRole.ACCOUNTANT,
-                "ORG-CODE"
-        );
-
-        when(readModelRepository.existsByEmail(anyString())).thenReturn(false);
-        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
-        when(objectMapper.valueToTree(any())).thenReturn(null);
-        when(eventRepository.save(any(UserEvent.class))).thenReturn(null);
-        when(readModelRepository.save(any(UserReadModel.class))).thenAnswer(invocation -> {
-            UserReadModel model = invocation.getArgument(0);
-            model.setUserId(UUID.randomUUID());
-            return model;
-        });
-        when(jwtTokenService.generateAccessToken(any(UUID.class), anyString(), any(UserRole.class)))
-                .thenReturn("accessToken");
-        when(jwtTokenService.generateRefreshToken()).thenReturn("refreshToken");
-        when(loginAuditRepository.save(any(LoginAudit.class))).thenReturn(null);
-
-        AuthResponse response = userService.register(request, "127.0.0.1", "Mozilla");
-
-        assertThat(response).isNotNull();
-        verify(readModelRepository).save(any(UserReadModel.class));
-    }
-
-    @Test
-    @DisplayName("logout: Given non-existing refresh token Should still delete from Redis")
-    void logout_GivenNonExistingRefreshToken_ShouldStillDeleteFromRedis() {
-        String refreshToken = "non-existing-token";
-
-        when(refreshTokenService.getUserIdByRefreshToken(refreshToken)).thenReturn(null);
-
-        userService.logout(refreshToken);
-
-        verify(refreshTokenService).getUserIdByRefreshToken(refreshToken);
-        verify(refreshTokenService).deleteRefreshToken(refreshToken);
-        verify(loginAuditRepository, never()).findByUserIdAndIsActiveTrue(any());
-    }
-
-    @Test
-    @DisplayName("logout: Given blank refresh token Should throw bad request exception")
-    void logout_GivenBlankRefreshToken_ShouldThrowBadRequestException() {
-        assertThatThrownBy(() -> userService.logout(""))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("Refresh token обязателен");
-
-        verify(refreshTokenService, never()).getUserIdByRefreshToken(any());
-    }
-
-    @Test
-    @DisplayName("refreshToken: Given user not found Should throw not found exception")
-    void refreshToken_GivenUserNotFound_ShouldThrowNotFoundException() {
-        String refreshToken = "valid-refresh-token";
-        UUID userId = UUID.randomUUID();
-
-        when(refreshTokenService.getUserIdByRefreshToken(refreshToken)).thenReturn(userId);
-        when(readModelRepository.findById(userId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> userService.refreshToken(refreshToken))
-                .isInstanceOf(AppException.class)
-                .hasMessageContaining("Пользователь не найден");
-
-        verify(refreshTokenService).getUserIdByRefreshToken(refreshToken);
-        verify(readModelRepository).findById(userId);
-    }
-
-    @Test
-    @DisplayName("createOAuthUser: Given WORKER role with warehouse Should create user with warehouse")
-    void createOAuthUser_GivenWorkerRoleWithWarehouse_ShouldCreateUserWithWarehouse() {
-        String email = "worker@example.com";
-        String fullName = "Worker User";
-        String provider = "google";
-        UserRole role = UserRole.WORKER;
-        String orgCode = UUID.randomUUID().toString();
-        String whCode = UUID.randomUUID().toString();
-
-        when(readModelRepository.existsByEmail(email)).thenReturn(false);
-        when(objectMapper.valueToTree(any())).thenReturn(null);
-        when(eventRepository.save(any(UserEvent.class))).thenReturn(null);
-        when(readModelRepository.save(any(UserReadModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        UserReadModel result = userService.createOAuthUser(email, fullName, provider, null, role, orgCode, whCode);
-
-        assertThat(result).isNotNull();
-        assertThat(result.getOrganizationId()).isNotNull();
-        assertThat(result.getWarehouseId()).isNotNull();
-
-        verify(readModelRepository).save(any(UserReadModel.class));
-    }
-
-    @Test
-    @DisplayName("getUserInfo: Given user with photo Should return photo in response")
-    void getUserInfo_GivenUserWithPhoto_ShouldReturnPhotoInResponse() {
-        UUID userId = UUID.randomUUID();
-        byte[] photoBytes = "test-photo".getBytes();
-
-        UserReadModel user = UserReadModel.builder()
-                .userId(userId)
-                .email("test@example.com")
-                .fullName("John Doe")
-                .role(UserRole.DIRECTOR)
-                .provider(AuthProvider.LOCAL)
-                .photo(photoBytes)
-                .isActive(true)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-
+        UserReadModel user = sampleUser(userId, "x@y.z", UserRole.WORKER, "hash", true);
+        user.setPhoto(new byte[]{1, 2, 3});
         when(readModelRepository.findById(userId)).thenReturn(Optional.of(user));
 
         UserResponse response = userService.getUserInfo(userId);
 
-        assertThat(response).isNotNull();
-        assertThat(response.photoBase64()).isNotNull();
-        assertThat(response.photoBase64()).isNotEmpty();
-
-        verify(readModelRepository).findById(userId);
+        assertThat(response.userId()).isEqualTo(userId);
+        assertThat(response.email()).isEqualTo("x@y.z");
+        assertThat(response.role()).isEqualTo(UserRole.WORKER);
+        assertThat(response.photoBase64()).isEqualTo("AQID");
     }
 
     @Test
-    @DisplayName("register: Given valid DIRECTOR request without IP and UserAgent Should create user")
-    void register_GivenValidDirectorWithoutIpAndUserAgent_ShouldCreateUser() {
-        RegisterRequest request = new RegisterRequest(
-                "test@example.com",
-                "John",
-                "Doe",
-                null,
-                "password123",
-                UserRole.DIRECTOR,
-                null
-        );
+    @DisplayName("getUserInfo: нет пользователя → 404")
+    void getUserInfo_GivenMissing_ShouldThrowNotFound() {
+        UUID userId = UUID.randomUUID();
+        when(readModelRepository.findById(userId)).thenReturn(Optional.empty());
 
-        when(readModelRepository.existsByEmail(anyString())).thenReturn(false);
-        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
-        when(objectMapper.valueToTree(any())).thenReturn(null);
-        when(eventRepository.save(any(UserEvent.class))).thenReturn(null);
-        when(readModelRepository.save(any(UserReadModel.class))).thenAnswer(invocation -> {
-            UserReadModel model = invocation.getArgument(0);
-            model.setUserId(UUID.randomUUID());
-            return model;
-        });
-        when(jwtTokenService.generateAccessToken(any(UUID.class), anyString(), any(UserRole.class)))
-                .thenReturn("accessToken");
-        when(jwtTokenService.generateRefreshToken()).thenReturn("refreshToken");
-        when(loginAuditRepository.save(any(LoginAudit.class))).thenReturn(null);
+        AppException ex = catchApp(() -> userService.getUserInfo(userId));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
 
-        AuthResponse response = userService.register(request);
+    @Test
+    @DisplayName("createOAuthUser: новый email → создаёт без passwordHash, провайдер из аргумента")
+    void createOAuthUser_GivenNewEmail_ShouldCreate() {
+        UUID orgId = UUID.randomUUID();
+        when(readModelRepository.existsByEmail("oa@example.com")).thenReturn(false);
 
-        assertThat(response).isNotNull();
-        assertThat(response.accessToken()).isEqualTo("accessToken");
+        UserReadModel saved = userService.createOAuthUser(
+                "oa@example.com", "Иван Петров", "google", null,
+                UserRole.DIRECTOR, orgId.toString(), null);
 
+        assertThat(saved.getEmail()).isEqualTo("oa@example.com");
+        assertThat(saved.getRole()).isEqualTo(UserRole.DIRECTOR);
+        assertThat(saved.getProvider()).isEqualTo(AuthProvider.GOOGLE);
+        assertThat(saved.getPasswordHash()).isNull();
+        assertThat(saved.getOrganizationId()).isEqualTo(orgId);
         verify(readModelRepository).save(any(UserReadModel.class));
-        verify(loginAuditRepository).save(any(LoginAudit.class));
+        verify(eventRepository).save(any(UserEvent.class));
+    }
+
+    @Test
+    @DisplayName("createOAuthUser: дубликат email → 409 conflict")
+    void createOAuthUser_GivenDuplicateEmail_ShouldThrowConflict() {
+        when(readModelRepository.existsByEmail("oa@example.com")).thenReturn(true);
+
+        AppException ex = catchApp(() -> userService.createOAuthUser(
+                "oa@example.com", "X", "google", null, UserRole.WORKER, null, null));
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    private UserReadModel sampleUser(UUID userId, String email, UserRole role, String hash, boolean active) {
+        return UserReadModel.builder()
+                .userId(userId)
+                .email(email)
+                .fullName("Test User")
+                .role(role)
+                .passwordHash(hash)
+                .provider(AuthProvider.LOCAL)
+                .isActive(active)
+                .build();
+    }
+
+    private static AppException catchApp(Runnable r) {
+        try {
+            r.run();
+        } catch (AppException e) {
+            return e;
+        }
+        throw new AssertionError("Expected AppException");
     }
 }

@@ -44,7 +44,8 @@ public class BatchController {
     public ResponseEntity<BatchResponse> createBatch(
             @Parameter(description = "ID товара", required = true) @PathVariable UUID productId,
             @Valid @RequestBody CreateBatchRequest request,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
 
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -56,10 +57,12 @@ public class BatchController {
                 request.manufactureDate(),
                 request.expiryDate(),
                 request.supplier(),
-                request.purchasePrice()
+                request.purchasePrice(),
+                request.supplyId(),
+                request.storageConditions()
         );
 
-        BatchResponse response = batchService.createBatch(updatedRequest);
+        BatchResponse response = batchService.createBatch(updatedRequest, organizationId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -73,8 +76,9 @@ public class BatchController {
     })
     @GetMapping("/products/{productId}/batches")
     public ResponseEntity<List<BatchResponse>> getBatchesByProduct(
-            @Parameter(description = "ID товара", required = true) @PathVariable UUID productId) {
-        List<BatchResponse> response = batchService.getBatchesByProduct(productId);
+            @Parameter(description = "ID товара", required = true) @PathVariable UUID productId,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        List<BatchResponse> response = batchService.getBatchesByProduct(productId, organizationId);
         return ResponseEntity.ok(response);
     }
 
@@ -89,8 +93,9 @@ public class BatchController {
     })
     @GetMapping("/batches/{batchId}")
     public ResponseEntity<BatchResponse> getBatch(
-            @Parameter(description = "ID партии", required = true) @PathVariable UUID batchId) {
-        BatchResponse response = batchService.getBatch(batchId);
+            @Parameter(description = "ID партии", required = true) @PathVariable UUID batchId,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        BatchResponse response = batchService.getBatch(batchId, organizationId);
         return ResponseEntity.ok(response);
     }
 
@@ -100,8 +105,9 @@ public class BatchController {
     )
     @ApiResponse(responseCode = "200", description = "Список партий получен")
     @GetMapping("/batches")
-    public ResponseEntity<List<BatchResponse>> getAllBatches() {
-        List<BatchResponse> response = batchService.getAllBatches();
+    public ResponseEntity<List<BatchResponse>> getAllBatches(
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        List<BatchResponse> response = batchService.getAllBatches(organizationId);
         return ResponseEntity.ok(response);
     }
 }

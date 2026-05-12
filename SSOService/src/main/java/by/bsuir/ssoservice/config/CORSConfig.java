@@ -16,10 +16,7 @@ import java.util.List;
 @Configuration
 public class CORSConfig {
 
-    /**
-     * CORS фильтр отключен по умолчанию при работе через API Gateway.
-     * Включается только для прямого доступа (профиль "standalone").
-     */
+    
     @Bean
     @Profile("standalone")
     public FilterRegistrationBean<CorsFilter> corsFilter() {

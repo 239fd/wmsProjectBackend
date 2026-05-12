@@ -1,155 +1,108 @@
 package by.bsuir.productservice.controller;
 
+import by.bsuir.productservice.client.DocumentClient;
 import by.bsuir.productservice.dto.request.ReceiveProductRequest;
-import by.bsuir.productservice.dto.request.ReserveProductRequest;
-import by.bsuir.productservice.dto.request.ShipProductRequest;
+import by.bsuir.productservice.dto.request.WriteOffRequest;
+import by.bsuir.productservice.repository.ProductReadModelRepository;
+import by.bsuir.productservice.service.BarcodeService;
+import by.bsuir.productservice.service.PlacementService;
 import by.bsuir.productservice.service.ProductOperationService;
+import by.bsuir.productservice.service.RevaluationService;
+import by.bsuir.productservice.service.WriteOffService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
-import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("OperationController Unit Tests")
+@DisplayName("OperationController — модульные тесты")
 class OperationControllerTest {
 
-    @Mock
-    private ProductOperationService operationService;
+    @Mock private ProductOperationService operationService;
+    @Mock private PlacementService placementService;
+    @Mock private BarcodeService barcodeService;
+    @Mock private RevaluationService revaluationService;
+    @Mock private WriteOffService writeOffService;
+    @Mock private DocumentClient documentClient;
+    @Mock private ProductReadModelRepository productRepository;
 
-    @InjectMocks
-    private OperationController operationController;
+    @InjectMocks private OperationController controller;
 
-    @Test
-    @DisplayName("receiveProduct: Given valid role Should receive and return 201")
-    void receiveProduct_GivenValidRole_ShouldReceiveAndReturn201() {
-        UUID operationId = UUID.randomUUID();
-        ReceiveProductRequest request = new ReceiveProductRequest(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                new BigDecimal("100.00"),
-                UUID.randomUUID(),
-                "Test notes"
-        );
+    private MockMvc mockMvc;
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
-        when(operationService.receiveProduct(any(ReceiveProductRequest.class))).thenReturn(operationId);
-
-        ResponseEntity<Map<String, Object>> response = operationController.receiveProduct(request, "ADMIN");
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(response.getBody()).containsKey("operationId");
-        verify(operationService, times(1)).receiveProduct(any(ReceiveProductRequest.class));
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
     @Test
-    @DisplayName("receiveProduct: Given no role Should return 403")
-    void receiveProduct_GivenNoRole_ShouldReturn403() {
-        ReceiveProductRequest request = new ReceiveProductRequest(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                new BigDecimal("100.00"),
-                UUID.randomUUID(),
-                "Test notes"
-        );
+    @DisplayName("POST /receive без X-User-Role → 403")
+    void receive_GivenMissingRole_ShouldReturnForbidden() throws Exception {
+        ReceiveProductRequest req = new ReceiveProductRequest(
+                UUID.randomUUID(), null, UUID.randomUUID(), null,
+                BigDecimal.TEN, UUID.randomUUID(), null, null);
 
-        ResponseEntity<Map<String, Object>> response = operationController.receiveProduct(request, null);
+        mockMvc.perform(post("/api/operations/receive")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden());
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        verify(operationService, never()).receiveProduct(any());
+        verify(operationService, never()).receiveProduct(any(), any());
     }
 
     @Test
-    @DisplayName("shipProduct: Given valid role Should ship and return 201")
-    void shipProduct_GivenValidRole_ShouldShipAndReturn201() {
-        UUID operationId = UUID.randomUUID();
-        ShipProductRequest request = new ShipProductRequest(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                new BigDecimal("50.00"),
-                UUID.randomUUID(),
-                "Test notes"
-        );
+    @DisplayName("POST /receive с WORKER → вызывает receiveProduct и генерирует документ")
+    void receive_GivenWorker_ShouldInvokeService() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        ReceiveProductRequest req = new ReceiveProductRequest(
+                UUID.randomUUID(), null, UUID.randomUUID(), null,
+                BigDecimal.TEN, UUID.randomUUID(), null, null);
+        when(operationService.receiveProduct(any(), any())).thenReturn(UUID.randomUUID());
+        when(documentClient.generateReceiptOrder(any(), any())).thenReturn(UUID.randomUUID());
 
-        when(operationService.shipProduct(any(ShipProductRequest.class))).thenReturn(operationId);
+        mockMvc.perform(post("/api/operations/receive")
+                        .header("X-User-Role", "WORKER")
+                        .header("X-Organization-Id", orgId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated());
 
-        ResponseEntity<Map<String, Object>> response = operationController.shipProduct(request, "ADMIN");
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(response.getBody()).containsKey("operationId");
-        verify(operationService, times(1)).shipProduct(any(ShipProductRequest.class));
+        verify(operationService).receiveProduct(any(), any());
     }
 
     @Test
-    @DisplayName("shipProduct: Given no role Should return 403")
-    void shipProduct_GivenNoRole_ShouldReturn403() {
-        ShipProductRequest request = new ShipProductRequest(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                new BigDecimal("50.00"),
-                UUID.randomUUID(),
-                "Test notes"
-        );
+    @DisplayName("POST /write-off без X-User-Role → 403")
+    void writeOff_GivenMissingRole_ShouldReturnForbidden() throws Exception {
+        WriteOffRequest req = new WriteOffRequest(
+                UUID.randomUUID(), UUID.randomUUID(), null, null,
+                BigDecimal.ONE, "Просрочка", null, null, List.of(),
+                UUID.randomUUID(), null);
 
-        ResponseEntity<Map<String, Object>> response = operationController.shipProduct(request, null);
+        mockMvc.perform(post("/api/operations/write-off")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden());
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        verify(operationService, never()).shipProduct(any());
-    }
-
-    @Test
-    @DisplayName("reserveProduct: Given valid role Should reserve and return 200")
-    void reserveProduct_GivenValidRole_ShouldReserveAndReturn200() {
-        ReserveProductRequest request = new ReserveProductRequest(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                new BigDecimal("25.00"),
-                "Test notes"
-        );
-
-        doNothing().when(operationService).reserveProduct(any(ReserveProductRequest.class));
-
-        ResponseEntity<Map<String, String>> response = operationController.reserveProduct(request, "ADMIN");
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).containsKey("message");
-        verify(operationService, times(1)).reserveProduct(any(ReserveProductRequest.class));
-    }
-
-    @Test
-    @DisplayName("reserveProduct: Given no role Should return 403")
-    void reserveProduct_GivenNoRole_ShouldReturn403() {
-        ReserveProductRequest request = new ReserveProductRequest(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                new BigDecimal("25.00"),
-                "Test notes"
-        );
-
-        ResponseEntity<Map<String, String>> response = operationController.reserveProduct(request, null);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        verify(operationService, never()).reserveProduct(any());
+        verify(writeOffService, never()).writeOff(any(), any());
     }
 }
-

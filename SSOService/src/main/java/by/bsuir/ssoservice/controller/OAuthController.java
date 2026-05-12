@@ -65,7 +65,7 @@ public class OAuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse response) throws IOException {
 
-        // Обработка ошибки от провайдера
+
         if (error != null) {
             String errorMessage = error_description != null ? error_description : error;
             String redirectUrl = String.format(
@@ -93,7 +93,7 @@ public class OAuthController {
             );
 
             if (result instanceof AuthResponse authResponse) {
-                // Существующий пользователь - отправляем токены
+
                 String redirectUrl = String.format(
                         "http://localhost:3000/auth/callback?access_token=%s&refresh_token=%s",
                         URLEncoder.encode(authResponse.accessToken(), StandardCharsets.UTF_8),
@@ -102,7 +102,7 @@ public class OAuthController {
                 response.sendRedirect(redirectUrl);
             }
             else if (result instanceof OAuthRegistrationResponse regResponse) {
-                // Новый пользователь - нужен выбор роли
+
                 String redirectUrl = String.format(
                         "http://localhost:3000/auth/callback?token=%s&email=%s&name=%s",
                         URLEncoder.encode(regResponse.temporaryToken(), StandardCharsets.UTF_8),

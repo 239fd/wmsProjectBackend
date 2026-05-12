@@ -1,7 +1,9 @@
 package by.bsuir.productservice.model.entity;
 
+import by.bsuir.productservice.model.enums.StorageConditions;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Filter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -10,6 +12,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "product_batch")
+@Filter(name = "orgFilter", condition = "organization_id = :orgId")
 @Getter
 @Setter
 @Builder
@@ -23,6 +26,12 @@ public class ProductBatch {
 
     @Column(name = "product_id", nullable = false)
     private UUID productId;
+
+    @Column(name = "organization_id")
+    private UUID organizationId;
+
+    @Column(name = "supply_id")
+    private UUID supplyId;
 
     @Column(name = "batch_number", length = 100)
     private String batchNumber;
@@ -38,6 +47,10 @@ public class ProductBatch {
 
     @Column(name = "purchase_price", precision = 12, scale = 2)
     private BigDecimal purchasePrice;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "storage_conditions", length = 20)
+    private StorageConditions storageConditions;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

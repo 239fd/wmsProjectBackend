@@ -6,6 +6,7 @@ import by.bsuir.documentservice.dto.RevaluationActData;
 import by.bsuir.documentservice.dto.ShippingInvoiceData;
 import by.bsuir.documentservice.dto.WriteOffActData;
 import by.bsuir.documentservice.rpa.DocumentRpaService;
+import by.bsuir.documentservice.rpa.PdfDocumentService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,180 +26,182 @@ import org.springframework.stereotype.Service;
 public class DocumentService {
 
     private final DocumentRpaService rpaService;
+    private final PdfDocumentService pdfService;
+    private final DataEnrichmentService enrichmentService;
 
-    private final Map<UUID, byte[]> documentStorage = new ConcurrentHashMap<>();
-    private final Map<UUID, Map<String, Object>> documentMetadata = new ConcurrentHashMap<>();
+    private final Map<UUID, DocumentRecord> records = new ConcurrentHashMap<>();
 
-    public UUID generateReceiptOrder(Map<String, Object> data) {
-        log.info("Generating receipt order using RPA");
-        log.debug("Receipt order data: {}", data);
-
-        UUID documentId = UUID.randomUUID();
-
-        try {
-            ReceiptOrderData receiptData = mapToReceiptOrderData(data);
-
-            byte[] documentBytes = rpaService.generateReceiptOrder(receiptData);
-
-            documentStorage.put(documentId, documentBytes);
-            documentMetadata.put(documentId, createMetadata("receipt-order", "generated"));
-
-            log.info("Receipt order generated successfully via RPA: {}", documentId);
-        } catch (Exception e) {
-            log.error("Error generating receipt order via RPA", e);
-            documentMetadata.put(documentId, createMetadata("receipt-order", "stub"));
-        }
-
-        return documentId;
+    public record DocumentRecord(
+            UUID id,
+            String type,
+            String format,
+            UUID organizationId,
+            UUID generatedBy,
+            LocalDateTime generatedAt,
+            Map<String, Object> payload) {
     }
 
-    public UUID generateRevaluationAct(Map<String, Object> data) {
-        log.info("Generating revaluation act using RPA");
-        log.debug("Revaluation act data: {}", data);
-
-        UUID documentId = UUID.randomUUID();
-
-        try {
-            RevaluationActData revaluationData = mapToRevaluationActData(data);
-
-            byte[] documentBytes = rpaService.generateRevaluationAct(revaluationData);
-
-            documentStorage.put(documentId, documentBytes);
-            documentMetadata.put(documentId, createMetadata("revaluation-act", "generated"));
-
-            log.info("Revaluation act generated successfully via RPA: {}", documentId);
-        } catch (Exception e) {
-            log.error("Error generating revaluation act via RPA", e);
-            documentMetadata.put(documentId, createMetadata("revaluation-act", "stub"));
-        }
-
-        return documentId;
+    public UUID generateReceiptOrder(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("receipt-order", data, organizationId, userId, format);
     }
 
-    public UUID generateInventoryReport(Map<String, Object> data) {
-        log.info("Generating inventory report using RPA");
-        log.debug("Inventory report data: {}", data);
-
-        UUID documentId = UUID.randomUUID();
-
-        try {
-            InventoryListData inventoryData = mapToInventoryListData(data);
-
-            byte[] documentBytes = rpaService.generateInventoryList(inventoryData);
-
-            documentStorage.put(documentId, documentBytes);
-            documentMetadata.put(documentId, createMetadata("inventory-report", "generated"));
-
-            log.info("Inventory report generated successfully via RPA: {}", documentId);
-        } catch (Exception e) {
-            log.error("Error generating inventory report via RPA", e);
-            documentMetadata.put(documentId, createMetadata("inventory-report", "stub"));
-        }
-
-        return documentId;
+    public UUID generateShipmentOrder(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("release-order", data, organizationId, userId, format);
     }
 
-    public UUID generateWriteOffAct(Map<String, Object> data) {
-        log.info("Generating write-off act using RPA");
-        log.debug("Write-off act data: {}", data);
-
-        UUID documentId = UUID.randomUUID();
-
-        try {
-            WriteOffActData writeOffData = mapToWriteOffActData(data);
-
-            byte[] documentBytes = rpaService.generateWriteOffAct(writeOffData);
-
-            documentStorage.put(documentId, documentBytes);
-            documentMetadata.put(documentId, createMetadata("write-off-act", "generated"));
-
-            log.info("Write-off act generated successfully via RPA: {}", documentId);
-        } catch (Exception e) {
-            log.error("Error generating write-off act via RPA", e);
-            documentMetadata.put(documentId, createMetadata("write-off-act", "stub"));
-        }
-
-        return documentId;
+    public UUID generateInventoryReport(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("inventory-report", data, organizationId, userId, format);
     }
 
-    public UUID generateShipmentOrder(Map<String, Object> data) {
-        log.info("Generating shipment order (STUB)");
-        UUID documentId = UUID.randomUUID();
-        documentMetadata.put(documentId, createMetadata("shipment-order", "stub"));
-        return documentId;
+    public UUID generateRevaluationAct(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("revaluation-act", data, organizationId, userId, format);
     }
 
-    public UUID generateWaybill(Map<String, Object> data) {
-        log.info("Generating waybill (shipping invoice) via RPA");
-        log.debug("Waybill data: {}", data);
-
-        UUID documentId = UUID.randomUUID();
-
-        try {
-            ShippingInvoiceData shippingData = mapToShippingInvoiceData(data);
-
-            byte[] documentBytes = rpaService.generateShippingInvoice(shippingData);
-
-            documentStorage.put(documentId, documentBytes);
-            documentMetadata.put(documentId, createMetadata("shipping-invoice", "generated"));
-
-            log.info("Shipping invoice generated successfully via RPA: {}", documentId);
-        } catch (Exception e) {
-            log.error("Error generating shipping invoice via RPA", e);
-            documentMetadata.put(documentId, createMetadata("shipping-invoice", "stub"));
-        }
-
-        return documentId;
+    public UUID generateWriteOffAct(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("write-off-act", data, organizationId, userId, format);
     }
 
-    public UUID generatePickingList(Map<String, Object> data) {
-        log.info("Generating picking list (STUB)");
-        UUID documentId = UUID.randomUUID();
-        documentMetadata.put(documentId, createMetadata("picking-list", "stub"));
-        return documentId;
+    public UUID generateWaybill(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("waybill", data, organizationId, userId, format);
     }
 
-    public Map<String, Object> getAllDocuments(int page, int size) {
-        log.info("Getting all documents: page={}, size={}", page, size);
-        Map<String, Object> result = new HashMap<>();
-        List<Map<String, Object>> documents = new ArrayList<>();
+    public UUID generatePickingList(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("picking-list", data, organizationId, userId, format);
+    }
 
-        documentMetadata.forEach(
-                (id, metadata) -> {
-                    Map<String, Object> doc = new HashMap<>(metadata);
-                    doc.put("id", id.toString());
-                    documents.add(doc);
+    public UUID generateReceiptAct(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("receipt-act", data, organizationId, userId, format);
+    }
+
+    public UUID generateInvoiceFact(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("invoice-fact", data, organizationId, userId, format);
+    }
+
+    public UUID generateInvoice(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("invoice", data, organizationId, userId, format);
+    }
+
+    public UUID generateTransportNote(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("transport-note", data, organizationId, userId, format);
+    }
+
+    public UUID generateCmr(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("cmr", data, organizationId, userId, format);
+    }
+
+    public UUID generateDiscrepancyAct(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        return generate("discrepancy-act", data, organizationId, userId, format);
+    }
+
+    private UUID generate(String type, Map<String, Object> data, UUID organizationId, UUID userId, String format) {
+        UUID id = UUID.randomUUID();
+        String effectiveFormat = format != null ? format : "pdf";
+        Map<String, Object> enriched = enrichmentService.enrich(data, organizationId);
+        records.put(id, new DocumentRecord(id, type, effectiveFormat, organizationId, userId, LocalDateTime.now(), enriched));
+        log.info("Generated document record: id={}, type={}, format={}, org={}", id, type, effectiveFormat, organizationId);
+        return id;
+    }
+
+    public byte[] getDocument(UUID documentId, UUID organizationId) {
+        DocumentRecord record = findOwned(documentId, organizationId);
+        return regenerate(record);
+    }
+
+    public Map<String, Object> getDocumentMetadata(UUID documentId, UUID organizationId) {
+        DocumentRecord record = findOwned(documentId, organizationId);
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("id", record.id().toString());
+        meta.put("type", record.type());
+        meta.put("format", record.format());
+        meta.put("organizationId", record.organizationId());
+        meta.put("generatedBy", record.generatedBy());
+        meta.put("generatedAt", record.generatedAt().toString());
+        return meta;
+    }
+
+    public Map<String, Object> getAllDocuments(int page, int size, UUID organizationId) {
+        List<Map<String, Object>> docs = new ArrayList<>();
+        records.values().stream()
+                .filter(r -> organizationId == null
+                        || r.organizationId() == null
+                        || organizationId.equals(r.organizationId()))
+                .forEach(r -> {
+                    Map<String, Object> doc = new HashMap<>();
+                    doc.put("id", r.id().toString());
+                    doc.put("type", r.type());
+                    doc.put("format", r.format());
+                    doc.put("organizationId", r.organizationId());
+                    doc.put("generatedAt", r.generatedAt().toString());
+                    docs.add(doc);
                 });
-
         int start = page * size;
-        int end = Math.min(start + size, documents.size());
-        List<Map<String, Object>> pageDocuments =
-                start < documents.size() ? documents.subList(start, end) : new ArrayList<>();
-
-        result.put("documents", pageDocuments);
+        int end = Math.min(start + size, docs.size());
+        List<Map<String, Object>> pageDocs = start < docs.size() ? docs.subList(start, end) : new ArrayList<>();
+        Map<String, Object> result = new HashMap<>();
+        result.put("documents", pageDocs);
         result.put("page", page);
         result.put("size", size);
-        result.put("total", documents.size());
-
+        result.put("total", docs.size());
         return result;
     }
 
-    public byte[] getDocument(UUID documentId) {
-        byte[] document = documentStorage.get(documentId);
-        if (document == null) {
+    private DocumentRecord findOwned(UUID documentId, UUID organizationId) {
+        DocumentRecord record = records.get(documentId);
+        if (record == null) {
             throw new RuntimeException("Document not found: " + documentId);
         }
-        return document;
-    }
-
-    public Map<String, Object> getDocumentMetadata(UUID documentId) {
-        Map<String, Object> metadata = documentMetadata.get(documentId);
-        if (metadata == null) {
-            throw new RuntimeException("Document metadata not found: " + documentId);
+        if (organizationId != null && record.organizationId() != null
+                && !organizationId.equals(record.organizationId())) {
+            throw new RuntimeException("Document belongs to another organization");
         }
-        return metadata;
+        return record;
     }
 
+    private byte[] regenerate(DocumentRecord record) {
+        Map<String, Object> data = record.payload();
+        String format = record.format();
+
+        if ("rpa-xls".equals(format) || "rpa-docx".equals(format)) {
+            return regenerateViaRpa(record);
+        }
+
+        return switch (record.type()) {
+            case "receipt-order" -> pdfService.generateReceiptOrderPdf(data);
+            case "release-order" -> pdfService.generateReleaseOrderPdf(data);
+            case "inventory-report" -> pdfService.generateInventoryListPdf(data);
+            case "revaluation-act" -> pdfService.generateRevaluationActPdf(data);
+            case "write-off-act" -> pdfService.generateWriteOffActPdf(data);
+            case "waybill" -> pdfService.generateShippingInvoicePdf(data);
+            case "picking-list" -> pdfService.generatePickingListPdf(data);
+            case "receipt-act" -> pdfService.generateReceiptActPdf(data);
+            case "invoice-fact" -> pdfService.generateInvoiceFactPdf(data);
+            case "invoice" -> pdfService.generateInvoicePdf(data);
+            case "transport-note" -> pdfService.generateTransportNotePdf(data);
+            case "cmr" -> pdfService.generateCmrPdf(data);
+            case "discrepancy-act" -> pdfService.generateDiscrepancyActPdf(data);
+            default -> throw new RuntimeException("Unknown document type: " + record.type());
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private byte[] regenerateViaRpa(DocumentRecord record) {
+        Map<String, Object> data = record.payload();
+        try {
+            return switch (record.type()) {
+                case "receipt-order" -> rpaService.generateReceiptOrder(mapToReceiptOrderData(data));
+                case "revaluation-act" -> rpaService.generateRevaluationAct(mapToRevaluationActData(data));
+                case "inventory-report" -> rpaService.generateInventoryList(mapToInventoryListData(data));
+                case "write-off-act" -> rpaService.generateWriteOffAct(mapToWriteOffActData(data));
+                case "waybill" -> rpaService.generateShippingInvoice(mapToShippingInvoiceData(data));
+                default -> throw new RuntimeException("RPA template not available for type: " + record.type());
+            };
+        } catch (Exception e) {
+            log.error("RPA regeneration failed: {}", e.getMessage(), e);
+            throw new RuntimeException("RPA regeneration failed: " + e.getMessage(), e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
     private ReceiptOrderData mapToReceiptOrderData(Map<String, Object> data) {
         return ReceiptOrderData.builder()
                 .documentNumber(getString(data, "documentNumber", "ПО-001"))
@@ -212,6 +215,7 @@ public class DocumentService {
                 .build();
     }
 
+    @SuppressWarnings("unchecked")
     private RevaluationActData mapToRevaluationActData(Map<String, Object> data) {
         return RevaluationActData.builder()
                 .documentNumber(getString(data, "documentNumber", "АП-001"))
@@ -222,8 +226,7 @@ public class DocumentService {
                 .reason(getString(data, "reason", "INFLATION"))
                 .reasonDescription(getString(data, "reasonDescription", "Переоценка товаров"))
                 .chairmanName(getString(data, "chairmanName", "Председатель комиссии"))
-                .commissionMembers(
-                        (List<String>) data.getOrDefault("commissionMembers", new ArrayList<>()))
+                .commissionMembers((List<String>) data.getOrDefault("commissionMembers", new ArrayList<>()))
                 .items(new ArrayList<>())
                 .totalOldValue(BigDecimal.ZERO)
                 .totalNewValue(BigDecimal.ZERO)
@@ -231,6 +234,7 @@ public class DocumentService {
                 .build();
     }
 
+    @SuppressWarnings("unchecked")
     private InventoryListData mapToInventoryListData(Map<String, Object> data) {
         return InventoryListData.builder()
                 .documentNumber(getString(data, "documentNumber", "ИО-001"))
@@ -240,10 +244,8 @@ public class DocumentService {
                 .inn(getString(data, "inn", "1234567890"))
                 .warehouseName(getString(data, "warehouseName", "Склад №1"))
                 .chairmanName(getString(data, "chairmanName", "Председатель комиссии"))
-                .commissionMembers(
-                        (List<String>) data.getOrDefault("commissionMembers", new ArrayList<>()))
-                .responsiblePerson(
-                        getString(data, "responsiblePerson", "Материально ответственное лицо"))
+                .commissionMembers((List<String>) data.getOrDefault("commissionMembers", new ArrayList<>()))
+                .responsiblePerson(getString(data, "responsiblePerson", "Материально ответственное лицо"))
                 .items(new ArrayList<>())
                 .totalBookValue(BigDecimal.ZERO)
                 .totalActualValue(BigDecimal.ZERO)
@@ -266,44 +268,13 @@ public class DocumentService {
                 .invoiceNumber(getString(data, "invoiceNumber", "ТТН-001"))
                 .invoiceDate(getDate(data, "invoiceDate", LocalDate.now()))
                 .shipperName(getString(data, "shipperName", "ООО Грузоотправитель"))
-                .shipperAddress(getString(data, "shipperAddress", "г. Минск, ул. Складская, 1"))
-                .shipperPhone(getString(data, "shipperPhone", "+375 29 123-45-67"))
-                .shipperUnp(getString(data, "shipperUnp", "123456789"))
                 .consigneeName(getString(data, "consigneeName", "ООО Грузополучатель"))
-                .consigneeAddress(
-                        getString(data, "consigneeAddress", "г. Минск, ул. Получателя, 2"))
-                .consigneePhone(getString(data, "consigneePhone", "+375 29 987-65-43"))
-                .consigneeUnp(getString(data, "consigneeUnp", "987654321"))
-                .carrierName(getString(data, "carrierName", "ООО Перевозчик"))
-                .carrierVehicle(getString(data, "carrierVehicle", "МАЗ 1234 AB-5"))
-                .driverName(getString(data, "driverName", "Иванов Иван Иванович"))
-                .driverLicense(getString(data, "driverLicense", "AA 1234567"))
-                .loadingPoint(getString(data, "loadingPoint", "г. Минск, ул. Складская, 1"))
-                .unloadingPoint(getString(data, "unloadingPoint", "г. Минск, ул. Получателя, 2"))
-                .shippingDate(getDate(data, "shippingDate", LocalDate.now()))
                 .items(new ArrayList<>())
                 .totalQuantity(0)
                 .totalWeight(0.0)
                 .totalVolume(0.0)
                 .totalCost(0.0)
-                .releasedBy(getString(data, "releasedBy", "Заведующий складом"))
-                .releasedByPosition(getString(data, "releasedByPosition", "Заведующий"))
-                .shippedBy(getString(data, "shippedBy", "Кладовщик"))
-                .shippedByPosition(getString(data, "shippedByPosition", "Кладовщик"))
-                .receivedBy(getString(data, "receivedBy", ""))
-                .receivedByPosition(getString(data, "receivedByPosition", ""))
-                .notes(getString(data, "notes", ""))
-                .specialConditions(getString(data, "specialConditions", ""))
                 .build();
-    }
-
-    private Map<String, Object> createMetadata(String type, String status) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("type", type);
-        metadata.put("status", status);
-        metadata.put("generatedAt", LocalDateTime.now().toString());
-        metadata.put("format", type.contains("write-off") ? "docx" : "xls");
-        return metadata;
     }
 
     private String getString(Map<String, Object> map, String key, String defaultValue) {

@@ -27,14 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/**
- * Интеграционные тесты для EmployeeController.
- *
- * Тестируют веб-слой:
- * - Добавление сотрудников в организацию
- * - Удаление сотрудников
- * - Проверка ролей (только DIRECTOR может управлять сотрудниками)
- */
+
 @WebMvcTest(controllers = EmployeeController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {

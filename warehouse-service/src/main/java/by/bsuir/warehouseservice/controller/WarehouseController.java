@@ -88,13 +88,20 @@ public class WarehouseController {
     }
 
     @Operation(
-            summary = "Получить все склады",
-            description = "Возвращает список всех складов в системе"
+            summary = "Получить склады своей организации",
+            description = "Возвращает список складов организации, определяемой по заголовку X-Organization-Id (заполняется gateway)"
     )
     @ApiResponse(responseCode = "200", description = "Список складов получен")
     @GetMapping
-    public ResponseEntity<List<WarehouseResponse>> getAllWarehouses() {
-        List<WarehouseResponse> response = warehouseService.getAllWarehouses();
+    public ResponseEntity<List<WarehouseResponse>> getAllWarehouses(
+            @Parameter(description = "ID организации (из JWT через gateway)")
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+
+        if (organizationId == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        List<WarehouseResponse> response = warehouseService.getWarehousesByOrganization(organizationId);
         return ResponseEntity.ok(response);
     }
 

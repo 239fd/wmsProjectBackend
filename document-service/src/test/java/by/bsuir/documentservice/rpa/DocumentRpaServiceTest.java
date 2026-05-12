@@ -39,20 +39,20 @@ class DocumentRpaServiceTest {
     void setUp() throws IOException {
         documentRpaService = new DocumentRpaService();
 
-        // Create template directory structure
+
         Path templatesDir = tempDir.resolve("document-service").resolve("documents template");
         Files.createDirectories(templatesDir);
 
-        // Create Excel templates
+
         createExcelTemplate(templatesDir.resolve("Приходной ордер.XLS"));
         createExcelTemplate(templatesDir.resolve("акт переоценки.xls"));
         createExcelTemplate(templatesDir.resolve("инвентарихационная опись.xls"));
         createExcelTemplate(templatesDir.resolve("ттнls.xls"));
 
-        // Create Word template
+
         createWordTemplate(templatesDir.resolve("списание.docx"));
 
-        // Receipt Order Data
+
         receiptOrderData =
                 ReceiptOrderData.builder()
                         .documentNumber("ПО-001")
@@ -69,7 +69,7 @@ class DocumentRpaServiceTest {
                         .totalAmount(new BigDecimal("10000.00"))
                         .build();
 
-        // Revaluation Act Data
+
         revaluationActData =
                 RevaluationActData.builder()
                         .documentNumber("АП-001")
@@ -87,7 +87,7 @@ class DocumentRpaServiceTest {
                         .totalDifference(new BigDecimal("2000.00"))
                         .build();
 
-        // Inventory List Data
+
         inventoryListData =
                 InventoryListData.builder()
                         .documentNumber("ИО-001")
@@ -105,7 +105,7 @@ class DocumentRpaServiceTest {
                         .totalDifference(new BigDecimal("-500.00"))
                         .build();
 
-        // Write-Off Act Data
+
         writeOffActData =
                 WriteOffActData.builder()
                         .documentNumber("АС-001")
@@ -120,7 +120,7 @@ class DocumentRpaServiceTest {
                         .items(createWriteOffItems())
                         .build();
 
-        // Shipping Invoice Data
+
         shippingInvoiceData =
                 ShippingInvoiceData.builder()
                         .invoiceNumber("ТТН-001")
@@ -260,7 +260,7 @@ class DocumentRpaServiceTest {
         HSSFWorkbook workbook = new HSSFWorkbook();
         Sheet sheet = workbook.createSheet("Sheet1");
 
-        // Create some rows for template
+
         for (int i = 0; i < 30; i++) {
             Row row = sheet.createRow(i);
             for (int j = 0; j < 12; j++) {
@@ -290,24 +290,24 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateReceiptOrder_Success() {
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
                         () -> documentRpaService.generateReceiptOrder(receiptOrderData));
 
-        // Template loading will fail, but we test that the method processes the data
+
         assertTrue(exception.getMessage().contains("Failed to generate receipt order"));
     }
 
     @Test
     void generateReceiptOrder_WithEmptyItems() {
-        // Arrange
+
         receiptOrderData.setItems(new ArrayList<>());
         receiptOrderData.setTotalQuantity(0);
         receiptOrderData.setTotalAmount(BigDecimal.ZERO);
 
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -317,7 +317,7 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateRevaluationAct_Success() {
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -327,10 +327,10 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateRevaluationAct_WithEmptyCommission() {
-        // Arrange
+
         revaluationActData.setCommissionMembers(new ArrayList<>());
 
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -340,7 +340,7 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateInventoryList_Success() {
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -350,10 +350,10 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateInventoryList_WithMultipleCommissionMembers() {
-        // Arrange
+
         inventoryListData.setCommissionMembers(Arrays.asList("Член 1", "Член 2", "Член 3"));
 
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -363,7 +363,7 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateWriteOffAct_Success() {
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -373,10 +373,10 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateWriteOffAct_WithEmptyItems() {
-        // Arrange
+
         writeOffActData.setItems(new ArrayList<>());
 
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -386,7 +386,7 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateShippingInvoice_Success() {
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -396,14 +396,14 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateShippingInvoice_WithEmptyItems() {
-        // Arrange
+
         shippingInvoiceData.setItems(new ArrayList<>());
         shippingInvoiceData.setTotalQuantity(0);
         shippingInvoiceData.setTotalWeight(0.0);
         shippingInvoiceData.setTotalVolume(0.0);
         shippingInvoiceData.setTotalCost(0.0);
 
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -413,14 +413,14 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateShippingInvoice_WithNullOptionalFields() {
-        // Arrange
+
         shippingInvoiceData.setNotes(null);
         shippingInvoiceData.setSpecialConditions(null);
         shippingInvoiceData.getItems().getFirst().setWeight(null);
         shippingInvoiceData.getItems().getFirst().setVolume(null);
         shippingInvoiceData.getItems().getFirst().setTotalPrice(null);
 
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -430,7 +430,7 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateReceiptOrder_WithNullValues() {
-        // Arrange
+
         ReceiptOrderData dataWithNulls =
                 ReceiptOrderData.builder()
                         .documentNumber(null)
@@ -443,7 +443,7 @@ class DocumentRpaServiceTest {
                         .totalAmount(null)
                         .build();
 
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -453,7 +453,7 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateRevaluationAct_WithNullValues() {
-        // Arrange
+
         RevaluationActData dataWithNulls =
                 RevaluationActData.builder()
                         .documentNumber(null)
@@ -466,7 +466,7 @@ class DocumentRpaServiceTest {
                         .totalDifference(null)
                         .build();
 
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -476,7 +476,7 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateInventoryList_WithNullValues() {
-        // Arrange
+
         InventoryListData dataWithNulls =
                 InventoryListData.builder()
                         .documentNumber(null)
@@ -489,7 +489,7 @@ class DocumentRpaServiceTest {
                         .totalDifference(null)
                         .build();
 
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -499,7 +499,7 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateWriteOffAct_WithNullValues() {
-        // Arrange
+
         WriteOffActData dataWithNulls =
                 WriteOffActData.builder()
                         .documentNumber(null)
@@ -508,7 +508,7 @@ class DocumentRpaServiceTest {
                         .items(new ArrayList<>())
                         .build();
 
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -518,11 +518,11 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateReceiptOrder_WithLargeAmounts() {
-        // Arrange
+
         receiptOrderData.setTotalAmount(new BigDecimal("999999999.99"));
         receiptOrderData.getItems().getFirst().setPrice(new BigDecimal("999999999.99"));
 
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,
@@ -532,12 +532,12 @@ class DocumentRpaServiceTest {
 
     @Test
     void generateShippingInvoice_WithLargeQuantities() {
-        // Arrange
+
         shippingInvoiceData.setTotalQuantity(Integer.MAX_VALUE);
         shippingInvoiceData.setTotalWeight(Double.MAX_VALUE);
         shippingInvoiceData.setTotalVolume(Double.MAX_VALUE);
 
-        // Act & Assert
+
         RuntimeException exception =
                 assertThrows(
                         RuntimeException.class,

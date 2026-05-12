@@ -29,17 +29,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/**
- * Интеграционные тесты для ProductController.
- *
- * Используем standalone MockMvc setup без поднятия Spring контекста,
- * что позволяет избежать проблем с JPA, RabbitMQ и Loki зависимостями.
- *
- * Тестируют веб-слой:
- * - HTTP маршрутизация
- * - Сериализация/десериализация JSON
- * - Проверка ролей (X-User-Role)
- */
+
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ProductController Integration Tests")
 class ProductControllerIntegrationTest {
@@ -72,7 +62,7 @@ class ProductControllerIntegrationTest {
         @Test
         @DisplayName("С ролью ADMIN - успешное создание, возвращает 201")
         void createProduct_WithAdminRole_ShouldReturnCreated() throws Exception {
-            // Given
+
             CreateProductRequest request = new CreateProductRequest(
                     "Тестовый товар",
                     "SKU-001",
@@ -100,7 +90,7 @@ class ProductControllerIntegrationTest {
 
             when(productService.createProduct(any(CreateProductRequest.class))).thenReturn(response);
 
-            // When & Then
+
             mockMvc.perform(post(BASE_URL)
                             .header("X-User-Role", "ADMIN")
                             .contentType(MediaType.APPLICATION_JSON)

@@ -4,12 +4,14 @@ import by.bsuir.ssoservice.model.enums.AuthProvider;
 import by.bsuir.ssoservice.model.enums.UserRole;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.UUID;
 
-public class UserEvents {
+public final class UserEvents {
+
+    private UserEvents() {}
+
 
     @NoArgsConstructor
     @AllArgsConstructor

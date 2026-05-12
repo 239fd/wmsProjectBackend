@@ -1,7 +1,9 @@
 package by.bsuir.ssoservice.service;
 
 import by.bsuir.ssoservice.dto.request.LoginRequest;
-import by.bsuir.ssoservice.dto.request.RegisterRequest;
+import by.bsuir.ssoservice.dto.request.RegisterDirectorRequest;
+import by.bsuir.ssoservice.dto.request.RegisterWithInvitationRequest;
+import by.bsuir.ssoservice.dto.response.InvitationValidationResponse;
 import by.bsuir.ssoservice.dto.response.AuthResponse;
 import by.bsuir.ssoservice.dto.response.UserResponse;
 import by.bsuir.ssoservice.exception.AppException;
@@ -40,39 +42,25 @@ public class UserService {
     private final RefreshTokenService refreshTokenService;
     private final LoginAuditRepository loginAuditRepository;
     private final ObjectMapper objectMapper;
+    private final InvitationValidationService invitationValidationService;
 
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public AuthResponse registerDirector(RegisterDirectorRequest request, String ipAddress, String userAgent) {
         if (readModelRepository.existsByEmail(request.email())) {
             throw AppException.conflict("Пользователь с таким email уже существует");
-        }
-
-        if ((request.role() == UserRole.WORKER || request.role() == UserRole.ACCOUNTANT)
-                && (request.organizationCode() == null || request.organizationCode().isBlank())) {
-            throw AppException.badRequest("Для роли " + request.role() + " необходим код предприятия");
         }
 
         UUID userId = UUID.randomUUID();
         String passwordHash = passwordEncoder.encode(request.password());
 
-        UUID organizationId = null;
-        UUID warehouseId = null;
-
-        if (request.organizationCode() != null && !request.organizationCode().isBlank()) {
-            organizationId = UUID.randomUUID();
-            if (request.role() == UserRole.WORKER) {
-                warehouseId = UUID.randomUUID();
-            }
-        }
-
         UserEvents.UserCreatedEvent event = new UserEvents.UserCreatedEvent(
                 request.email(),
                 request.getFullName(),
-                request.role(),
+                UserRole.DIRECTOR,
                 passwordHash,
                 AuthProvider.LOCAL,
-                organizationId,
-                warehouseId
+                null,
+                null
         );
 
         UserEvent userEvent = UserEvent.builder()
@@ -88,57 +76,63 @@ public class UserService {
                 .userId(userId)
                 .email(request.email())
                 .fullName(request.getFullName())
-                .role(request.role())
+                .role(UserRole.DIRECTOR)
                 .passwordHash(passwordHash)
                 .provider(AuthProvider.LOCAL)
-                .organizationId(organizationId)
-                .warehouseId(warehouseId)
                 .isActive(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
         readModelRepository.save(readModel);
 
-        return generateTokensWithAudit(readModel, null, null);
+        log.info("Director registered: {} (userId={})", request.email(), userId);
+        return generateTokensWithAudit(readModel, ipAddress, userAgent);
     }
 
     @Transactional
-    public AuthResponse register(RegisterRequest request, String ipAddress, String userAgent) {
+    public AuthResponse registerWithInvitation(RegisterWithInvitationRequest request, String ipAddress, String userAgent) {
+        InvitationValidationResponse validation = invitationValidationService.validateInvitation(request.invitationToken());
+
+        if (validation == null || !Boolean.TRUE.equals(validation.valid())) {
+            String msg = validation == null ? "Ошибка валидации приглашения"
+                    : (validation.message() != null ? validation.message() : "Приглашение недействительно");
+            throw AppException.badRequest(msg);
+        }
+
+        if (validation.email() != null && !validation.email().equalsIgnoreCase(request.email())) {
+            throw AppException.badRequest("Email не совпадает с email в приглашении");
+        }
+
         if (readModelRepository.existsByEmail(request.email())) {
             throw AppException.conflict("Пользователь с таким email уже существует");
         }
 
-        if ((request.role() == UserRole.WORKER || request.role() == UserRole.ACCOUNTANT)
-                && (request.organizationCode() == null || request.organizationCode().isBlank())) {
-            throw AppException.badRequest("Для роли " + request.role() + " необходим код предприятия");
+        UserRole role;
+        try {
+            role = UserRole.valueOf(validation.role());
+        } catch (IllegalArgumentException e) {
+            throw AppException.badRequest("Некорректная роль в приглашении: " + validation.role());
+        }
+        if (role == UserRole.DIRECTOR) {
+            throw AppException.badRequest("Роль DIRECTOR не может быть назначена через приглашение");
         }
 
         UUID userId = UUID.randomUUID();
         String passwordHash = passwordEncoder.encode(request.password());
 
-        UUID organizationId = null;
-        UUID warehouseId = null;
-
-        if (request.organizationCode() != null && !request.organizationCode().isBlank()) {
-            organizationId = UUID.randomUUID();
-            if (request.role() == UserRole.WORKER) {
-                warehouseId = UUID.randomUUID();
-            }
-        }
-
         UserEvents.UserCreatedEvent event = new UserEvents.UserCreatedEvent(
                 request.email(),
                 request.getFullName(),
-                request.role(),
+                role,
                 passwordHash,
                 AuthProvider.LOCAL,
-                organizationId,
-                warehouseId
+                validation.organizationId(),
+                validation.warehouseId()
         );
 
         UserEvent userEvent = UserEvent.builder()
                 .userId(userId)
-                .eventType("USER_CREATED")
+                .eventType("USER_CREATED_INVITATION")
                 .eventData(objectMapper.valueToTree(event))
                 .eventVersion(1)
                 .createdAt(LocalDateTime.now())
@@ -149,16 +143,24 @@ public class UserService {
                 .userId(userId)
                 .email(request.email())
                 .fullName(request.getFullName())
-                .role(request.role())
+                .role(role)
                 .passwordHash(passwordHash)
                 .provider(AuthProvider.LOCAL)
-                .organizationId(organizationId)
-                .warehouseId(warehouseId)
+                .organizationId(validation.organizationId())
+                .warehouseId(validation.warehouseId())
                 .isActive(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
         readModelRepository.save(readModel);
+
+        invitationValidationService.addEmployeeToOrganization(
+                validation.organizationId(), userId, role.name());
+
+        invitationValidationService.markInvitationAsUsed(request.invitationToken(), userId);
+
+        log.info("User registered via invitation: {} (role={}, orgId={}, warehouseId={})",
+                request.email(), role, validation.organizationId(), validation.warehouseId());
 
         return generateTokensWithAudit(readModel, ipAddress, userAgent);
     }
@@ -269,7 +271,9 @@ public class UserService {
         String accessToken = jwtTokenService.generateAccessToken(
                 user.getUserId(),
                 user.getEmail(),
-                role
+                role,
+                user.getOrganizationId(),
+                user.getWarehouseId()
         );
 
         String refreshToken = jwtTokenService.generateRefreshToken();
@@ -293,7 +297,9 @@ public class UserService {
         String accessToken = jwtTokenService.generateAccessToken(
                 user.getUserId(),
                 user.getEmail(),
-                role
+                role,
+                user.getOrganizationId(),
+                user.getWarehouseId()
         );
 
         String refreshToken = jwtTokenService.generateRefreshToken();
@@ -354,9 +360,10 @@ public class UserService {
 
         if (organizationCode != null && !organizationCode.isBlank()) {
             organizationId = UUID.fromString(organizationCode);
-            if (role == UserRole.WORKER && warehouseCode != null) {
-                warehouseId = UUID.fromString(warehouseCode);
-            }
+        }
+
+        if (warehouseCode != null && !warehouseCode.isBlank()) {
+            warehouseId = UUID.fromString(warehouseCode);
         }
 
         UserEvents.UserCreatedEvent event = new UserEvents.UserCreatedEvent(

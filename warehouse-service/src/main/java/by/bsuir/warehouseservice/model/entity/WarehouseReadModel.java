@@ -2,12 +2,14 @@ package by.bsuir.warehouseservice.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Filter;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(name = "warehouse_read_model")
+@Filter(name = "orgFilter", condition = "org_id = :orgId")
 @Getter
 @Setter
 @Builder

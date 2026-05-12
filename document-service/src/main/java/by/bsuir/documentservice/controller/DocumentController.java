@@ -21,279 +21,219 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
-@Tag(
-        name = "Документы",
-        description =
-                "API для генерации складских документов: накладные, акты, описи и другие документы")
+@Tag(name = "Документы",
+        description = "API для генерации складских документов: накладные, акты, описи и другие документы")
 public class DocumentController {
 
     private final DocumentService documentService;
 
-    @Operation(
-            summary = "Получить документ",
-            description = "Возвращает PDF-документ по его идентификатору"
-    )
+    @Operation(summary = "Получить документ", description = "Регенерирует PDF по сохранённым метаданным")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Документ найден"),
-            @ApiResponse(responseCode = "404", description = "Документ не найден")
+            @ApiResponse(responseCode = "404", description = "Документ не найден"),
+            @ApiResponse(responseCode = "403", description = "Документ принадлежит другой организации")
     })
     @GetMapping("/{documentId}")
     public ResponseEntity<byte[]> getDocument(
-            @Parameter(description = "ID документа", required = true) @PathVariable UUID documentId) {
-        log.info("GET /api/documents/{}", documentId);
-
-        byte[] document = documentService.getDocument(documentId);
-
+            @Parameter(description = "ID документа", required = true) @PathVariable UUID documentId,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        byte[] document = documentService.getDocument(documentId, organizationId);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.setContentDispositionFormData("inline", documentId + ".pdf");
-
         return ResponseEntity.ok().headers(headers).body(document);
     }
 
-    @Operation(
-            summary = "Получить метаданные документа",
-            description = "Возвращает метаданные документа: тип, дату создания, статус"
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Метаданные получены"),
-            @ApiResponse(responseCode = "404", description = "Документ не найден")
-    })
+    @Operation(summary = "Получить метаданные документа")
     @GetMapping("/{documentId}/metadata")
     public ResponseEntity<Map<String, Object>> getDocumentMetadata(
-            @Parameter(description = "ID документа", required = true) @PathVariable UUID documentId) {
-        log.info("GET /api/documents/{}/metadata", documentId);
-
-        Map<String, Object> metadata = documentService.getDocumentMetadata(documentId);
-        return ResponseEntity.ok(metadata);
+            @PathVariable UUID documentId,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return ResponseEntity.ok(documentService.getDocumentMetadata(documentId, organizationId));
     }
 
-    @Operation(
-            summary = "Сгенерировать приходный ордер",
-            description = "Создает приходный ордер для оформления поступления товаров на склад"
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Документ успешно создан"),
-            @ApiResponse(responseCode = "400", description = "Некорректные данные")
-    })
     @PostMapping("/receipt-order")
+    @Operation(summary = "Сгенерировать приходный ордер")
     public ResponseEntity<Map<String, String>> generateReceiptOrder(
-            @RequestBody Map<String, Object> data) {
-        log.info("POST /api/documents/receipt-order");
-
-        UUID documentId = documentService.generateReceiptOrder(data);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(
-                        Map.of(
-                                "documentId", documentId.toString(),
-                                "type", "receipt-order",
-                                "status", "stub",
-                                "message",
-                                        "Receipt order generation is not fully implemented yet"));
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateReceiptOrder(data, organizationId, userId, format);
+        return created(id, "receipt-order");
     }
 
-    @Operation(
-            summary = "Сгенерировать расходный ордер",
-            description = "Создает расходный ордер для оформления отгрузки товаров со склада"
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Документ успешно создан"),
-            @ApiResponse(responseCode = "400", description = "Некорректные данные")
-    })
+    @PostMapping("/release-order")
+    @Operation(summary = "Сгенерировать отпускной ордер")
+    public ResponseEntity<Map<String, String>> generateReleaseOrder(
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateShipmentOrder(data, organizationId, userId, format);
+        return created(id, "release-order");
+    }
+
     @PostMapping("/shipment-order")
+    @Operation(summary = "Сгенерировать расходный ордер (alias for release-order)")
     public ResponseEntity<Map<String, String>> generateShipmentOrder(
-            @RequestBody Map<String, Object> data) {
-        log.info("POST /api/documents/shipment-order");
-
-        UUID documentId = documentService.generateShipmentOrder(data);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(
-                        Map.of(
-                                "documentId", documentId.toString(),
-                                "type", "shipment-order",
-                                "status", "stub",
-                                "message",
-                                        "Shipment order generation is not fully implemented yet"));
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateShipmentOrder(data, organizationId, userId, format);
+        return created(id, "release-order");
     }
 
-    @Operation(
-            summary = "Сгенерировать инвентаризационную опись",
-            description = "Создает инвентаризационную опись для проведения инвентаризации"
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Документ успешно создан"),
-            @ApiResponse(responseCode = "400", description = "Некорректные данные")
-    })
     @PostMapping("/inventory-report")
+    @Operation(summary = "Сгенерировать инвентаризационную опись")
     public ResponseEntity<Map<String, String>> generateInventoryReport(
-            @RequestBody Map<String, Object> data) {
-        log.info("POST /api/documents/inventory-report");
-
-        UUID documentId = documentService.generateInventoryReport(data);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(
-                        Map.of(
-                                "documentId", documentId.toString(),
-                                "type", "inventory-report",
-                                "status", "stub",
-                                "message",
-                                        "Inventory report generation is not fully implemented yet"));
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateInventoryReport(data, organizationId, userId, format);
+        return created(id, "inventory-report");
     }
 
-    @Operation(
-            summary = "Сгенерировать акт переоценки",
-            description = "Создает акт переоценки товарно-материальных ценностей"
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Документ успешно создан"),
-            @ApiResponse(responseCode = "400", description = "Некорректные данные")
-    })
     @PostMapping("/revaluation-act")
+    @Operation(summary = "Сгенерировать акт переоценки")
     public ResponseEntity<Map<String, String>> generateRevaluationAct(
-            @RequestBody Map<String, Object> data) {
-        log.info("POST /api/documents/revaluation-act");
-
-        UUID documentId = documentService.generateRevaluationAct(data);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(
-                        Map.of(
-                                "documentId", documentId.toString(),
-                                "type", "revaluation-act",
-                                "status", "stub",
-                                "message",
-                                        "Revaluation act generation is not fully implemented yet (RPA)"));
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateRevaluationAct(data, organizationId, userId, format);
+        return created(id, "revaluation-act");
     }
 
-    @Operation(
-            summary = "Сгенерировать акт списания",
-            description = "Создает акт списания товарно-материальных ценностей"
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Документ успешно создан"),
-            @ApiResponse(responseCode = "400", description = "Некорректные данные")
-    })
     @PostMapping("/write-off-act")
+    @Operation(summary = "Сгенерировать акт списания")
     public ResponseEntity<Map<String, String>> generateWriteOffAct(
-            @RequestBody Map<String, Object> data) {
-        log.info("POST /api/documents/write-off-act");
-
-        UUID documentId = documentService.generateWriteOffAct(data);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(
-                        Map.of(
-                                "documentId", documentId.toString(),
-                                "type", "write-off-act",
-                                "status", "stub",
-                                "message",
-                                        "Write-off act generation is not fully implemented yet"));
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateWriteOffAct(data, organizationId, userId, format);
+        return created(id, "write-off-act");
     }
 
-    @Operation(
-            summary = "Сгенерировать товарную накладную",
-            description = "Создает товарную накладную для сопровождения груза"
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Документ успешно создан"),
-            @ApiResponse(responseCode = "400", description = "Некорректные данные")
-    })
     @PostMapping("/waybill")
+    @Operation(summary = "Сгенерировать ТТН")
     public ResponseEntity<Map<String, String>> generateWaybill(
-            @RequestBody Map<String, Object> data) {
-        log.info("POST /api/documents/waybill");
-
-        UUID documentId = documentService.generateWaybill(data);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(
-                        Map.of(
-                                "documentId", documentId.toString(),
-                                "type", "waybill",
-                                "status", "stub",
-                                "message", "Waybill generation is not fully implemented yet"));
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateWaybill(data, organizationId, userId, format);
+        return created(id, "waybill");
     }
 
-    @Operation(
-            summary = "Сгенерировать лист подбора",
-            description = "Создает лист подбора товаров для комплектации заказа"
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Документ успешно создан"),
-            @ApiResponse(responseCode = "400", description = "Некорректные данные")
-    })
     @PostMapping("/picking-list")
+    @Operation(summary = "Сгенерировать лист подбора")
     public ResponseEntity<Map<String, String>> generatePickingList(
-            @RequestBody Map<String, Object> data) {
-        log.info("POST /api/documents/picking-list");
-
-        UUID documentId = documentService.generatePickingList(data);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(
-                        Map.of(
-                                "documentId", documentId.toString(),
-                                "type", "picking-list",
-                                "status", "stub",
-                                "message", "Picking list generation is not fully implemented yet"));
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generatePickingList(data, organizationId, userId, format);
+        return created(id, "picking-list");
     }
 
-    @Operation(
-            summary = "Получить все документы",
-            description = "Возвращает постраничный список всех документов в системе"
-    )
-    @ApiResponse(responseCode = "200", description = "Список документов получен")
+    @PostMapping("/receipt-act")
+    @Operation(summary = "Сгенерировать акт приёмки товара")
+    public ResponseEntity<Map<String, String>> generateReceiptAct(
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateReceiptAct(data, organizationId, userId, format);
+        return created(id, "receipt-act");
+    }
+
+    @PostMapping("/invoice-fact")
+    @Operation(summary = "Сгенерировать счёт-фактуру")
+    public ResponseEntity<Map<String, String>> generateInvoiceFact(
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateInvoiceFact(data, organizationId, userId, format);
+        return created(id, "invoice-fact");
+    }
+
+    @PostMapping("/invoice")
+    @Operation(summary = "Сгенерировать инвойс")
+    public ResponseEntity<Map<String, String>> generateInvoice(
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateInvoice(data, organizationId, userId, format);
+        return created(id, "invoice");
+    }
+
+    @PostMapping("/transport-note")
+    @Operation(summary = "Сгенерировать товарную накладную (ТН)")
+    public ResponseEntity<Map<String, String>> generateTransportNote(
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateTransportNote(data, organizationId, userId, format);
+        return created(id, "transport-note");
+    }
+
+    @PostMapping("/cmr")
+    @Operation(summary = "Сгенерировать CMR")
+    public ResponseEntity<Map<String, String>> generateCmr(
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateCmr(data, organizationId, userId, format);
+        return created(id, "cmr");
+    }
+
+    @PostMapping("/discrepancy-act")
+    @Operation(summary = "Сгенерировать акт о расхождении")
+    public ResponseEntity<Map<String, String>> generateDiscrepancyAct(
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        UUID id = documentService.generateDiscrepancyAct(data, organizationId, userId, format);
+        return created(id, "discrepancy-act");
+    }
+
+    @Operation(summary = "Получить все документы (фильтр по организации)")
     @GetMapping
     public ResponseEntity<Map<String, Object>> getAllDocuments(
-            @Parameter(description = "Номер страницы (начиная с 0)") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Размер страницы") @RequestParam(defaultValue = "20") int size) {
-        log.info("GET /api/documents?page={}&size={}", page, size);
-
-        Map<String, Object> result = documentService.getAllDocuments(page, size);
-        return ResponseEntity.ok(result);
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return ResponseEntity.ok(documentService.getAllDocuments(page, size, organizationId));
     }
 
-    @Operation(
-            summary = "Получить информацию о сервисе",
-            description = "Возвращает информацию о статусе сервиса документов и доступных эндпоинтах"
-    )
-    @ApiResponse(responseCode = "200", description = "Информация получена")
     @GetMapping("/stub-info")
     public ResponseEntity<Map<String, Object>> getStubInfo() {
         Map<String, Object> info = new HashMap<>();
         info.put("service", "Document Service");
-        info.put("status", "STUB");
-        info.put("version", "0.1.0-SNAPSHOT");
-        info.put("message", "Document Service is not fully implemented yet");
-        info.put(
-                "todo",
-                new String[] {
-                    "Implement PDF generation",
-                    "Add RPA integration for automatic form filling",
-                    "Create document templates",
-                    "Add document storage (database or file system)",
-                    "Implement electronic signature",
-                    "Add document versioning",
-                    "Implement document workflow (draft -> approved -> archived)"
-                });
-        info.put(
-                "availableEndpoints",
-                new String[] {
-                    "GET /api/documents/{id}",
-                    "GET /api/documents/{id}/metadata",
-                    "GET /api/documents",
-                    "POST /api/documents/receipt-order",
-                    "POST /api/documents/shipment-order",
-                    "POST /api/documents/inventory-report",
-                    "POST /api/documents/revaluation-act",
-                    "POST /api/documents/write-off-act",
-                    "POST /api/documents/waybill",
-                    "POST /api/documents/picking-list"
-                });
-
+        info.put("status", "active");
+        info.put("version", "0.2.0-SNAPSHOT");
+        info.put("documentTypes", new String[] {
+                "receipt-order", "release-order", "shipment-order", "inventory-report",
+                "revaluation-act", "write-off-act", "waybill", "picking-list",
+                "receipt-act", "invoice-fact", "invoice", "transport-note", "cmr", "discrepancy-act"
+        });
+        info.put("formats", new String[] {"pdf (default)", "rpa-xls", "rpa-docx"});
         return ResponseEntity.ok(info);
+    }
+
+    private ResponseEntity<Map<String, String>> created(UUID id, String type) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "documentId", id.toString(),
+                "type", type,
+                "status", "generated"));
     }
 }

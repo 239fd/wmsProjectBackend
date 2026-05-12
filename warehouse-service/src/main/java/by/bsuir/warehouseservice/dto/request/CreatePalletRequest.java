@@ -1,5 +1,6 @@
 package by.bsuir.warehouseservice.dto.request;
 
+import by.bsuir.warehouseservice.model.enums.PalletType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
@@ -16,6 +17,9 @@ public record CreatePalletRequest(
 
         @NotNull(message = "Максимальный вес обязателен")
         @Positive(message = "Максимальный вес должен быть положительным")
-        BigDecimal maxWeightKg
+        BigDecimal maxWeightKg,
+
+        @NotNull(message = "Тип паллета обязателен")
+        PalletType palletType
 ) {
 }

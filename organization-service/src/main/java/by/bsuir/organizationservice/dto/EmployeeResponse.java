@@ -19,5 +19,7 @@ public class EmployeeResponse {
     private String email;
     private String role;
     private LocalDateTime joinedAt;
+    private Boolean isActive;
+    private Boolean isBlocked;
 }
 

@@ -66,5 +66,41 @@ public class ProductAnalyticsController {
         Map<String, Object> summary = analyticsService.getOperationsDynamics(startDate, endDate);
         return ResponseEntity.ok(summary);
     }
+
+    @Operation(summary = "Сравнить операции с предыдущим периодом",
+            description = "Считает суммы операций за заданный период [startDate, endDate] и за предыдущий равной длины. " +
+                    "Используется для тренд-индикатора в KPI-карточках. Доступно только для DIRECTOR.")
+    @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "Сравнение получено"), @ApiResponse(responseCode = "403", description = "Недостаточно прав")})
+    @GetMapping("/operations/compare")
+    public ResponseEntity<Map<String, Object>> getOperationsComparison(
+            @Parameter(description = "Дата начала текущего периода", required = true) @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @Parameter(description = "Дата окончания текущего периода", required = true) @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+
+        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        Map<String, Object> comparison = analyticsService.getOperationsComparison(startDate, endDate);
+        return ResponseEntity.ok(comparison);
+    }
+
+    @Operation(summary = "Сравнить состояние запасов с началом периода",
+            description = "Восстанавливает totalQuantity/availableQuantity на начало периода через сумму операций " +
+                    "(receipt - ship - writeoff) и считает тренд. Доступно только для DIRECTOR.")
+    @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "Сравнение получено"), @ApiResponse(responseCode = "403", description = "Недостаточно прав")})
+    @GetMapping("/inventory/compare")
+    public ResponseEntity<Map<String, Object>> getInventoryComparison(
+            @Parameter(description = "Дата начала периода", required = true) @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @Parameter(description = "Дата окончания периода", required = true) @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+
+        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        Map<String, Object> comparison = analyticsService.getInventoryComparison(startDate, endDate);
+        return ResponseEntity.ok(comparison);
+    }
 }
 

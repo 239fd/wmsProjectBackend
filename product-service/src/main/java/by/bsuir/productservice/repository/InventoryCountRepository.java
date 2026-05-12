@@ -13,4 +13,8 @@ public interface InventoryCountRepository extends JpaRepository<InventoryCount, 
     List<InventoryCount> findBySessionId(UUID sessionId);
 
     List<InventoryCount> findBySessionIdAndDiscrepancyNot(UUID sessionId, java.math.BigDecimal zero);
+
+    List<InventoryCount> findByOrganizationIdAndWarehouseIdAndMarkedForWriteoffTrue(UUID organizationId, UUID warehouseId);
+
+    List<InventoryCount> findByOrganizationIdAndMarkedForWriteoffTrue(UUID organizationId);
 }

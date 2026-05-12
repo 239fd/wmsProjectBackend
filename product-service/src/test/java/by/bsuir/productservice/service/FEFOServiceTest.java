@@ -17,11 +17,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -76,8 +78,7 @@ class FEFOServiceTest {
     @Test
     @DisplayName("Should select inventory by FEFO successfully")
     void shouldSelectInventoryByFefoSuccessfully() {
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, warehouseId))
-                .thenReturn(Optional.of(inventory));
+        when(inventoryRepository.findByWarehouseId(warehouseId)).thenReturn(List.of(inventory));
         when(batchRepository.findById(batchId)).thenReturn(Optional.of(batch));
 
         var allocations = fefoService.selectInventoryByFEFO(
@@ -86,28 +87,26 @@ class FEFOServiceTest {
 
         assertThat(allocations).isNotEmpty();
         assertThat(allocations.get(0).getQuantity()).isEqualTo(new BigDecimal("50"));
-        verify(inventoryRepository, times(1)).findByProductIdAndWarehouseId(productId, warehouseId);
+        verify(inventoryRepository, times(1)).findByWarehouseId(warehouseId);
     }
 
     @Test
     @DisplayName("Should throw exception when product not found in warehouse")
     void shouldThrowExceptionWhenProductNotFoundInWarehouse() {
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, warehouseId))
-                .thenReturn(Optional.empty());
+        when(inventoryRepository.findByWarehouseId(warehouseId)).thenReturn(List.of());
 
         assertThatThrownBy(() -> fefoService.selectInventoryByFEFO(
                 productId, warehouseId, new BigDecimal("50")))
                 .isInstanceOf(AppException.class)
                 .hasMessageContaining("отсутствует");
 
-        verify(inventoryRepository, times(1)).findByProductIdAndWarehouseId(productId, warehouseId);
+        verify(inventoryRepository, times(1)).findByWarehouseId(warehouseId);
     }
 
     @Test
     @DisplayName("Should throw exception when insufficient inventory for FEFO")
     void shouldThrowExceptionWhenInsufficientInventoryForFefo() {
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, warehouseId))
-                .thenReturn(Optional.of(inventory));
+        when(inventoryRepository.findByWarehouseId(warehouseId)).thenReturn(List.of(inventory));
         when(batchRepository.findById(batchId)).thenReturn(Optional.of(batch));
 
         assertThatThrownBy(() -> fefoService.selectInventoryByFEFO(
@@ -115,7 +114,7 @@ class FEFOServiceTest {
                 .isInstanceOf(AppException.class)
                 .hasMessageContaining("Недостаточно");
 
-        verify(inventoryRepository, times(1)).findByProductIdAndWarehouseId(productId, warehouseId);
+        verify(inventoryRepository, times(1)).findByWarehouseId(warehouseId);
     }
 
     @Test
@@ -123,8 +122,7 @@ class FEFOServiceTest {
     void shouldHandleInventoryWithoutBatchInformation() {
         inventory.setBatchId(null);
 
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, warehouseId))
-                .thenReturn(Optional.of(inventory));
+        when(inventoryRepository.findByWarehouseId(warehouseId)).thenReturn(List.of(inventory));
 
         var allocations = fefoService.selectInventoryByFEFO(
                 productId, warehouseId, new BigDecimal("50")

@@ -1,5 +1,6 @@
 package by.bsuir.productservice.dto.request;
 
+import by.bsuir.productservice.model.enums.AllocationStrategy;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
@@ -23,6 +24,8 @@ public record ShipProductRequest(
 
         @NotNull(message = "User ID обязателен")
         UUID userId,
+
+        AllocationStrategy strategy,
 
         String notes
 ) {

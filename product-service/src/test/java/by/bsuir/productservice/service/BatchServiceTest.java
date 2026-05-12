@@ -61,7 +61,9 @@ class BatchServiceTest {
                 LocalDate.now(),
                 LocalDate.now().plusMonths(6),
                 "Test Supplier",
-                new BigDecimal("100.00")
+                new BigDecimal("100.00"),
+                null,
+                null
         );
 
         productBatch = ProductBatch.builder()

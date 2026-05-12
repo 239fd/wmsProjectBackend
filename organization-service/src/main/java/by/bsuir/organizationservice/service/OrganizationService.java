@@ -7,11 +7,13 @@ import by.bsuir.organizationservice.dto.response.InvitationCodeResponse;
 import by.bsuir.organizationservice.dto.response.OrganizationDumpResponse;
 import by.bsuir.organizationservice.dto.response.OrganizationResponse;
 import by.bsuir.organizationservice.exception.AppException;
+import by.bsuir.organizationservice.model.entity.OrganizationEmployee;
 import by.bsuir.organizationservice.model.entity.OrganizationEvent;
 import by.bsuir.organizationservice.model.entity.OrganizationInvitationCode;
 import by.bsuir.organizationservice.model.entity.OrganizationReadModel;
 import by.bsuir.organizationservice.model.enums.OrganizationStatus;
 import by.bsuir.organizationservice.model.event.OrganizationEvents;
+import by.bsuir.organizationservice.repository.OrganizationEmployeeRepository;
 import by.bsuir.organizationservice.repository.OrganizationEventRepository;
 import by.bsuir.organizationservice.repository.OrganizationInvitationCodeRepository;
 import by.bsuir.organizationservice.repository.OrganizationReadModelRepository;
@@ -22,6 +24,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -36,9 +39,11 @@ public class OrganizationService {
     private final OrganizationReadModelRepository readModelRepository;
     private final OrganizationEventRepository eventRepository;
     private final OrganizationInvitationCodeRepository invitationCodeRepository;
+    private final OrganizationEmployeeRepository employeeRepository;
     private final ObjectMapper objectMapper;
     private final RabbitTemplate rabbitTemplate;
     private final WarehouseClientService warehouseClientService;
+    private final RestTemplate restTemplate;
 
     @Value("${organization.invitation-code.ttl-hours:24}")
     private int invitationCodeTtlHours;
@@ -86,10 +91,35 @@ public class OrganizationService {
                 .build();
         readModelRepository.save(readModel);
 
+        OrganizationEmployee directorEmployee = OrganizationEmployee.builder()
+                .userId(directorUserId)
+                .orgId(orgId)
+                .role("DIRECTOR")
+                .joinedAt(LocalDateTime.now())
+                .isActive(true)
+                .build();
+        employeeRepository.save(directorEmployee);
+
+        updateUserOrganizationLink(directorUserId, orgId, null);
+
         publishOrganizationCreated(readModel);
 
-        log.info("Organization created successfully with ID: {}", orgId);
+        log.info("Organization created successfully with ID: {} (director: {})", orgId, directorUserId);
         return mapToResponse(readModel);
+    }
+
+    private void updateUserOrganizationLink(UUID userId, UUID orgId, UUID warehouseId) {
+        String url = "http://SSOSERVICE/api/internal/users/" + userId + "/organization";
+        Map<String, String> body = new HashMap<>();
+        body.put("organizationId", orgId == null ? "" : orgId.toString());
+        body.put("warehouseId", warehouseId == null ? "" : warehouseId.toString());
+        try {
+            restTemplate.patchForObject(url, body, Map.class);
+            log.info("Updated user {} organizationId={} warehouseId={} via SSO", userId, orgId, warehouseId);
+        } catch (Exception e) {
+            log.error("Failed to update user {} organization link: {}", userId, e.getMessage(), e);
+            throw new RuntimeException("Не удалось обновить привязку пользователя к организации", e);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -164,10 +194,14 @@ public class OrganizationService {
 
     @Transactional
     public OrganizationDumpResponse deleteOrganization(UUID orgId, UUID deletedByUserId) {
-        log.info("Deleting organization: {}", orgId);
+        log.info("Archiving organization: {}", orgId);
 
         OrganizationReadModel organization = readModelRepository.findByOrgId(orgId)
                 .orElseThrow(() -> AppException.notFound("Организация не найдена"));
+
+        if (organization.getStatus() == OrganizationStatus.ARCHIVED) {
+            throw AppException.conflict("Организация уже архивирована");
+        }
 
         Map<String, Object> dumpData = new HashMap<>();
         dumpData.put("orgId", organization.getOrgId().toString());
@@ -177,11 +211,28 @@ public class OrganizationService {
         dumpData.put("address", organization.getAddress());
         dumpData.put("status", organization.getStatus().name());
         dumpData.put("createdAt", organization.getCreatedAt().toString());
-        dumpData.put("deletedAt", LocalDateTime.now().toString());
-        dumpData.put("deletedBy", deletedByUserId.toString());
+        dumpData.put("archivedAt", LocalDateTime.now().toString());
+        dumpData.put("archivedBy", deletedByUserId.toString());
 
         List<OrganizationEvent> events = eventRepository.findByOrgIdOrderByCreatedAtAsc(orgId);
         dumpData.put("events", events);
+
+        organization.setStatus(OrganizationStatus.ARCHIVED);
+        organization.setUpdatedAt(LocalDateTime.now());
+        readModelRepository.save(organization);
+
+        List<OrganizationEmployee> activeEmployees = employeeRepository.findByOrgIdAndIsActiveTrue(orgId);
+        LocalDateTime now = LocalDateTime.now();
+        int firedCount = 0;
+        for (OrganizationEmployee employee : activeEmployees) {
+            if ("DIRECTOR".equalsIgnoreCase(employee.getRole())) {
+                continue;
+            }
+            employee.setIsActive(false);
+            employee.setRemovedAt(now);
+            employeeRepository.save(employee);
+            firedCount++;
+        }
 
         OrganizationEvents.OrganizationDeletedEvent event = new OrganizationEvents.OrganizationDeletedEvent(
                 organization.getName(),
@@ -189,25 +240,27 @@ public class OrganizationService {
                 deletedByUserId.toString()
         );
 
+        Integer maxVersion = eventRepository.findMaxVersionByOrgId(orgId);
+        int nextVersion = (maxVersion == null ? 0 : maxVersion) + 1;
+
         OrganizationEvent organizationEvent = OrganizationEvent.builder()
                 .orgId(orgId)
-                .eventType("ORGANIZATION_DELETED")
+                .eventType("ORGANIZATION_ARCHIVED")
                 .eventData(objectMapper.valueToTree(event))
-                .eventVersion(1)
+                .eventVersion(nextVersion)
                 .createdAt(LocalDateTime.now())
                 .build();
         eventRepository.save(organizationEvent);
 
-        publishOrganizationDeleted(organization);
+        publishOrganizationArchived(organization, deletedByUserId);
 
         invitationCodeRepository.deactivateAllByOrgId(orgId);
-        readModelRepository.delete(organization);
 
-        log.info("Organization deleted successfully: {}", orgId);
+        log.info("Organization archived successfully: {} (fired {} employees)", orgId, firedCount);
 
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         return new OrganizationDumpResponse(
-                "Организация успешно удалена. Дамп данных сохранён",
+                "Организация архивирована. Дамп данных сохранён",
                 dumpData,
                 timestamp
         );
@@ -409,22 +462,76 @@ public class OrganizationService {
         }
     }
 
-    private void publishOrganizationDeleted(OrganizationReadModel organization) {
+    @Transactional
+    public void archiveOrganizationOnDirectorDelete(UUID orgId, UUID directorUserId) {
+        OrganizationReadModel organization = readModelRepository.findByOrgId(orgId).orElse(null);
+        if (organization == null) {
+            log.warn("archiveOrganizationOnDirectorDelete: организация {} не найдена", orgId);
+            return;
+        }
+        if (organization.getStatus() == OrganizationStatus.ARCHIVED) {
+            log.info("archiveOrganizationOnDirectorDelete: организация {} уже архивирована", orgId);
+            return;
+        }
+
+        organization.setStatus(OrganizationStatus.ARCHIVED);
+        organization.setUpdatedAt(LocalDateTime.now());
+        readModelRepository.save(organization);
+
+        List<OrganizationEmployee> activeEmployees = employeeRepository.findByOrgIdAndIsActiveTrue(orgId);
+        LocalDateTime now = LocalDateTime.now();
+        int firedCount = 0;
+        for (OrganizationEmployee employee : activeEmployees) {
+            if ("DIRECTOR".equalsIgnoreCase(employee.getRole())) {
+                continue;
+            }
+            employee.setIsActive(false);
+            employee.setRemovedAt(now);
+            employeeRepository.save(employee);
+            firedCount++;
+        }
+
+        Integer maxVersion = eventRepository.findMaxVersionByOrgId(orgId);
+        int nextVersion = (maxVersion == null ? 0 : maxVersion) + 1;
+
+        OrganizationEvents.OrganizationDeletedEvent event = new OrganizationEvents.OrganizationDeletedEvent(
+                organization.getName(),
+                organization.getUnp(),
+                directorUserId.toString()
+        );
+        OrganizationEvent organizationEvent = OrganizationEvent.builder()
+                .orgId(orgId)
+                .eventType("ORGANIZATION_ARCHIVED_DIRECTOR_DELETED")
+                .eventData(objectMapper.valueToTree(event))
+                .eventVersion(nextVersion)
+                .createdAt(now)
+                .build();
+        eventRepository.save(organizationEvent);
+
+        invitationCodeRepository.deactivateAllByOrgId(orgId);
+        publishOrganizationArchived(organization, directorUserId);
+
+        log.info("Организация {} архивирована из-за удаления директора {} (уволено {} сотрудников)",
+                orgId, directorUserId, firedCount);
+    }
+
+    private void publishOrganizationArchived(OrganizationReadModel organization, UUID archivedByUserId) {
         Map<String, Object> message = new HashMap<>();
         message.put("orgId", organization.getOrgId().toString());
         message.put("name", organization.getName());
-        message.put("eventType", "ORGANIZATION_DELETED");
+        message.put("archivedBy", archivedByUserId.toString());
+        message.put("eventType", "ORGANIZATION_ARCHIVED");
         message.put("timestamp", LocalDateTime.now().toString());
 
         try {
             rabbitTemplate.convertAndSend(
                     RabbitMQConfig.ORGANIZATION_EXCHANGE,
-                    RabbitMQConfig.ORGANIZATION_DELETED_KEY,
+                    RabbitMQConfig.ORGANIZATION_ARCHIVED_KEY,
                     message
             );
-            log.info("Published organization.deleted event for: {}", organization.getOrgId());
+            log.info("Published organization.archived event for: {}", organization.getOrgId());
         } catch (Exception e) {
-            log.error("Failed to publish organization.deleted event for: {}. Error: {}",
+            log.error("Failed to publish organization.archived event for: {}. Error: {}",
                     organization.getOrgId(), e.getMessage());
         }
     }

@@ -1,14 +1,21 @@
 package by.bsuir.warehouseservice.model.entity;
 
 import by.bsuir.warehouseservice.model.enums.RackKind;
+import by.bsuir.warehouseservice.model.enums.StorageConditions;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Filter;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(name = "rack_read_model")
+
+@Filter(
+        name = "orgFilter",
+        condition = "warehouse_id IN (SELECT w.warehouse_id FROM warehouse_read_model w WHERE w.org_id = :orgId)"
+)
 @Getter
 @Setter
 @Builder
@@ -33,6 +40,10 @@ public class RackReadModel {
 
     @Column(name = "name", nullable = false)
     private String name;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "storage_conditions", length = 20)
+    private StorageConditions storageConditions;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default

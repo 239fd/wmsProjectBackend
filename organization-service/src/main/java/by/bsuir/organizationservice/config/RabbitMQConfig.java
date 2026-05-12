@@ -13,16 +13,24 @@ public class RabbitMQConfig {
 
     public static final String ORGANIZATION_EXCHANGE = "organization.exchange";
     public static final String WAREHOUSE_EXCHANGE = "warehouse.exchange";
+    public static final String SSO_EXCHANGE = "sso.exchange";
+
+    public static final String DIRECTOR_DELETED_KEY = "user.director.deleted";
+    public static final String DIRECTOR_DELETED_ORG_QUEUE = "user.director.deleted.organization.queue";
 
     public static final String ORGANIZATION_CREATED_QUEUE = "organization.created.queue";
     public static final String ORGANIZATION_UPDATED_QUEUE = "organization.updated.queue";
     public static final String ORGANIZATION_DELETED_QUEUE = "organization.deleted.queue";
+    public static final String ORGANIZATION_ARCHIVED_QUEUE = "organization.archived.queue";
+    public static final String EMPLOYEE_STATUS_CHANGED_QUEUE = "employee.status.changed.queue";
     public static final String WAREHOUSE_INFO_REQUEST_QUEUE = "warehouse.info.request.queue";
     public static final String WAREHOUSE_INFO_RESPONSE_QUEUE = "warehouse.info.response.queue";
 
     public static final String ORGANIZATION_CREATED_KEY = "organization.created";
     public static final String ORGANIZATION_UPDATED_KEY = "organization.updated";
     public static final String ORGANIZATION_DELETED_KEY = "organization.deleted";
+    public static final String ORGANIZATION_ARCHIVED_KEY = "organization.archived";
+    public static final String EMPLOYEE_STATUS_CHANGED_KEY = "employee.status.changed";
     public static final String WAREHOUSE_INFO_REQUEST_KEY = "warehouse.info.request";
     public static final String WAREHOUSE_INFO_RESPONSE_KEY = "warehouse.info.response";
 
@@ -51,6 +59,24 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public TopicExchange ssoExchange() {
+        return new TopicExchange(SSO_EXCHANGE);
+    }
+
+    @Bean
+    public Queue directorDeletedOrgQueue() {
+        return new Queue(DIRECTOR_DELETED_ORG_QUEUE, true);
+    }
+
+    @Bean
+    public Binding directorDeletedOrgBinding() {
+        return BindingBuilder
+                .bind(directorDeletedOrgQueue())
+                .to(ssoExchange())
+                .with(DIRECTOR_DELETED_KEY);
+    }
+
+    @Bean
     public Queue organizationCreatedQueue() {
         return new Queue(ORGANIZATION_CREATED_QUEUE, true);
     }
@@ -63,6 +89,16 @@ public class RabbitMQConfig {
     @Bean
     public Queue organizationDeletedQueue() {
         return new Queue(ORGANIZATION_DELETED_QUEUE, true);
+    }
+
+    @Bean
+    public Queue organizationArchivedQueue() {
+        return new Queue(ORGANIZATION_ARCHIVED_QUEUE, true);
+    }
+
+    @Bean
+    public Queue employeeStatusChangedQueue() {
+        return new Queue(EMPLOYEE_STATUS_CHANGED_QUEUE, true);
     }
 
     @Bean
@@ -97,6 +133,22 @@ public class RabbitMQConfig {
                 .bind(organizationDeletedQueue())
                 .to(organizationExchange())
                 .with(ORGANIZATION_DELETED_KEY);
+    }
+
+    @Bean
+    public Binding organizationArchivedBinding() {
+        return BindingBuilder
+                .bind(organizationArchivedQueue())
+                .to(organizationExchange())
+                .with(ORGANIZATION_ARCHIVED_KEY);
+    }
+
+    @Bean
+    public Binding employeeStatusChangedBinding() {
+        return BindingBuilder
+                .bind(employeeStatusChangedQueue())
+                .to(organizationExchange())
+                .with(EMPLOYEE_STATUS_CHANGED_KEY);
     }
 
     @Bean

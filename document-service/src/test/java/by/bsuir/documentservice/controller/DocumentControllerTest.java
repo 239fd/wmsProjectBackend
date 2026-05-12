@@ -1,7 +1,7 @@
 package by.bsuir.documentservice.controller;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import by.bsuir.documentservice.service.DocumentService;
@@ -24,6 +24,8 @@ class DocumentControllerTest {
     @InjectMocks private DocumentController documentController;
 
     private UUID testDocumentId;
+    private UUID testOrgId;
+    private UUID testUserId;
     private byte[] testDocumentBytes;
     private Map<String, Object> testMetadata;
     private Map<String, Object> testData;
@@ -31,11 +33,13 @@ class DocumentControllerTest {
     @BeforeEach
     void setUp() {
         testDocumentId = UUID.randomUUID();
+        testOrgId = UUID.randomUUID();
+        testUserId = UUID.randomUUID();
         testDocumentBytes = "test document content".getBytes();
 
         testMetadata = new HashMap<>();
         testMetadata.put("type", "receipt-order");
-        testMetadata.put("status", "generated");
+        testMetadata.put("format", "pdf");
         testMetadata.put("generatedAt", "2025-12-03T10:00:00");
 
         testData = new HashMap<>();
@@ -45,13 +49,10 @@ class DocumentControllerTest {
 
     @Test
     void getDocument_Success() {
-        // Arrange
-        when(documentService.getDocument(testDocumentId)).thenReturn(testDocumentBytes);
+        when(documentService.getDocument(testDocumentId, testOrgId)).thenReturn(testDocumentBytes);
 
-        // Act
-        ResponseEntity<byte[]> response = documentController.getDocument(testDocumentId);
+        ResponseEntity<byte[]> response = documentController.getDocument(testDocumentId, testOrgId);
 
-        // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertArrayEquals(testDocumentBytes, response.getBody());
         assertEquals(MediaType.APPLICATION_PDF, response.getHeaders().getContentType());
@@ -60,259 +61,234 @@ class DocumentControllerTest {
                         .getContentDisposition()
                         .toString()
                         .contains(testDocumentId.toString()));
-        verify(documentService, times(1)).getDocument(testDocumentId);
+        verify(documentService, times(1)).getDocument(testDocumentId, testOrgId);
     }
 
     @Test
     void getDocument_NotFound() {
-        // Arrange
-        when(documentService.getDocument(testDocumentId))
+        when(documentService.getDocument(testDocumentId, testOrgId))
                 .thenThrow(new RuntimeException("Document not found: " + testDocumentId));
 
-        // Act & Assert
-        assertThrows(RuntimeException.class, () -> documentController.getDocument(testDocumentId));
-        verify(documentService, times(1)).getDocument(testDocumentId);
+        assertThrows(
+                RuntimeException.class,
+                () -> documentController.getDocument(testDocumentId, testOrgId));
+        verify(documentService, times(1)).getDocument(testDocumentId, testOrgId);
     }
 
     @Test
     void getDocumentMetadata_Success() {
-        // Arrange
-        when(documentService.getDocumentMetadata(testDocumentId)).thenReturn(testMetadata);
+        when(documentService.getDocumentMetadata(testDocumentId, testOrgId))
+                .thenReturn(testMetadata);
 
-        // Act
         ResponseEntity<Map<String, Object>> response =
-                documentController.getDocumentMetadata(testDocumentId);
+                documentController.getDocumentMetadata(testDocumentId, testOrgId);
 
-        // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(testMetadata, response.getBody());
         assertNotNull(response.getBody());
         assertEquals("receipt-order", response.getBody().get("type"));
-        verify(documentService, times(1)).getDocumentMetadata(testDocumentId);
+        verify(documentService, times(1)).getDocumentMetadata(testDocumentId, testOrgId);
     }
 
     @Test
     void getDocumentMetadata_NotFound() {
-        // Arrange
-        when(documentService.getDocumentMetadata(testDocumentId))
+        when(documentService.getDocumentMetadata(testDocumentId, testOrgId))
                 .thenThrow(new RuntimeException("Document metadata not found: " + testDocumentId));
 
-        // Act & Assert
         assertThrows(
                 RuntimeException.class,
-                () -> documentController.getDocumentMetadata(testDocumentId));
-        verify(documentService, times(1)).getDocumentMetadata(testDocumentId);
+                () -> documentController.getDocumentMetadata(testDocumentId, testOrgId));
+        verify(documentService, times(1)).getDocumentMetadata(testDocumentId, testOrgId);
     }
 
     @Test
     void generateReceiptOrder_Success() {
-        // Arrange
-        when(documentService.generateReceiptOrder(any())).thenReturn(testDocumentId);
+        when(documentService.generateReceiptOrder(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
+                .thenReturn(testDocumentId);
 
-        // Act
         ResponseEntity<Map<String, String>> response =
-                documentController.generateReceiptOrder(testData);
+                documentController.generateReceiptOrder(testData, "pdf", testOrgId, testUserId);
 
-        // Assert
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
         assertEquals("receipt-order", response.getBody().get("type"));
-        assertEquals("stub", response.getBody().get("status"));
-        verify(documentService, times(1)).generateReceiptOrder(testData);
+        assertEquals("generated", response.getBody().get("status"));
+        verify(documentService, times(1)).generateReceiptOrder(testData, testOrgId, testUserId, "pdf");
     }
 
     @Test
     void generateShipmentOrder_Success() {
-        // Arrange
-        when(documentService.generateShipmentOrder(any())).thenReturn(testDocumentId);
+        when(documentService.generateShipmentOrder(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
+                .thenReturn(testDocumentId);
 
-        // Act
         ResponseEntity<Map<String, String>> response =
-                documentController.generateShipmentOrder(testData);
+                documentController.generateShipmentOrder(testData, "pdf", testOrgId, testUserId);
 
-        // Assert
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
-        assertEquals("shipment-order", response.getBody().get("type"));
-        assertEquals("stub", response.getBody().get("status"));
-        verify(documentService, times(1)).generateShipmentOrder(testData);
+
+        assertEquals("release-order", response.getBody().get("type"));
+        assertEquals("generated", response.getBody().get("status"));
+        verify(documentService, times(1)).generateShipmentOrder(testData, testOrgId, testUserId, "pdf");
     }
 
     @Test
     void generateInventoryReport_Success() {
-        // Arrange
-        when(documentService.generateInventoryReport(any())).thenReturn(testDocumentId);
+        when(documentService.generateInventoryReport(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
+                .thenReturn(testDocumentId);
 
-        // Act
         ResponseEntity<Map<String, String>> response =
-                documentController.generateInventoryReport(testData);
+                documentController.generateInventoryReport(testData, "pdf", testOrgId, testUserId);
 
-        // Assert
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
         assertEquals("inventory-report", response.getBody().get("type"));
-        assertEquals("stub", response.getBody().get("status"));
-        verify(documentService, times(1)).generateInventoryReport(testData);
+        assertEquals("generated", response.getBody().get("status"));
+        verify(documentService, times(1)).generateInventoryReport(testData, testOrgId, testUserId, "pdf");
     }
 
     @Test
     void generateRevaluationAct_Success() {
-        // Arrange
-        when(documentService.generateRevaluationAct(any())).thenReturn(testDocumentId);
+        when(documentService.generateRevaluationAct(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
+                .thenReturn(testDocumentId);
 
-        // Act
         ResponseEntity<Map<String, String>> response =
-                documentController.generateRevaluationAct(testData);
+                documentController.generateRevaluationAct(testData, "pdf", testOrgId, testUserId);
 
-        // Assert
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
         assertEquals("revaluation-act", response.getBody().get("type"));
-        assertEquals("stub", response.getBody().get("status"));
-        verify(documentService, times(1)).generateRevaluationAct(testData);
+        assertEquals("generated", response.getBody().get("status"));
+        verify(documentService, times(1)).generateRevaluationAct(testData, testOrgId, testUserId, "pdf");
     }
 
     @Test
     void generateWriteOffAct_Success() {
-        // Arrange
-        when(documentService.generateWriteOffAct(any())).thenReturn(testDocumentId);
+        when(documentService.generateWriteOffAct(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
+                .thenReturn(testDocumentId);
 
-        // Act
         ResponseEntity<Map<String, String>> response =
-                documentController.generateWriteOffAct(testData);
+                documentController.generateWriteOffAct(testData, "pdf", testOrgId, testUserId);
 
-        // Assert
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
         assertEquals("write-off-act", response.getBody().get("type"));
-        assertEquals("stub", response.getBody().get("status"));
-        verify(documentService, times(1)).generateWriteOffAct(testData);
+        assertEquals("generated", response.getBody().get("status"));
+        verify(documentService, times(1)).generateWriteOffAct(testData, testOrgId, testUserId, "pdf");
     }
 
     @Test
     void generateWaybill_Success() {
-        // Arrange
-        when(documentService.generateWaybill(any())).thenReturn(testDocumentId);
+        when(documentService.generateWaybill(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
+                .thenReturn(testDocumentId);
 
-        // Act
-        ResponseEntity<Map<String, String>> response = documentController.generateWaybill(testData);
+        ResponseEntity<Map<String, String>> response =
+                documentController.generateWaybill(testData, "pdf", testOrgId, testUserId);
 
-        // Assert
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
         assertEquals("waybill", response.getBody().get("type"));
-        assertEquals("stub", response.getBody().get("status"));
-        verify(documentService, times(1)).generateWaybill(testData);
+        assertEquals("generated", response.getBody().get("status"));
+        verify(documentService, times(1)).generateWaybill(testData, testOrgId, testUserId, "pdf");
     }
 
     @Test
     void generatePickingList_Success() {
-        // Arrange
-        when(documentService.generatePickingList(any())).thenReturn(testDocumentId);
+        when(documentService.generatePickingList(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
+                .thenReturn(testDocumentId);
 
-        // Act
         ResponseEntity<Map<String, String>> response =
-                documentController.generatePickingList(testData);
+                documentController.generatePickingList(testData, "pdf", testOrgId, testUserId);
 
-        // Assert
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
         assertEquals("picking-list", response.getBody().get("type"));
-        assertEquals("stub", response.getBody().get("status"));
-        verify(documentService, times(1)).generatePickingList(testData);
+        assertEquals("generated", response.getBody().get("status"));
+        verify(documentService, times(1)).generatePickingList(testData, testOrgId, testUserId, "pdf");
     }
 
     @Test
     void getAllDocuments_Success() {
-        // Arrange
         Map<String, Object> mockResult = new HashMap<>();
         mockResult.put("documents", List.of(testMetadata));
         mockResult.put("page", 0);
         mockResult.put("size", 20);
         mockResult.put("total", 1);
 
-        when(documentService.getAllDocuments(0, 20)).thenReturn(mockResult);
+        when(documentService.getAllDocuments(0, 20, testOrgId)).thenReturn(mockResult);
 
-        // Act
-        ResponseEntity<Map<String, Object>> response = documentController.getAllDocuments(0, 20);
+        ResponseEntity<Map<String, Object>> response =
+                documentController.getAllDocuments(0, 20, testOrgId);
 
-        // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(0, response.getBody().get("page"));
         assertEquals(20, response.getBody().get("size"));
         assertEquals(1, response.getBody().get("total"));
-        verify(documentService, times(1)).getAllDocuments(0, 20);
+        verify(documentService, times(1)).getAllDocuments(0, 20, testOrgId);
     }
 
     @Test
     void getAllDocuments_WithDefaultPagination() {
-        // Arrange
         Map<String, Object> mockResult = new HashMap<>();
         mockResult.put("documents", new ArrayList<>());
         mockResult.put("page", 0);
         mockResult.put("size", 20);
         mockResult.put("total", 0);
 
-        when(documentService.getAllDocuments(0, 20)).thenReturn(mockResult);
+        when(documentService.getAllDocuments(0, 20, testOrgId)).thenReturn(mockResult);
 
-        // Act
-        ResponseEntity<Map<String, Object>> response = documentController.getAllDocuments(0, 20);
+        ResponseEntity<Map<String, Object>> response =
+                documentController.getAllDocuments(0, 20, testOrgId);
 
-        // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertTrue(((List<?>) response.getBody().get("documents")).isEmpty());
-        verify(documentService, times(1)).getAllDocuments(0, 20);
+        verify(documentService, times(1)).getAllDocuments(0, 20, testOrgId);
     }
 
     @Test
     void getStubInfo_Success() {
-        // Act
         ResponseEntity<Map<String, Object>> response = documentController.getStubInfo();
 
-        // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals("Document Service", response.getBody().get("service"));
-        assertEquals("STUB", response.getBody().get("status"));
+        assertEquals("active", response.getBody().get("status"));
         assertNotNull(response.getBody().get("version"));
-        assertNotNull(response.getBody().get("message"));
+        assertNotNull(response.getBody().get("documentTypes"));
+        assertNotNull(response.getBody().get("formats"));
     }
 
     @Test
     void generateReceiptOrder_WithEmptyData() {
-        // Arrange
         Map<String, Object> emptyData = new HashMap<>();
-        when(documentService.generateReceiptOrder(emptyData)).thenReturn(testDocumentId);
+        when(documentService.generateReceiptOrder(eq(emptyData), eq(testOrgId), eq(testUserId), eq("pdf")))
+                .thenReturn(testDocumentId);
 
-        // Act
         ResponseEntity<Map<String, String>> response =
-                documentController.generateReceiptOrder(emptyData);
+                documentController.generateReceiptOrder(emptyData, "pdf", testOrgId, testUserId);
 
-        // Assert
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        verify(documentService, times(1)).generateReceiptOrder(emptyData);
+        verify(documentService, times(1)).generateReceiptOrder(emptyData, testOrgId, testUserId, "pdf");
     }
 
     @Test
     void generateInventoryReport_WithNullData() {
-        // Arrange
-        when(documentService.generateInventoryReport(null)).thenReturn(testDocumentId);
+        when(documentService.generateInventoryReport(eq(null), eq(testOrgId), eq(testUserId), eq("pdf")))
+                .thenReturn(testDocumentId);
 
-        // Act
         ResponseEntity<Map<String, String>> response =
-                documentController.generateInventoryReport(null);
+                documentController.generateInventoryReport(null, "pdf", testOrgId, testUserId);
 
-        // Assert
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        verify(documentService, times(1)).generateInventoryReport(null);
+        verify(documentService, times(1)).generateInventoryReport(null, testOrgId, testUserId, "pdf");
     }
 }

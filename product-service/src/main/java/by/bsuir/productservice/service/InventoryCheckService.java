@@ -1,14 +1,20 @@
 package by.bsuir.productservice.service;
 
+import by.bsuir.productservice.dto.request.StartInventoryRequest;
 import by.bsuir.productservice.exception.AppException;
 import by.bsuir.productservice.model.entity.Inventory;
 import by.bsuir.productservice.model.entity.InventoryCount;
 import by.bsuir.productservice.model.entity.InventorySession;
 import by.bsuir.productservice.model.entity.ProductOperation;
+import by.bsuir.productservice.model.entity.ProductReadModel;
+import by.bsuir.productservice.model.enums.InventoryEventType;
 import by.bsuir.productservice.repository.InventoryCountRepository;
 import by.bsuir.productservice.repository.InventoryRepository;
 import by.bsuir.productservice.repository.InventorySessionRepository;
 import by.bsuir.productservice.repository.ProductOperationRepository;
+import by.bsuir.productservice.repository.ProductReadModelRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,10 +34,31 @@ public class InventoryCheckService {
     private final InventoryCountRepository countRepository;
     private final InventoryRepository inventoryRepository;
     private final ProductOperationRepository operationRepository;
+    private final ProductReadModelRepository productReadModelRepository;
+    private final ObjectMapper objectMapper;
+    private final InventoryEventService inventoryEventService;
 
     @Transactional
     public UUID startInventory(UUID warehouseId, UUID userId, String notes) {
-        log.info("Starting inventory check for warehouse: {}", warehouseId);
+        return startInventoryInternal(warehouseId, userId, null, null, null, null, notes);
+    }
+
+    @Transactional
+    public UUID startInventory(StartInventoryRequest request, UUID organizationId) {
+        return startInventoryInternal(
+                request.warehouseId(),
+                request.userId(),
+                organizationId,
+                request.responsibleUserId(),
+                request.reason(),
+                request.commissionMembers(),
+                request.notes());
+    }
+
+    private UUID startInventoryInternal(UUID warehouseId, UUID userId, UUID organizationId,
+                                        UUID responsibleUserId, String reason,
+                                        List<UUID> commissionMembers, String notes) {
+        log.info("Starting inventory check for warehouse: {} (org: {})", warehouseId, organizationId);
 
         List<InventorySession> activeSessions = sessionRepository.findByStatus(
                 InventorySession.SessionStatus.IN_PROGRESS);
@@ -43,18 +70,33 @@ public class InventoryCheckService {
             }
         }
 
+        String commissionJson = null;
+        if (commissionMembers != null && !commissionMembers.isEmpty()) {
+            try {
+                commissionJson = objectMapper.writeValueAsString(commissionMembers);
+            } catch (JsonProcessingException e) {
+                log.warn("Failed to serialize commission members: {}", e.getMessage());
+            }
+        }
+
         UUID sessionId = UUID.randomUUID();
         InventorySession session = InventorySession.builder()
                 .sessionId(sessionId)
+                .organizationId(organizationId)
                 .warehouseId(warehouseId)
                 .startedBy(userId)
+                .responsibleUserId(responsibleUserId)
+                .reason(reason)
+                .commissionMembers(commissionJson)
                 .startedAt(LocalDateTime.now())
                 .status(InventorySession.SessionStatus.IN_PROGRESS)
                 .notes(notes)
                 .build();
         sessionRepository.save(session);
 
-        List<Inventory> currentInventory = inventoryRepository.findByWarehouseId(warehouseId);
+        List<Inventory> currentInventory = (organizationId != null)
+                ? inventoryRepository.findByOrganizationIdAndWarehouseId(organizationId, warehouseId)
+                : inventoryRepository.findByWarehouseId(warehouseId);
 
         log.info("Creating snapshot of {} inventory records", currentInventory.size());
 
@@ -62,12 +104,15 @@ public class InventoryCheckService {
             InventoryCount count = InventoryCount.builder()
                     .countId(UUID.randomUUID())
                     .sessionId(sessionId)
+                    .organizationId(organizationId != null ? organizationId : inv.getOrganizationId())
                     .productId(inv.getProductId())
                     .batchId(inv.getBatchId())
                     .cellId(inv.getCellId())
+                    .warehouseId(warehouseId)
                     .expectedQuantity(inv.getQuantity())
                     .actualQuantity(null)
                     .discrepancy(BigDecimal.ZERO)
+                    .markedForWriteoff(false)
                     .build();
             countRepository.save(count);
         }
@@ -137,6 +182,12 @@ public class InventoryCheckService {
         for (InventoryCount count : discrepancies) {
             if (count.getActualQuantity() != null) {
                 adjustInventory(count, userId);
+                if (count.getDiscrepancy().compareTo(BigDecimal.ZERO) < 0) {
+                    count.setMarkedForWriteoff(true);
+                    countRepository.save(count);
+                    log.info("Marked count {} for writeoff (discrepancy {})",
+                            count.getCountId(), count.getDiscrepancy());
+                }
             }
         }
 
@@ -162,8 +213,13 @@ public class InventoryCheckService {
     }
 
     private void adjustInventory(InventoryCount count, UUID userId) {
+        UUID warehouseId = count.getWarehouseId();
+        if (warehouseId == null) {
+            log.warn("InventoryCount {} has no warehouseId — skipping adjustment", count.getCountId());
+            return;
+        }
         Optional<Inventory> inventoryOpt = inventoryRepository
-                .findByProductIdAndWarehouseId(count.getProductId(), count.getSessionId());
+                .findByProductIdAndWarehouseId(count.getProductId(), warehouseId);
 
         if (inventoryOpt.isPresent()) {
             Inventory inventory = inventoryOpt.get();
@@ -176,7 +232,8 @@ public class InventoryCheckService {
                     .operationId(UUID.randomUUID())
                     .operationType(by.bsuir.productservice.model.enums.OperationType.INVENTORY)
                     .productId(count.getProductId())
-                    .warehouseId(count.getSessionId())
+                    .organizationId(count.getOrganizationId())
+                    .warehouseId(warehouseId)
                     .quantity(count.getDiscrepancy().abs())
                     .userId(userId)
                     .operationDate(LocalDateTime.now())
@@ -184,6 +241,14 @@ public class InventoryCheckService {
                             oldQuantity, count.getActualQuantity()))
                     .build();
             operationRepository.save(operation);
+
+            BigDecimal delta = count.getActualQuantity().subtract(oldQuantity);
+            InventoryEventType eventType = delta.signum() >= 0
+                    ? InventoryEventType.ITEM_ADDED
+                    : InventoryEventType.ITEM_REMOVED;
+            inventoryEventService.recordQuantityChange(inventory, eventType,
+                    oldQuantity, delta, operation.getOperationId(), userId,
+                    Map.of("source", "INVENTORY_CHECK", "countId", count.getCountId(), "sessionId", count.getSessionId()));
 
             log.info("Adjusted inventory for product {} from {} to {}",
                     count.getProductId(), oldQuantity, count.getActualQuantity());
@@ -215,6 +280,35 @@ public class InventoryCheckService {
 
         List<InventoryCount> counts = countRepository.findBySessionId(sessionId);
 
+
+        Set<UUID> productIds = counts.stream()
+                .map(InventoryCount::getProductId)
+                .collect(Collectors.toSet());
+        Map<UUID, ProductReadModel> productById = productReadModelRepository
+                .findAllById(productIds)
+                .stream()
+                .collect(Collectors.toMap(ProductReadModel::getProductId, p -> p));
+
+        List<Map<String, Object>> records = counts.stream()
+                .map(c -> {
+                    ProductReadModel p = productById.get(c.getProductId());
+                    Map<String, Object> rec = new HashMap<>();
+                    rec.put("countId", c.getCountId().toString());
+                    rec.put("productId", c.getProductId().toString());
+                    rec.put("productName", p != null ? p.getName() : null);
+                    rec.put("productSku", p != null ? p.getSku() : null);
+                    rec.put("batchId", c.getBatchId() != null ? c.getBatchId().toString() : null);
+                    rec.put("cellId", c.getCellId() != null ? c.getCellId().toString() : null);
+                    rec.put("expectedQuantity", c.getExpectedQuantity());
+                    rec.put("actualQuantity", c.getActualQuantity());
+                    rec.put("discrepancy", c.getDiscrepancy());
+                    rec.put("markedForWriteoff", c.getMarkedForWriteoff());
+                    rec.put("notes", c.getNotes());
+                    rec.put("isFilled", c.getActualQuantity() != null);
+                    return rec;
+                })
+                .collect(Collectors.toList());
+
         Map<String, Object> result = new HashMap<>();
         result.put("sessionId", session.getSessionId().toString());
         result.put("warehouseId", session.getWarehouseId().toString());
@@ -222,6 +316,7 @@ public class InventoryCheckService {
         result.put("status", session.getStatus().toString());
         result.put("totalRecords", counts.size());
         result.put("filledRecords", counts.stream().filter(c -> c.getActualQuantity() != null).count());
+        result.put("records", records);
 
         return result;
     }

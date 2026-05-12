@@ -3,6 +3,7 @@ package by.bsuir.productservice.controller;
 import by.bsuir.productservice.dto.request.CreateProductRequest;
 import by.bsuir.productservice.dto.request.UpdateProductRequest;
 import by.bsuir.productservice.dto.response.ProductResponse;
+import by.bsuir.productservice.service.ProductJourneyService;
 import by.bsuir.productservice.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -30,6 +31,7 @@ import java.util.UUID;
 public class ProductController {
 
     private final ProductService productService;
+    private final ProductJourneyService journeyService;
 
     @Operation(summary = "Создать товар", description = "Создает новый товар в системе")
     @ApiResponses(value = {
@@ -142,5 +144,29 @@ public class ProductController {
 
         productService.deleteProduct(productId);
         return ResponseEntity.ok(Map.of("message", "Товар успешно удалён"));
+    }
+
+    @Operation(summary = "Карточка маршрута товара (journey)",
+            description = "Возвращает историю операций по товару. Поддерживает 3 уровня: productId, batchId, inventoryId")
+    @GetMapping("/{productId}/journey")
+    public ResponseEntity<Map<String, Object>> getJourney(
+            @PathVariable UUID productId,
+            @RequestParam(required = false) UUID batchId,
+            @RequestParam(required = false) UUID inventoryId,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return ResponseEntity.ok(journeyService.getJourney(productId, batchId, inventoryId, organizationId));
+    }
+
+    @Operation(summary = "Карточка товара в PDF")
+    @GetMapping(value = "/{productId}/journey/pdf", produces = "application/pdf")
+    public ResponseEntity<byte[]> getJourneyPdf(
+            @PathVariable UUID productId,
+            @RequestParam(required = false) UUID batchId,
+            @RequestParam(required = false) UUID inventoryId,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        byte[] pdf = journeyService.generateJourneyPdf(productId, batchId, inventoryId, organizationId);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=product-journey.pdf")
+                .body(pdf);
     }
 }

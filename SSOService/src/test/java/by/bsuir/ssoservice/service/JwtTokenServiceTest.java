@@ -1,187 +1,159 @@
 package by.bsuir.ssoservice.service;
 
 import by.bsuir.ssoservice.model.enums.UserRole;
-import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSVerifier;
+import com.nimbusds.jose.crypto.RSASSAVerifier;
+import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.interfaces.RSAPublicKey;
+import java.util.Date;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DisplayName("JwtTokenService Unit Tests")
+@ExtendWith(MockitoExtension.class)
+@DisplayName("JwtTokenService — модульные тесты")
 class JwtTokenServiceTest {
 
-    private JwtTokenService jwtTokenService;
+    private JwtTokenService service;
     private KeyPair keyPair;
 
     @BeforeEach
     void setUp() throws Exception {
-        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-        keyGen.initialize(2048);
-        keyPair = keyGen.generateKeyPair();
-        jwtTokenService = new JwtTokenService(keyPair);
+        KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
+        gen.initialize(2048);
+        keyPair = gen.generateKeyPair();
+        service = new JwtTokenService(keyPair, 14400L, 2592000L);
     }
 
     @Test
-    @DisplayName("generateAccessToken: Should generate valid JWT token with correct claims")
-    void generateAccessToken_ShouldGenerateValidJwtTokenWithCorrectClaims() throws Exception {
+    @DisplayName("generateAccessToken: содержит sub/email/role/orgId/warehouseId и подписан RS256")
+    void generateAccessToken_ShouldContainClaimsAndBeRs256() throws Exception {
         UUID userId = UUID.randomUUID();
-        String email = "test@example.com";
-        UserRole role = UserRole.DIRECTOR;
+        UUID orgId = UUID.randomUUID();
+        UUID warehouseId = UUID.randomUUID();
 
-        String token = jwtTokenService.generateAccessToken(userId, email, role);
+        String token = service.generateAccessToken(userId, "ivan@example.com", UserRole.WORKER, orgId, warehouseId);
 
-        assertThat(token).isNotNull();
-        assertThat(token).isNotEmpty();
+        assertThat(token).isNotBlank();
+        SignedJWT jwt = SignedJWT.parse(token);
+        JWTClaimsSet claims = jwt.getJWTClaimsSet();
+        assertThat(claims.getSubject()).isEqualTo(userId.toString());
+        assertThat(claims.getStringClaim("email")).isEqualTo("ivan@example.com");
+        assertThat(claims.getStringClaim("role")).isEqualTo("WORKER");
+        assertThat(claims.getStringClaim("organizationId")).isEqualTo(orgId.toString());
+        assertThat(claims.getStringClaim("warehouseId")).isEqualTo(warehouseId.toString());
+        assertThat(claims.getJWTID()).isNotBlank();
+        assertThat(claims.getExpirationTime()).isAfter(new Date());
 
-        SignedJWT signedJWT = SignedJWT.parse(token);
-        assertThat(signedJWT.getJWTClaimsSet().getSubject()).isEqualTo(userId.toString());
-        assertThat(signedJWT.getJWTClaimsSet().getStringClaim("email")).isEqualTo(email);
-        assertThat(signedJWT.getJWTClaimsSet().getStringClaim("role")).isEqualTo(role.name());
-        assertThat(signedJWT.getHeader().getAlgorithm()).isEqualTo(JWSAlgorithm.RS256);
-        assertThat(signedJWT.getHeader().getKeyID()).isEqualTo("sso-key-id");
-        assertThat(signedJWT.getJWTClaimsSet().getIssuer()).isEqualTo("http://localhost:7777");
+        assertThat(jwt.getHeader().getAlgorithm().getName()).isEqualTo("RS256");
+        JWSVerifier verifier = new RSASSAVerifier((RSAPublicKey) keyPair.getPublic());
+        assertThat(jwt.verify(verifier)).isTrue();
     }
 
     @Test
-    @DisplayName("generateRefreshToken: Should generate unique UUID strings")
-    void generateRefreshToken_ShouldGenerateUniqueUuidStrings() {
-        String token1 = jwtTokenService.generateRefreshToken();
-        String token2 = jwtTokenService.generateRefreshToken();
-
-        assertThat(token1).isNotNull();
-        assertThat(token2).isNotNull();
-        assertThat(token1).isNotEqualTo(token2);
-
-        UUID.fromString(token1);
-        UUID.fromString(token2);
-    }
-
-    @Test
-    @DisplayName("validateAccessToken: Given valid token Should return true")
-    void validateAccessToken_GivenValidToken_ShouldReturnTrue() {
+    @DisplayName("generateAccessToken: orgId/warehouseId == null → claims отсутствуют")
+    void generateAccessToken_GivenNullOrgAndWarehouse_ShouldOmitClaims() throws Exception {
         UUID userId = UUID.randomUUID();
-        String token = jwtTokenService.generateAccessToken(userId, "test@example.com", UserRole.DIRECTOR);
+        String token = service.generateAccessToken(userId, "x@y.z", UserRole.DIRECTOR, null, null);
 
-        boolean isValid = jwtTokenService.validateAccessToken(token);
-
-        assertThat(isValid).isTrue();
+        JWTClaimsSet claims = SignedJWT.parse(token).getJWTClaimsSet();
+        assertThat(claims.getStringClaim("organizationId")).isNull();
+        assertThat(claims.getStringClaim("warehouseId")).isNull();
     }
 
     @Test
-    @DisplayName("validateAccessToken: Given invalid token Should return false")
-    void validateAccessToken_GivenInvalidToken_ShouldReturnFalse() {
-        boolean isValid = jwtTokenService.validateAccessToken("invalid.token.here");
-
-        assertThat(isValid).isFalse();
-    }
-
-    @Test
-    @DisplayName("getUserIdFromToken: Given valid token Should extract userId")
-    void getUserIdFromToken_GivenValidToken_ShouldExtractUserId() {
+    @DisplayName("generateAccessToken: TTL равен accessTokenValidity")
+    void generateAccessToken_TtlMatchesAccessTokenValidity() throws Exception {
         UUID userId = UUID.randomUUID();
-        String token = jwtTokenService.generateAccessToken(userId, "test@example.com", UserRole.DIRECTOR);
+        long start = System.currentTimeMillis();
+        String token = service.generateAccessToken(userId, "x@y.z", UserRole.WORKER, null, null);
+        long end = System.currentTimeMillis();
 
-        UUID extractedUserId = jwtTokenService.getUserIdFromToken(token);
+        Date exp = SignedJWT.parse(token).getJWTClaimsSet().getExpirationTime();
+        long ttlMs = exp.getTime() - start;
 
-        assertThat(extractedUserId).isEqualTo(userId);
+        assertThat(ttlMs).isBetween(14_400_000L - 1000, (end - start) + 14_400_000L + 1000);
     }
 
     @Test
-    @DisplayName("getUserIdFromToken: Given invalid token Should return null")
-    void getUserIdFromToken_GivenInvalidToken_ShouldReturnNull() {
-        UUID extractedUserId = jwtTokenService.getUserIdFromToken("invalid.token");
-
-        assertThat(extractedUserId).isNull();
+    @DisplayName("generateRefreshToken: возвращает валидный UUID-string")
+    void generateRefreshToken_ShouldReturnUuidString() {
+        String refresh = service.generateRefreshToken();
+        assertThat(UUID.fromString(refresh)).isNotNull();
     }
 
     @Test
-    @DisplayName("extractEmail: Given valid token Should extract email")
-    void extractEmail_GivenValidToken_ShouldExtractEmail() {
-        String email = "test@example.com";
-        String token = jwtTokenService.generateAccessToken(UUID.randomUUID(), email, UserRole.DIRECTOR);
-
-        String extractedEmail = jwtTokenService.extractEmail(token);
-
-        assertThat(extractedEmail).isEqualTo(email);
+    @DisplayName("validateAccessToken: только что созданный токен → true")
+    void validateAccessToken_GivenFreshToken_ShouldReturnTrue() {
+        String token = service.generateAccessToken(UUID.randomUUID(), "x@y.z", UserRole.WORKER, null, null);
+        assertThat(service.validateAccessToken(token)).isTrue();
     }
 
     @Test
-    @DisplayName("extractEmail: Given invalid token Should return null")
-    void extractEmail_GivenInvalidToken_ShouldReturnNull() {
-        String extractedEmail = jwtTokenService.extractEmail("invalid.token");
+    @DisplayName("validateAccessToken: токен подписан другим ключом → false")
+    void validateAccessToken_GivenForeignSignature_ShouldReturnFalse() throws Exception {
+        KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
+        gen.initialize(2048);
+        JwtTokenService foreign = new JwtTokenService(gen.generateKeyPair(), 14400L, 2592000L);
+        String foreignToken = foreign.generateAccessToken(UUID.randomUUID(), "x@y.z", UserRole.WORKER, null, null);
 
-        assertThat(extractedEmail).isNull();
+        assertThat(service.validateAccessToken(foreignToken)).isFalse();
     }
 
     @Test
-    @DisplayName("extractRole: Given valid token Should extract role")
-    void extractRole_GivenValidToken_ShouldExtractRole() {
-        UserRole role = UserRole.WORKER;
-        String token = jwtTokenService.generateAccessToken(UUID.randomUUID(), "test@example.com", role);
+    @DisplayName("validateAccessToken: токен истёк → false")
+    void validateAccessToken_GivenExpired_ShouldReturnFalse() {
+        JwtTokenService shortLived = new JwtTokenService(keyPair, -1L, 2592000L);
+        String expired = shortLived.generateAccessToken(UUID.randomUUID(), "x@y.z", UserRole.WORKER, null, null);
 
-        String extractedRole = jwtTokenService.extractRole(token);
-
-        assertThat(extractedRole).isEqualTo(role.name());
+        assertThat(service.validateAccessToken(expired)).isFalse();
     }
 
     @Test
-    @DisplayName("extractRole: Given invalid token Should return null")
-    void extractRole_GivenInvalidToken_ShouldReturnNull() {
-        String extractedRole = jwtTokenService.extractRole("invalid.token");
-
-        assertThat(extractedRole).isNull();
+    @DisplayName("validateAccessToken: мусор → false")
+    void validateAccessToken_GivenGarbage_ShouldReturnFalse() {
+        assertThat(service.validateAccessToken("not.a.jwt")).isFalse();
+        assertThat(service.validateAccessToken("")).isFalse();
     }
 
     @Test
-    @DisplayName("extractUserId: Given valid token Should extract userId as string")
-    void extractUserId_GivenValidToken_ShouldExtractUserIdAsString() {
+    @DisplayName("getUserIdFromToken: возвращает UUID из sub")
+    void getUserIdFromToken_ShouldReturnSubject() {
         UUID userId = UUID.randomUUID();
-        String token = jwtTokenService.generateAccessToken(userId, "test@example.com", UserRole.DIRECTOR);
+        String token = service.generateAccessToken(userId, "x@y.z", UserRole.WORKER, null, null);
 
-        String extractedUserId = jwtTokenService.extractUserId(token);
-
-        assertThat(extractedUserId).isEqualTo(userId.toString());
+        assertThat(service.getUserIdFromToken(token)).isEqualTo(userId);
     }
 
     @Test
-    @DisplayName("extractUserId: Given invalid token Should return null")
-    void extractUserId_GivenInvalidToken_ShouldReturnNull() {
-        String extractedUserId = jwtTokenService.extractUserId("invalid.token");
-
-        assertThat(extractedUserId).isNull();
+    @DisplayName("getUserIdFromToken: мусор → null без выброса исключения")
+    void getUserIdFromToken_GivenGarbage_ShouldReturnNull() {
+        assertThat(service.getUserIdFromToken("not.a.jwt")).isNull();
     }
 
     @Test
-    @DisplayName("validateToken: Should delegate to validateAccessToken")
-    void validateToken_ShouldDelegateToValidateAccessToken() {
-        UUID userId = UUID.randomUUID();
-        String validToken = jwtTokenService.generateAccessToken(userId, "test@example.com", UserRole.DIRECTOR);
-        String invalidToken = "invalid.token";
+    @DisplayName("extractEmail/extractRole: достают claims")
+    void extractEmailAndRole_ShouldReturnClaims() {
+        String token = service.generateAccessToken(
+                UUID.randomUUID(), "ivan@example.com", UserRole.ACCOUNTANT, null, null);
 
-        assertThat(jwtTokenService.validateToken(validToken)).isTrue();
-        assertThat(jwtTokenService.validateToken(invalidToken)).isFalse();
+        assertThat(service.extractEmail(token)).isEqualTo("ivan@example.com");
+        assertThat(service.extractRole(token)).isEqualTo("ACCOUNTANT");
     }
 
     @Test
-    @DisplayName("getAccessTokenValidity: Should return 15 minutes in seconds")
-    void getAccessTokenValidity_ShouldReturn15MinutesInSeconds() {
-        long validity = jwtTokenService.getAccessTokenValidity();
-
-        assertThat(validity).isEqualTo(15 * 60);
-    }
-
-    @Test
-    @DisplayName("getRefreshTokenValidity: Should return 7 days in seconds")
-    void getRefreshTokenValidity_ShouldReturn7DaysInSeconds() {
-        long validity = jwtTokenService.getRefreshTokenValidity();
-
-        assertThat(validity).isEqualTo(7 * 24 * 60 * 60);
+    @DisplayName("getAccessTokenValidity / getRefreshTokenValidity: отдают сконфигурированные значения")
+    void getValidityGetters_ShouldReturnConfiguredValues() {
+        assertThat(service.getAccessTokenValidity()).isEqualTo(14400L);
+        assertThat(service.getRefreshTokenValidity()).isEqualTo(2592000L);
     }
 }
-

@@ -88,7 +88,7 @@ class OAuthControllerTest {
 
     @Test
     void completeRegistration_ShouldReturnAuthResponse() {
-        CompleteOAuthRegistrationRequest request = new CompleteOAuthRegistrationRequest("temp-token", UserRole.DIRECTOR, null, null);
+        CompleteOAuthRegistrationRequest request = new CompleteOAuthRegistrationRequest("temp-token", UserRole.DIRECTOR, null, null, null);
         when(oauthService.completeRegistration(eq(request), anyString(), anyString())).thenReturn(authResponse);
         when(httpServletRequest.getHeader("X-Forwarded-For")).thenReturn("127.0.0.1");
         when(httpServletRequest.getHeader("User-Agent")).thenReturn("Mozilla");

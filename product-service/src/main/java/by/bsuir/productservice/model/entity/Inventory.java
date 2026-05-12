@@ -3,6 +3,7 @@ package by.bsuir.productservice.model.entity;
 import by.bsuir.productservice.model.enums.InventoryStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Filter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -10,6 +11,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "inventory")
+@Filter(name = "orgFilter", condition = "organization_id = :orgId")
 @Getter
 @Setter
 @Builder
@@ -27,11 +29,17 @@ public class Inventory {
     @Column(name = "batch_id")
     private UUID batchId;
 
+    @Column(name = "organization_id")
+    private UUID organizationId;
+
     @Column(name = "warehouse_id", nullable = false)
     private UUID warehouseId;
 
     @Column(name = "cell_id")
     private UUID cellId;
+
+    @Column(name = "unit_sku", length = 20)
+    private String unitSku;
 
     @Column(name = "quantity", nullable = false, precision = 12, scale = 3)
     private BigDecimal quantity;
@@ -45,6 +53,10 @@ public class Inventory {
 
     @Column(name = "last_updated", nullable = false)
     private LocalDateTime lastUpdated;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     @PrePersist
     protected void onCreate() {

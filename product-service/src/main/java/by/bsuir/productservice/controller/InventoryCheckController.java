@@ -1,11 +1,13 @@
 package by.bsuir.productservice.controller;
 
+import by.bsuir.productservice.dto.request.StartInventoryRequest;
 import by.bsuir.productservice.service.InventoryCheckService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -51,6 +53,29 @@ public class InventoryCheckController {
                 "sessionId", sessionId.toString(),
                 "message", "Инвентаризация начата",
                 "warehouseId", warehouseId.toString()
+        ));
+    }
+
+    @Operation(
+            summary = "Начать инвентаризацию (структурированно)",
+            description = "Создаёт сессию с обязательными полями: ответственное лицо, причина, состав комиссии"
+    )
+    @PostMapping("/start-structured")
+    public ResponseEntity<Map<String, String>> startInventoryStructured(
+            @Valid @RequestBody StartInventoryRequest request,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+
+        if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        UUID sessionId = inventoryCheckService.startInventory(request, organizationId);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "sessionId", sessionId.toString(),
+                "message", "Инвентаризация начата",
+                "warehouseId", request.warehouseId().toString()
         ));
     }
 

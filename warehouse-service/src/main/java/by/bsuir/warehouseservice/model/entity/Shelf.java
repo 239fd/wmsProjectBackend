@@ -2,12 +2,14 @@ package by.bsuir.warehouseservice.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Filter;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
 @Table(name = "shelf")
+@Filter(name = "orgFilter", condition = "organization_id = :orgId")
 @Getter
 @Setter
 @Builder
@@ -21,6 +23,10 @@ public class Shelf {
 
     @Column(name = "rack_id", nullable = false)
     private UUID rackId;
+
+
+    @Column(name = "organization_id")
+    private UUID organizationId;
 
     @Column(name = "shelf_capacity_kg", nullable = false, precision = 8, scale = 2)
     private BigDecimal shelfCapacityKg;

@@ -1,6 +1,7 @@
 package by.bsuir.organizationservice.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Builder;
 
@@ -14,7 +15,7 @@ public record CreateOrganizationRequest(
         String shortName,
 
         @NotBlank(message = "УНП обязателен")
-        @Size(max = 20, message = "УНП не должен превышать 20 символов")
+        @Pattern(regexp = "^\\d{9}$", message = "УНП должен состоять из 9 цифр")
         String unp,
 
         @Size(max = 512, message = "Адрес не должен превышать 512 символов")

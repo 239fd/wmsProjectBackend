@@ -39,16 +39,25 @@ public class RefreshTokenService {
     }
 
     public void deleteAllUserTokens(UUID userId) {
+        deleteAllUserTokensExcept(userId, null);
+    }
+
+    public void deleteAllUserTokensExcept(UUID userId, String exceptToken) {
         String pattern = REFRESH_TOKEN_PREFIX + "*";
         var keys = redisTemplate.keys(pattern);
-        if (keys != null) {
-            keys.forEach(key -> {
-                Object storedUserId = redisTemplate.opsForValue().get(key);
-                if (userId.toString().equals(storedUserId)) {
-                    redisTemplate.delete(key);
-                }
-            });
+        if (keys == null) {
+            return;
         }
-        log.debug("All tokens deleted for user: {}", userId);
+        String exceptKey = exceptToken == null ? null : REFRESH_TOKEN_PREFIX + exceptToken;
+        keys.forEach(key -> {
+            if (key.equals(exceptKey)) {
+                return;
+            }
+            Object storedUserId = redisTemplate.opsForValue().get(key);
+            if (userId.toString().equals(storedUserId)) {
+                redisTemplate.delete(key);
+            }
+        });
+        log.debug("All tokens deleted for user: {} (kept: {})", userId, exceptToken == null ? "none" : "current");
     }
 }

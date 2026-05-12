@@ -2,7 +2,8 @@ package by.bsuir.ssoservice.controller;
 
 import by.bsuir.ssoservice.dto.request.LoginRequest;
 import by.bsuir.ssoservice.dto.request.RefreshTokenRequest;
-import by.bsuir.ssoservice.dto.request.RegisterRequest;
+import by.bsuir.ssoservice.dto.request.RegisterDirectorRequest;
+import by.bsuir.ssoservice.dto.request.RegisterWithInvitationRequest;
 import by.bsuir.ssoservice.dto.response.AuthResponse;
 import by.bsuir.ssoservice.dto.response.UserResponse;
 import by.bsuir.ssoservice.service.JwtTokenService;
@@ -35,20 +36,41 @@ public class AuthController {
     private final JwtTokenService jwtTokenService;
 
     @Operation(
-            summary = "Регистрация пользователя",
-            description = "Создает нового пользователя в системе и возвращает JWT токены для аутентификации"
+            summary = "Регистрация директора",
+            description = "Создаёт учётную запись DIRECTOR без привязки к организации. Организация создаётся отдельным запросом"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Пользователь успешно зарегистрирован",
+            @ApiResponse(responseCode = "201", description = "Директор зарегистрирован",
                     content = @Content(schema = @Schema(implementation = AuthResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Некорректные данные или email уже используется"),
             @ApiResponse(responseCode = "409", description = "Пользователь с таким email уже существует")
     })
-    @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(
-            @Valid @RequestBody RegisterRequest request,
+    @PostMapping("/register/director")
+    public ResponseEntity<AuthResponse> registerDirector(
+            @Valid @RequestBody RegisterDirectorRequest request,
             HttpServletRequest httpRequest) {
-        AuthResponse response = userService.register(
+        AuthResponse response = userService.registerDirector(
+                request,
+                RequestUtils.getClientIp(httpRequest),
+                RequestUtils.getUserAgent(httpRequest)
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @Operation(
+            summary = "Регистрация по приглашению",
+            description = "Создаёт пользователя по invitation token. Email/role/organizationId/warehouseId берутся из приглашения"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Пользователь зарегистрирован по приглашению",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Приглашение недействительно или email не совпадает"),
+            @ApiResponse(responseCode = "409", description = "Пользователь с таким email уже существует")
+    })
+    @PostMapping("/register/invitation")
+    public ResponseEntity<AuthResponse> registerWithInvitation(
+            @Valid @RequestBody RegisterWithInvitationRequest request,
+            HttpServletRequest httpRequest) {
+        AuthResponse response = userService.registerWithInvitation(
                 request,
                 RequestUtils.getClientIp(httpRequest),
                 RequestUtils.getUserAgent(httpRequest)

@@ -36,6 +36,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
     implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
 
@@ -58,6 +59,11 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.amqp:spring-rabbit-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers:1.20.4'
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.4'
+    testImplementation 'org.testcontainers:postgresql:1.20.4'
+    testImplementation 'org.testcontainers:rabbitmq:1.20.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -69,7 +75,16 @@ dependencyManagement {
 
 tasks.named('test') {
     useJUnitPlatform()
+    exclude '**/*ContainerTest.class', '**/*ContainerTest$*.class'
     finalizedBy jacocoTestReport
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Тесты на Testcontainers (требуют запущенный Docker daemon).'
+    group = 'verification'
+    useJUnitPlatform()
+    include '**/*ContainerTest.class'
+    shouldRunAfter('test')
 }
 
 jacoco {
@@ -90,7 +105,7 @@ pmd {
     toolVersion = '7.0.0'
     ruleSets = []
     ruleSetFiles = files("${rootProject.projectDir}/config/pmd/pmd-ruleset.xml")
-    ignoreFailures = true  // Не останавливать билд при нахождении проблем
+    ignoreFailures = true
 }
 
 pmdMain {
@@ -107,7 +122,7 @@ pmdTest {
     }
 }
 
-// SpotBugs - поиск багов
+
 spotbugs {
     toolVersion = '4.8.3'
     ignoreFailures = true
@@ -140,7 +155,7 @@ spotbugsTest {
     }
 }
 
-// CPD - обнаружение дублирования кода (встроено в PMD 7.0)
+
 tasks.register('cpdCheck') {
     group = 'verification'
     description = 'Run CPD (Copy/Paste Detector) analysis'
@@ -151,7 +166,7 @@ tasks.register('cpdCheck') {
         cpdOutputDir.mkdirs()
         def cpdOutputFile = new File(cpdOutputDir, 'cpd-report.txt')
 
-        // PMD 7.0 включает CPD в основной анализ
+
         cpdOutputFile.text = """
 CPD Analysis Report
 ===================
@@ -166,7 +181,7 @@ Check PMD reports for duplication issues.
     }
 }
 
-// Modernizer - проверка устаревших API
+
 tasks.register('modernizer') {
     group = 'verification'
     description = 'Checks for legacy APIs usage (integrated via SpotBugs)'
@@ -176,7 +191,7 @@ tasks.register('modernizer') {
     }
 }
 
-// Задача для запуска всех проверок качества кода
+
 tasks.register('codeQuality') {
     group = 'verification'
     description = 'Run all code quality checks for Warehouse Service'
@@ -219,6 +234,6 @@ tasks.register('codeQuality') {
 
 check.dependsOn pmdMain, pmdTest, spotbugsMain, modernizer, cpdCheck
 
-// Подключаем PMD Auto-Fixer
+
 apply from: 'pmd-fixer.gradle'
 

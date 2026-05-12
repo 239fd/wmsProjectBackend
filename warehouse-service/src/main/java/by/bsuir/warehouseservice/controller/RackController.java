@@ -153,7 +153,8 @@ public class RackController {
 
         CreateFridgeRequest updatedRequest = new CreateFridgeRequest(
                 rackId,
-                request.temperatureC(),
+                request.minTemperatureC(),
+                request.maxTemperatureC(),
                 request.lengthCm(),
                 request.widthCm(),
                 request.heightCm()
@@ -187,7 +188,8 @@ public class RackController {
         CreatePalletRequest updatedRequest = new CreatePalletRequest(
                 rackId,
                 request.palletPlaceCount(),
-                request.maxWeightKg()
+                request.maxWeightKg(),
+                request.palletType()
         );
 
         rackService.createPallet(updatedRequest);
@@ -246,6 +248,19 @@ public class RackController {
     public ResponseEntity<List<Object>> getCellsByRack(
             @Parameter(description = "ID стеллажа", required = true) @PathVariable UUID rackId) {
         List<Object> response = rackService.getCellsByRack(rackId);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "Получить все слоты стеллажа",
+            description = "Возвращает список всех слотов с указанием типа стеллажа (kind = SHELF/CELL/FRIDGE/PALLET) " +
+                          "и массивом slots типизированных под этот kind. Удобно для UI — один вызов вместо четырёх."
+    )
+    @ApiResponse(responseCode = "200", description = "Слоты получены")
+    @GetMapping("/{rackId}/slots")
+    public ResponseEntity<Map<String, Object>> getSlotsByRack(
+            @Parameter(description = "ID стеллажа", required = true) @PathVariable UUID rackId) {
+        Map<String, Object> response = rackService.getSlotsByRack(rackId);
         return ResponseEntity.ok(response);
     }
 

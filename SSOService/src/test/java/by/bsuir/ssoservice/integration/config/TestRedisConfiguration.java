@@ -18,10 +18,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
-/**
- * Тестовая конфигурация, заменяющая Redis на in-memory реализацию.
- * Используется для интеграционных тестов без запуска Redis.
- */
+
 @TestConfiguration
 public class TestRedisConfiguration {
 
@@ -42,7 +39,7 @@ public class TestRedisConfiguration {
 
         when(template.opsForValue()).thenReturn(valueOperations);
 
-        // Mock set operation
+
         doAnswer(invocation -> {
             String key = invocation.getArgument(0);
             Object value = invocation.getArgument(1);
@@ -57,19 +54,19 @@ public class TestRedisConfiguration {
             return null;
         }).when(valueOperations).set(anyString(), any(), any(Duration.class));
 
-        // Mock get operation
+
         when(valueOperations.get(anyString())).thenAnswer(invocation -> {
             String key = invocation.getArgument(0);
             return storage.get(key);
         });
 
-        // Mock delete operation
+
         when(template.delete(anyString())).thenAnswer(invocation -> {
             String key = invocation.getArgument(0);
             return storage.remove(key) != null;
         });
 
-        // Mock keys operation
+
         when(template.keys(anyString())).thenAnswer(invocation -> {
             String pattern = invocation.getArgument(0);
             String prefix = pattern.replace("*", "");

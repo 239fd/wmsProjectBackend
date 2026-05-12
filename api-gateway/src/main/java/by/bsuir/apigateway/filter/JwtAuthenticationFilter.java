@@ -37,14 +37,17 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private static final List<String> EXCLUDED_PATHS = List.of(
             "/api/auth/login",
-            "/api/auth/register",
+            "/api/auth/register/director",
+            "/api/auth/register/invitation",
             "/api/auth/refresh",
             "/api/auth/logout",
             "/api/auth/public-key",
             "/api/oauth",
+            "/api/invitations/validate",
 
             "/sso-service/api/auth/login",
-            "/sso-service/api/auth/register",
+            "/sso-service/api/auth/register/director",
+            "/sso-service/api/auth/register/invitation",
             "/sso-service/api/auth/refresh",
             "/sso-service/api/auth/logout",
             "/sso-service/api/auth/public-key",
@@ -97,12 +100,20 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             String userId = signedJWT.getJWTClaimsSet().getSubject();
             String email = signedJWT.getJWTClaimsSet().getStringClaim("email");
             String role = signedJWT.getJWTClaimsSet().getStringClaim("role");
+            String organizationId = signedJWT.getJWTClaimsSet().getStringClaim("organizationId");
+            String warehouseId = signedJWT.getJWTClaimsSet().getStringClaim("warehouseId");
 
-            ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
+            ServerHttpRequest.Builder requestBuilder = exchange.getRequest().mutate()
                     .header("X-User-Id", userId)
                     .header("X-User-Email", email)
-                    .header("X-User-Role", role)
-                    .build();
+                    .header("X-User-Role", role);
+            if (organizationId != null) {
+                requestBuilder.header("X-Organization-Id", organizationId);
+            }
+            if (warehouseId != null) {
+                requestBuilder.header("X-Warehouse-Id", warehouseId);
+            }
+            ServerHttpRequest modifiedRequest = requestBuilder.build();
 
             log.debug("Authenticated user: {} (role: {}) for path: {}", email, role, path);
 

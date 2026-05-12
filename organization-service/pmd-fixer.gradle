@@ -1,7 +1,4 @@
-/**
- * PMD Auto-Fixer Script
- * Автоматическое исправление распространенных ошибок PMD
- */
+
 
 tasks.register('pmdFix') {
     group = 'code quality'
@@ -17,7 +14,7 @@ tasks.register('pmdFix') {
         ╚════════════════════════════════════════════════════════╝
         """.stripIndent()
 
-        // Получаем список всех Java файлов
+
         def javaFiles = fileTree(dir: 'src', include: '**/*.java')
 
         javaFiles.each { file ->
@@ -25,34 +22,31 @@ tasks.register('pmdFix') {
             def originalContent = content
             def fileFixCount = 0
 
-            // 1. UnnecessaryImport - удаление неиспользуемых импортов
+
             content = removeUnusedImports(content, file)
 
-            // 2. AvoidDuplicateLiterals - извлечение констант
-            // (требует анализа контекста, пропускаем автоматическое исправление)
 
-            // 3. UseConcurrentHashMap - замена HashMap на ConcurrentHashMap в многопоточном коде
-            // (требует анализа контекста, пропускаем)
 
-            // 4. GuardLogStatement - добавление проверок уровня логирования
+
+
+
             content = addLogGuards(content)
 
-            // 5. UnusedLocalVariable - удаление неиспользуемых переменных
-            // (требует полного анализа, пропускаем)
 
-            // 6. ControlStatementBraces - добавление фигурных скобок
+
+
             content = addBracesToControlStatements(content)
 
-            // 7. UseLocaleWithCaseConversions - добавление Locale
+
             content = addLocaleToStringConversion(content)
 
-            // 8. UseExplicitTypes - замена var на явные типы
+
             content = replaceVarWithExplicitTypes(content)
 
-            // 9. JUnit naming conventions - исправление названий тестов
+
             content = fixJUnitTestNaming(content)
 
-            // 10. UnnecessaryAnnotationValueElement - упрощение аннотаций
+
             content = simplifyAnnotations(content)
 
             if (content != originalContent) {
@@ -81,7 +75,7 @@ tasks.register('pmdFix') {
 }
 
 def removeUnusedImports(String content, File file) {
-    // Простое удаление очевидно неиспользуемых импортов
+
     def lines = content.split('\n')
     def imports = []
     def codeLines = []
@@ -99,16 +93,16 @@ def removeUnusedImports(String content, File file) {
         }
     }
 
-    // Фильтруем импорты, которые используются в коде
+
     def usedImports = imports.findAll { importLine ->
         def className = importLine.replaceAll(/.*import\s+(static\s+)?/, '').replaceAll(/;.*/, '').trim()
         def simpleName = className.split(/\./).last()
 
-        // Проверяем, используется ли класс в коде
+
         codeLines.any { it.contains(simpleName) }
     }
 
-    // Собираем обратно
+
     def result = []
     def addedImports = false
 
@@ -128,7 +122,7 @@ def removeUnusedImports(String content, File file) {
 }
 
 def addLogGuards(String content) {
-    // Добавляем проверки уровня логирования
+
     content = content.replaceAll(
         /(\s+)log\.debug\((.*?)\);/,
         '$1if (log.isDebugEnabled()) {\n$1    log.debug($2);\n$1}'
@@ -141,7 +135,7 @@ def addLogGuards(String content) {
 }
 
 def addBracesToControlStatements(String content) {
-    // Добавляем фигурные скобки к if/for/while без них
+
     content = content.replaceAll(
         /(\s+)(if|for|while)\s*\((.*?)\)\s*\n\s*([^{].*?);/,
         '$1$2 ($3) {\n$1    $4;\n$1}'
@@ -150,7 +144,7 @@ def addBracesToControlStatements(String content) {
 }
 
 def addLocaleToStringConversion(String content) {
-    // Добавляем Locale.ROOT к toLowerCase/toUpperCase
+
     content = content.replaceAll(
         /\.toLowerCase\(\)/,
         '.toLowerCase(Locale.ROOT)'
@@ -160,7 +154,7 @@ def addLocaleToStringConversion(String content) {
         '.toUpperCase(Locale.ROOT)'
     )
 
-    // Добавляем импорт Locale если его нет
+
     if (content.contains('Locale.ROOT') && !content.contains('import java.util.Locale')) {
         content = content.replaceFirst(
             /(package .*?;\n)/,
@@ -172,14 +166,12 @@ def addLocaleToStringConversion(String content) {
 }
 
 def replaceVarWithExplicitTypes(String content) {
-    // Замена var на явные типы (простые случаи)
-    // Это сложная задача, требующая полного анализа типов
-    // Пропускаем автоматическое исправление
+
     return content
 }
 
 def fixJUnitTestNaming(String content) {
-    // Исправление названий JUnit тестов на camelCase
+
     content = content.replaceAll(
         /@Test\s+public\s+void\s+([a-zA-Z]+)_([a-zA-Z_]+)\(/,
         { match, prefix, suffix ->
@@ -193,7 +185,7 @@ def fixJUnitTestNaming(String content) {
 }
 
 def simplifyAnnotations(String content) {
-    // Упрощение аннотаций с value =
+
     content = content.replaceAll(
         /@([A-Z][a-zA-Z]+)\(value\s*=\s*"(.*?)"\)/,
         '@$1("$2")'

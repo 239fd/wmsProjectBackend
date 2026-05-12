@@ -2,6 +2,7 @@ package by.bsuir.organizationservice.controller;
 
 import by.bsuir.organizationservice.dto.AddEmployeeRequest;
 import by.bsuir.organizationservice.dto.EmployeeResponse;
+import by.bsuir.organizationservice.dto.UpdateEmployeeStatusRequest;
 import by.bsuir.organizationservice.service.EmployeeManagementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -16,6 +17,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 
 import java.util.List;
 import java.util.Map;
@@ -83,8 +89,38 @@ public class EmployeeController {
     }
 
     @Operation(
+            summary = "Изменить статус блокировки сотрудника",
+            description = "Блокирует или разблокирует сотрудника. Доступно только для DIRECTOR"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Статус сотрудника обновлён"),
+            @ApiResponse(responseCode = "403", description = "Недостаточно прав"),
+            @ApiResponse(responseCode = "404", description = "Сотрудник или организация не найдены"),
+            @ApiResponse(responseCode = "409", description = "Статус уже установлен")
+    })
+    @PatchMapping("/{userId}/status")
+    public ResponseEntity<Map<String, String>> updateEmployeeStatus(
+            @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
+            @Parameter(description = "ID пользователя", required = true) @PathVariable UUID userId,
+            @Valid @RequestBody UpdateEmployeeStatusRequest request,
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+
+        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        if (Boolean.TRUE.equals(request.blocked())) {
+            employeeManagementService.blockEmployee(orgId, userId);
+            return ResponseEntity.ok(Map.of("message", "Сотрудник заблокирован"));
+        } else {
+            employeeManagementService.unblockEmployee(orgId, userId);
+            return ResponseEntity.ok(Map.of("message", "Сотрудник разблокирован"));
+        }
+    }
+
+    @Operation(
             summary = "Получить список сотрудников организации",
-            description = "Возвращает список всех сотрудников организации"
+            description = "Возвращает страницу сотрудников. Параметры пагинации: page (с 0), size (по умолчанию 20)"
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Список сотрудников получен"),
@@ -92,15 +128,16 @@ public class EmployeeController {
             @ApiResponse(responseCode = "404", description = "Организация не найдена")
     })
     @GetMapping
-    public ResponseEntity<List<EmployeeResponse>> getOrganizationEmployees(
+    public ResponseEntity<Page<EmployeeResponse>> getOrganizationEmployees(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable,
             @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        List<EmployeeResponse> response = employeeManagementService.getOrganizationEmployees(orgId);
+        Page<EmployeeResponse> response = employeeManagementService.getOrganizationEmployees(orgId, pageable);
         return ResponseEntity.ok(response);
     }
 }

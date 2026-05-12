@@ -19,4 +19,12 @@ public interface ProductOperationRepository extends JpaRepository<ProductOperati
     List<ProductOperation> findByOperationType(OperationType operationType);
 
     List<ProductOperation> findByOperationDateBetween(LocalDateTime start, LocalDateTime end);
+
+    List<ProductOperation> findByOrganizationIdOrderByOperationDateDesc(UUID organizationId);
+
+    List<ProductOperation> findByOrganizationIdAndWarehouseIdOrderByOperationDateDesc(UUID organizationId, UUID warehouseId);
+
+    List<ProductOperation> findByOrganizationIdAndProductIdOrderByOperationDateDesc(UUID organizationId, UUID productId);
+
+    List<ProductOperation> findByOrganizationIdAndBatchIdOrderByOperationDateDesc(UUID organizationId, UUID batchId);
 }

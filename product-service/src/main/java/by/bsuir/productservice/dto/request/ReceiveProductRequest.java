@@ -24,6 +24,8 @@ public record ReceiveProductRequest(
         @NotNull(message = "User ID обязателен")
         UUID userId,
 
+        UUID supplyId,
+
         String notes
 ) {
 }

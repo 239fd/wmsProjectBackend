@@ -33,16 +33,23 @@ ext {
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'com.nimbusds:nimbus-jose-jwt:10.6'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
     implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
     implementation 'com.sun.jersey.contribs:jersey-apache-client4:1.19.4'
+    implementation 'org.apache.poi:poi:5.2.5'
+    implementation 'org.apache.poi:poi-ooxml:5.2.5'
+    implementation 'org.apache.poi:poi-scratchpad:5.2.5'
+    implementation 'org.apache.pdfbox:pdfbox:3.0.6'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.7.3'
-
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    testImplementation 'org.springframework.security:spring-security-test'
 
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
@@ -54,6 +61,12 @@ dependencies {
     testImplementation 'com.h2database:h2'
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.mockito:mockito-junit-jupiter'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers:1.20.4'
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.4'
+    testImplementation 'org.testcontainers:postgresql:1.20.4'
+    testImplementation 'org.testcontainers:rabbitmq:1.20.4'
+    testImplementation 'org.awaitility:awaitility:4.2.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -65,7 +78,16 @@ dependencyManagement {
 
 test {
     useJUnitPlatform()
+    exclude '**/*ContainerTest.class', '**/*ContainerTest$*.class'
     finalizedBy jacocoTestReport
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Тесты на Testcontainers (требуют запущенный Docker daemon).'
+    group = 'verification'
+    useJUnitPlatform()
+    include '**/*ContainerTest.class'
+    shouldRunAfter('test')
 }
 
 jacocoTestReport {
@@ -82,7 +104,7 @@ pmd {
     toolVersion = '7.0.0'
     ruleSets = []
     ruleSetFiles = files("${rootProject.projectDir}/config/pmd/pmd-ruleset.xml")
-    ignoreFailures = true  // Не останавливать билд при нахождении проблем
+    ignoreFailures = true
 }
 
 pmdMain {
@@ -141,7 +163,7 @@ tasks.register('cpdCheck') {
         cpdOutputDir.mkdirs()
         def cpdOutputFile = new File(cpdOutputDir, 'cpd-report.txt')
 
-        // PMD 7.0 включает CPD в основной анализ
+
         cpdOutputFile.text = """
 CPD Analysis Report
 ===================
@@ -207,6 +229,6 @@ tasks.register('codeQuality') {
 
 check.dependsOn pmdMain, pmdTest, spotbugsMain, modernizer, cpdCheck
 
-// Подключаем PMD Auto-Fixer
+
 apply from: 'pmd-fixer.gradle'
 

@@ -3,6 +3,7 @@ package by.bsuir.productservice.model.entity;
 import by.bsuir.productservice.model.enums.OperationType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Filter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -10,6 +11,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "product_operation")
+@Filter(name = "orgFilter", condition = "organization_id = :orgId")
 @Getter
 @Setter
 @Builder
@@ -30,6 +32,9 @@ public class ProductOperation {
 
     @Column(name = "batch_id")
     private UUID batchId;
+
+    @Column(name = "organization_id")
+    private UUID organizationId;
 
     @Column(name = "warehouse_id", nullable = false)
     private UUID warehouseId;

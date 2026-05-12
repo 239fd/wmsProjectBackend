@@ -13,4 +13,10 @@ public interface InventorySessionRepository extends JpaRepository<InventorySessi
     List<InventorySession> findByWarehouseId(UUID warehouseId);
 
     List<InventorySession> findByStatus(InventorySession.SessionStatus status);
+
+    List<InventorySession> findByOrganizationId(UUID organizationId);
+
+    List<InventorySession> findByOrganizationIdAndWarehouseId(UUID organizationId, UUID warehouseId);
+
+    List<InventorySession> findByOrganizationIdAndStatus(UUID organizationId, InventorySession.SessionStatus status);
 }

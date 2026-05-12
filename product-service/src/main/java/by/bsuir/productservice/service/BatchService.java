@@ -27,19 +27,44 @@ public class BatchService {
 
     @Transactional
     public BatchResponse createBatch(CreateBatchRequest request) {
-        log.info("Creating batch for product: {}", request.productId());
+        return createBatch(request, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BatchResponse> getBatchesByProduct(UUID productId) {
+        return getBatchesByProduct(productId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public BatchResponse getBatch(UUID batchId) {
+        return getBatch(batchId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BatchResponse> getAllBatches() {
+        return getAllBatches(null);
+    }
+
+    @Transactional
+    public BatchResponse createBatch(CreateBatchRequest request, UUID organizationId) {
+        log.info("Creating batch for product: {} (org: {})", request.productId(), organizationId);
 
         ProductReadModel product = productRepository.findById(request.productId())
                 .orElseThrow(() -> AppException.notFound("Товар не найден"));
 
+        UUID effectiveOrgId = organizationId != null ? organizationId : product.getOrganizationId();
+
         ProductBatch batch = ProductBatch.builder()
                 .batchId(UUID.randomUUID())
                 .productId(request.productId())
+                .organizationId(effectiveOrgId)
+                .supplyId(request.supplyId())
                 .batchNumber(request.batchNumber())
                 .manufactureDate(request.manufactureDate())
                 .expiryDate(request.expiryDate())
                 .supplier(request.supplier())
                 .purchasePrice(request.purchasePrice())
+                .storageConditions(request.storageConditions())
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -50,35 +75,44 @@ public class BatchService {
     }
 
     @Transactional(readOnly = true)
-    public List<BatchResponse> getBatchesByProduct(UUID productId) {
-        return batchRepository.findByProductIdOrderByCreatedAtDesc(productId).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public List<BatchResponse> getBatchesByProduct(UUID productId, UUID organizationId) {
+        List<ProductBatch> batches = (organizationId != null)
+                ? batchRepository.findByOrganizationIdAndProductId(organizationId, productId)
+                : batchRepository.findByProductIdOrderByCreatedAtDesc(productId);
+        return batches.stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public BatchResponse getBatch(UUID batchId) {
+    public BatchResponse getBatch(UUID batchId, UUID organizationId) {
         ProductBatch batch = batchRepository.findById(batchId)
                 .orElseThrow(() -> AppException.notFound("Партия не найдена"));
+        if (organizationId != null && batch.getOrganizationId() != null
+                && !organizationId.equals(batch.getOrganizationId())) {
+            throw AppException.forbidden("Партия принадлежит другой организации");
+        }
         return mapToResponse(batch);
     }
 
     @Transactional(readOnly = true)
-    public List<BatchResponse> getAllBatches() {
-        return batchRepository.findAll().stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public List<BatchResponse> getAllBatches(UUID organizationId) {
+        List<ProductBatch> batches = (organizationId != null)
+                ? batchRepository.findByOrganizationId(organizationId)
+                : batchRepository.findAll();
+        return batches.stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
     private BatchResponse mapToResponse(ProductBatch batch) {
         return new BatchResponse(
                 batch.getBatchId(),
                 batch.getProductId(),
+                batch.getOrganizationId(),
+                batch.getSupplyId(),
                 batch.getBatchNumber(),
                 batch.getManufactureDate(),
                 batch.getExpiryDate(),
                 batch.getSupplier(),
                 batch.getPurchasePrice(),
+                batch.getStorageConditions(),
                 batch.getCreatedAt()
         );
     }

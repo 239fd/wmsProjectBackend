@@ -28,4 +28,12 @@ public class AppException extends RuntimeException {
     public static AppException internalError(String message) {
         return new AppException(message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+
+    public static AppException forbidden(String message) {
+        return new AppException(message, HttpStatus.FORBIDDEN);
+    }
+
+    public static AppException unauthorized(String message) {
+        return new AppException(message, HttpStatus.UNAUTHORIZED);
+    }
 }

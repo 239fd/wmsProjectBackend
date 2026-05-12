@@ -2,6 +2,7 @@ package by.bsuir.productservice.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Filter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -9,6 +10,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "product_read_model")
+@Filter(name = "orgFilter", condition = "organization_id = :orgId")
 @Getter
 @Setter
 @Builder
@@ -52,6 +54,12 @@ public class ProductReadModel {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(name="abc_class", nullable = false)
+    private String abcClass;
+
+    @Column(name = "organization_id")
+    private UUID organizationId;
 
     @PrePersist
     protected void onCreate() {

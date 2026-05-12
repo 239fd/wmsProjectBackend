@@ -1,6 +1,7 @@
 package by.bsuir.warehouseservice.dto.request;
 
 import by.bsuir.warehouseservice.model.enums.RackKind;
+import by.bsuir.warehouseservice.model.enums.StorageConditions;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -16,6 +17,8 @@ public record CreateRackRequest(
 
         @NotBlank(message = "Название стеллажа обязательно")
         @Size(max = 255, message = "Название не должно превышать 255 символов")
-        String name
+        String name,
+
+        StorageConditions storageConditions
 ) {
 }

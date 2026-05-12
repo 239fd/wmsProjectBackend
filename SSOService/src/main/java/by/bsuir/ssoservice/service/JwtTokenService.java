@@ -6,8 +6,8 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.security.KeyPair;
@@ -19,27 +19,41 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class JwtTokenService {
 
     private final KeyPair keyPair;
+    private final long accessTokenValidity;
+    private final long refreshTokenValidity;
 
-    private static final long ACCESS_TOKEN_VALIDITY = 15 * 60;
-    private static final long REFRESH_TOKEN_VALIDITY = 7 * 24 * 60 * 60;
+    public JwtTokenService(
+            KeyPair keyPair,
+            @Value("${app.security.jwt.access-ttl-seconds:14400}") long accessTokenValidity,
+            @Value("${app.security.jwt.refresh-ttl-seconds:2592000}") long refreshTokenValidity) {
+        this.keyPair = keyPair;
+        this.accessTokenValidity = accessTokenValidity;
+        this.refreshTokenValidity = refreshTokenValidity;
+    }
 
-    public String generateAccessToken(UUID userId, String email, UserRole role) {
+    public String generateAccessToken(UUID userId, String email, UserRole role, UUID organizationId, UUID warehouseId) {
         try {
             Instant now = Instant.now();
 
-            JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
+            JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder()
                     .subject(userId.toString())
                     .claim("email", email)
                     .claim("role", role.name())
                     .issuer("http://localhost:7777")
                     .issueTime(Date.from(now))
-                    .expirationTime(Date.from(now.plusSeconds(ACCESS_TOKEN_VALIDITY)))
-                    .jwtID(UUID.randomUUID().toString())
-                    .build();
+                    .expirationTime(Date.from(now.plusSeconds(accessTokenValidity)))
+                    .jwtID(UUID.randomUUID().toString());
+
+            if (organizationId != null) {
+                builder.claim("organizationId", organizationId.toString());
+            }
+            if (warehouseId != null) {
+                builder.claim("warehouseId", warehouseId.toString());
+            }
+            JWTClaimsSet claimsSet = builder.build();
 
             SignedJWT signedJWT = new SignedJWT(
                     new JWSHeader.Builder(JWSAlgorithm.RS256)
@@ -132,10 +146,10 @@ public class JwtTokenService {
     }
 
     public long getAccessTokenValidity() {
-        return ACCESS_TOKEN_VALIDITY;
+        return accessTokenValidity;
     }
 
     public long getRefreshTokenValidity() {
-        return REFRESH_TOKEN_VALIDITY;
+        return refreshTokenValidity;
     }
 }

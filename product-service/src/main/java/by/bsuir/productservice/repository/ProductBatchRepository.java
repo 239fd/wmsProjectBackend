@@ -23,4 +23,10 @@ public interface ProductBatchRepository extends JpaRepository<ProductBatch, UUID
 
     @Query("SELECT pb FROM ProductBatch pb WHERE pb.expiryDate IS NOT NULL AND pb.expiryDate < :date")
     List<ProductBatch> findExpiredBatches(@Param("date") LocalDate date);
+
+    List<ProductBatch> findByOrganizationId(UUID organizationId);
+
+    List<ProductBatch> findByOrganizationIdAndProductId(UUID organizationId, UUID productId);
+
+    List<ProductBatch> findBySupplyId(UUID supplyId);
 }

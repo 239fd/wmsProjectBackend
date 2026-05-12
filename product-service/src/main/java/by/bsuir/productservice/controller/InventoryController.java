@@ -1,6 +1,8 @@
 package by.bsuir.productservice.controller;
 
 import by.bsuir.productservice.dto.response.InventoryResponse;
+import by.bsuir.productservice.model.entity.InventoryEvent;
+import by.bsuir.productservice.repository.InventoryEventRepository;
 import by.bsuir.productservice.service.InventoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,7 +15,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -23,6 +27,7 @@ import java.util.UUID;
 public class InventoryController {
 
     private final InventoryService inventoryService;
+    private final InventoryEventRepository inventoryEventRepository;
 
     @Operation(
             summary = "Получить остатки по складу",
@@ -31,8 +36,9 @@ public class InventoryController {
     @ApiResponse(responseCode = "200", description = "Остатки успешно получены")
     @GetMapping("/warehouse/{warehouseId}")
     public ResponseEntity<List<InventoryResponse>> getInventoryByWarehouse(
-            @Parameter(description = "ID склада", required = true) @PathVariable UUID warehouseId) {
-        List<InventoryResponse> response = inventoryService.getInventoryByWarehouse(warehouseId);
+            @Parameter(description = "ID склада", required = true) @PathVariable UUID warehouseId,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        List<InventoryResponse> response = inventoryService.getInventoryByWarehouse(warehouseId, organizationId);
         return ResponseEntity.ok(response);
     }
 
@@ -43,8 +49,9 @@ public class InventoryController {
     @ApiResponse(responseCode = "200", description = "Остатки успешно получены")
     @GetMapping("/product/{productId}")
     public ResponseEntity<List<InventoryResponse>> getInventoryByProduct(
-            @Parameter(description = "ID товара", required = true) @PathVariable UUID productId) {
-        List<InventoryResponse> response = inventoryService.getInventoryByProduct(productId);
+            @Parameter(description = "ID товара", required = true) @PathVariable UUID productId,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        List<InventoryResponse> response = inventoryService.getInventoryByProduct(productId, organizationId);
         return ResponseEntity.ok(response);
     }
 
@@ -58,8 +65,31 @@ public class InventoryController {
     })
     @GetMapping("/cell/{cellId}")
     public ResponseEntity<InventoryResponse> getInventoryByCell(
-            @Parameter(description = "ID ячейки", required = true) @PathVariable UUID cellId) {
-        InventoryResponse response = inventoryService.getInventoryByCell(cellId);
+            @Parameter(description = "ID ячейки", required = true) @PathVariable UUID cellId,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        InventoryResponse response = inventoryService.getInventoryByCell(cellId, organizationId);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "История изменений остатка (event-store)",
+            description = "Возвращает все доменные события `inventory_events` для конкретного inventoryId. "
+                    + "Источник аудит-trail: ITEM_ADDED, ITEM_REMOVED, REVALUED, WRITTEN_OFF + компенсации саги."
+    )
+    @ApiResponse(responseCode = "200", description = "История получена")
+    @GetMapping("/{inventoryId}/history")
+    public ResponseEntity<List<Map<String, Object>>> getHistory(
+            @Parameter(description = "ID inventory-записи", required = true) @PathVariable UUID inventoryId) {
+        List<InventoryEvent> events = inventoryEventRepository.findByInventoryIdOrderByCreatedAtAsc(inventoryId);
+        List<Map<String, Object>> response = events.stream().map(e -> {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("eventId", e.getEventId());
+            m.put("eventType", e.getEventType());
+            m.put("eventVersion", e.getEventVersion());
+            m.put("eventData", e.getEventData());
+            m.put("createdAt", e.getCreatedAt());
+            return m;
+        }).collect(Collectors.toList());
         return ResponseEntity.ok(response);
     }
 }

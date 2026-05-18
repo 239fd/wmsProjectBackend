@@ -1,5 +1,6 @@
 package by.bsuir.organizationservice.controller;
 
+import by.bsuir.organizationservice.config.SecurityUtils;
 import by.bsuir.organizationservice.dto.request.CreateOrganizationRequest;
 import by.bsuir.organizationservice.dto.request.UpdateOrganizationRequest;
 import by.bsuir.organizationservice.dto.response.InvitationCodeResponse;
@@ -47,14 +48,22 @@ public class OrganizationController {
     @PostMapping
     public ResponseEntity<OrganizationResponse> createOrganization(
             @Valid @RequestBody CreateOrganizationRequest request,
-            @Parameter(description = "ID пользователя", required = true) @RequestHeader("X-User-Id") UUID userId,
-            @Parameter(description = "Роль пользователя", required = true) @RequestHeader("X-User-Role") String userRole) {
+            @Parameter(description = "ID пользователя (опц.: fallback на JWT subject)")
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId,
+            @Parameter(description = "Роль пользователя (опц.: fallback на JWT role)")
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
-        if (!"DIRECTOR".equals(userRole)) {
+        UUID effectiveUserId = userId != null ? userId : SecurityUtils.currentUserId();
+        String effectiveRole = userRole != null ? userRole : SecurityUtils.currentRole();
+
+        if (effectiveUserId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!"DIRECTOR".equals(effectiveRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        OrganizationResponse response = organizationService.createOrganization(request, userId);
+        OrganizationResponse response = organizationService.createOrganization(request, effectiveUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -107,8 +116,10 @@ public class OrganizationController {
     public ResponseEntity<OrganizationResponse> updateOrganization(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
             @Valid @RequestBody UpdateOrganizationRequest request,
-            @Parameter(description = "Роль пользователя", required = true) @RequestHeader("X-User-Role") String userRole) {
+            @Parameter(description = "Роль пользователя")
+            @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
+        String userRole = userRoleHdr != null ? userRoleHdr : SecurityUtils.currentRole();
         if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -130,9 +141,13 @@ public class OrganizationController {
     @DeleteMapping("/{orgId}")
     public ResponseEntity<OrganizationDumpResponse> deleteOrganization(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
-            @Parameter(description = "ID пользователя", required = true) @RequestHeader("X-User-Id") UUID userId,
-            @Parameter(description = "Роль пользователя", required = true) @RequestHeader("X-User-Role") String userRole) {
+            @Parameter(description = "ID пользователя")
+            @RequestHeader(value = "X-User-Id", required = false) UUID userIdHdr,
+            @Parameter(description = "Роль пользователя")
+            @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
+        UUID userId = userIdHdr != null ? userIdHdr : SecurityUtils.currentUserId();
+        String userRole = userRoleHdr != null ? userRoleHdr : SecurityUtils.currentRole();
         if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -153,8 +168,10 @@ public class OrganizationController {
     @PostMapping("/{orgId}/invitation-codes/generate")
     public ResponseEntity<List<InvitationCodeResponse>> generateInvitationCodes(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
-            @Parameter(description = "Роль пользователя", required = true) @RequestHeader("X-User-Role") String userRole) {
+            @Parameter(description = "Роль пользователя")
+            @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
+        String userRole = userRoleHdr != null ? userRoleHdr : SecurityUtils.currentRole();
         if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -177,8 +194,10 @@ public class OrganizationController {
     public ResponseEntity<InvitationCodeResponse> regenerateInvitationCode(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
             @Parameter(description = "ID склада", required = true) @PathVariable UUID warehouseId,
-            @Parameter(description = "Роль пользователя", required = true) @RequestHeader("X-User-Role") String userRole) {
+            @Parameter(description = "Роль пользователя")
+            @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
+        String userRole = userRoleHdr != null ? userRoleHdr : SecurityUtils.currentRole();
         if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -199,8 +218,10 @@ public class OrganizationController {
     @GetMapping("/{orgId}/invitation-codes")
     public ResponseEntity<List<InvitationCodeResponse>> getActiveInvitationCodes(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
-            @Parameter(description = "Роль пользователя", required = true) @RequestHeader("X-User-Role") String userRole) {
+            @Parameter(description = "Роль пользователя")
+            @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
+        String userRole = userRoleHdr != null ? userRoleHdr : SecurityUtils.currentRole();
         if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }

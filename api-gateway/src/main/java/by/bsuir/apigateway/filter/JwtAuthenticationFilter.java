@@ -3,37 +3,44 @@ package by.bsuir.apigateway.filter;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.SignedJWT;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.security.KeyFactory;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.X509EncodedKeySpec;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 
 @Slf4j
+@Component
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
+
+    private static final String REDIS_KEY = "gw:jwt-public-key";
+    private static final Duration CACHE_TTL = Duration.ofHours(1);
+
+    private final ReactiveStringRedisTemplate redisTemplate;
 
     @Value("${jwt.public-key:}")
     private String publicKeyString;
 
     @Value("${sso.service.url:http://localhost:8000}")
     private String ssoServiceUrl;
-
-    private RSAPublicKey cachedPublicKey;
-    private long lastKeyFetchTime = 0;
-    private static final long KEY_CACHE_DURATION = 3600000;
 
     private static final List<String> EXCLUDED_PATHS = List.of(
             "/api/auth/login",
@@ -70,60 +77,62 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             log.warn("Missing or invalid Authorization header for path: {}", path);
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
+            return unauthorized(exchange);
         }
 
         String token = authHeader.substring(7);
 
-        try {
+        return Mono.fromCallable(() -> validateAndBuildRequest(token, path, exchange))
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMap(modifiedRequest -> chain.filter(exchange.mutate().request(modifiedRequest).build()))
+                .onErrorResume(e -> {
+                    log.error("JWT validation error for path {}: {}", path, e.getMessage(), e);
+                    return unauthorized(exchange);
+                });
+    }
 
-            SignedJWT signedJWT = SignedJWT.parse(token);
+    private ServerHttpRequest validateAndBuildRequest(String token, String path, ServerWebExchange exchange) throws Exception {
+        SignedJWT signedJWT = SignedJWT.parse(token);
 
-            RSAPublicKey publicKey = getPublicKey();
-
-            JWSVerifier verifier = new RSASSAVerifier(publicKey);
-
-            if (!signedJWT.verify(verifier)) {
-                log.warn("Invalid JWT signature for path: {}", path);
-                exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-                return exchange.getResponse().setComplete();
+        RSAPublicKey publicKey = getPublicKey();
+        if (!signedJWT.verify(new RSASSAVerifier(publicKey))) {
+            log.warn("Invalid JWT signature with cached key, refreshing public key for path: {}", path);
+            redisTemplate.delete(REDIS_KEY).block();
+            RSAPublicKey freshKey = getPublicKey();
+            if (!signedJWT.verify(new RSASSAVerifier(freshKey))) {
+                throw new IllegalStateException("Invalid JWT signature (also failed with fresh public key)");
             }
-
-            Date expirationTime = signedJWT.getJWTClaimsSet().getExpirationTime();
-            if (expirationTime.before(new Date())) {
-                log.warn("Expired JWT token for path: {}", path);
-                exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-                return exchange.getResponse().setComplete();
-            }
-
-            String userId = signedJWT.getJWTClaimsSet().getSubject();
-            String email = signedJWT.getJWTClaimsSet().getStringClaim("email");
-            String role = signedJWT.getJWTClaimsSet().getStringClaim("role");
-            String organizationId = signedJWT.getJWTClaimsSet().getStringClaim("organizationId");
-            String warehouseId = signedJWT.getJWTClaimsSet().getStringClaim("warehouseId");
-
-            ServerHttpRequest.Builder requestBuilder = exchange.getRequest().mutate()
-                    .header("X-User-Id", userId)
-                    .header("X-User-Email", email)
-                    .header("X-User-Role", role);
-            if (organizationId != null) {
-                requestBuilder.header("X-Organization-Id", organizationId);
-            }
-            if (warehouseId != null) {
-                requestBuilder.header("X-Warehouse-Id", warehouseId);
-            }
-            ServerHttpRequest modifiedRequest = requestBuilder.build();
-
-            log.debug("Authenticated user: {} (role: {}) for path: {}", email, role, path);
-
-            return chain.filter(exchange.mutate().request(modifiedRequest).build());
-
-        } catch (Exception e) {
-            log.error("JWT validation error: {}", e.getMessage(), e);
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
         }
+
+        Date expirationTime = signedJWT.getJWTClaimsSet().getExpirationTime();
+        if (expirationTime == null || expirationTime.before(new Date())) {
+            throw new IllegalStateException("Expired or invalid JWT exp claim");
+        }
+
+        String userId = signedJWT.getJWTClaimsSet().getSubject();
+        String email = signedJWT.getJWTClaimsSet().getStringClaim("email");
+        String role = signedJWT.getJWTClaimsSet().getStringClaim("role");
+        String organizationId = signedJWT.getJWTClaimsSet().getStringClaim("organizationId");
+        String warehouseId = signedJWT.getJWTClaimsSet().getStringClaim("warehouseId");
+
+        ServerHttpRequest.Builder requestBuilder = exchange.getRequest().mutate()
+                .header("X-User-Id", userId)
+                .header("X-User-Email", email)
+                .header("X-User-Role", role);
+        if (organizationId != null) {
+            requestBuilder.header("X-Organization-Id", organizationId);
+        }
+        if (warehouseId != null) {
+            requestBuilder.header("X-Warehouse-Id", warehouseId);
+        }
+
+        log.debug("Authenticated user: {} (role: {}) for path: {}", email, role, path);
+        return requestBuilder.build();
+    }
+
+    private Mono<Void> unauthorized(ServerWebExchange exchange) {
+        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+        return exchange.getResponse().setComplete();
     }
 
     private boolean isExcludedPath(String path) {
@@ -131,18 +140,17 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     private RSAPublicKey getPublicKey() throws Exception {
-        long currentTime = System.currentTimeMillis();
-
-        if (cachedPublicKey != null && (currentTime - lastKeyFetchTime) < KEY_CACHE_DURATION) {
-            return cachedPublicKey;
+        String cachedPem = redisTemplate.opsForValue().get(REDIS_KEY).block();
+        if (cachedPem != null && !cachedPem.isEmpty()) {
+            return loadPublicKeyFromPEM(cachedPem);
         }
 
         if (publicKeyString != null && !publicKeyString.isEmpty() && !publicKeyString.contains("yourpublickey")) {
             try {
-                cachedPublicKey = loadPublicKeyFromPEM(publicKeyString);
-                lastKeyFetchTime = currentTime;
-                log.info("Loaded public key from configuration");
-                return cachedPublicKey;
+                RSAPublicKey key = loadPublicKeyFromPEM(publicKeyString);
+                redisTemplate.opsForValue().set(REDIS_KEY, publicKeyString, CACHE_TTL).block();
+                log.info("Loaded public key from configuration and cached in Redis");
+                return key;
             } catch (Exception e) {
                 log.warn("Failed to load public key from configuration: {}", e.getMessage());
             }
@@ -150,10 +158,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
         try {
             String publicKeyPEM = fetchPublicKeyFromSSOService();
-            cachedPublicKey = loadPublicKeyFromPEM(publicKeyPEM);
-            lastKeyFetchTime = currentTime;
-            log.info("Fetched and cached public key from SSO Service");
-            return cachedPublicKey;
+            RSAPublicKey key = loadPublicKeyFromPEM(publicKeyPEM);
+            redisTemplate.opsForValue().set(REDIS_KEY, publicKeyPEM, CACHE_TTL).block();
+            log.info("Fetched public key from SSO Service and cached in Redis (TTL {})", CACHE_TTL);
+            return key;
         } catch (Exception e) {
             log.error("Failed to fetch public key from SSO Service: {}", e.getMessage());
             throw new RuntimeException("Cannot validate JWT: public key not available", e);

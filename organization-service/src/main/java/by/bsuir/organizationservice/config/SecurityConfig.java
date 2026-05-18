@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -41,6 +42,6 @@ public class SecurityConfig {
     @Bean
     @LoadBalanced
     public RestTemplate restTemplate() {
-        return new RestTemplate();
+        return new RestTemplate(new JdkClientHttpRequestFactory());
     }
 }

@@ -16,4 +16,6 @@ public interface ShipmentRequestItemRepository extends JpaRepository<ShipmentReq
     Optional<ShipmentRequestItem> findByRequestIdAndUnitSku(UUID requestId, String unitSku);
 
     Optional<ShipmentRequestItem> findByRequestIdAndProductIdAndBatchId(UUID requestId, UUID productId, UUID batchId);
+
+    Optional<ShipmentRequestItem> findFirstByRequestIdAndProductIdAndBatchIdIsNull(UUID requestId, UUID productId);
 }

@@ -1,6 +1,7 @@
 package by.bsuir.productservice.client;
 
 import by.bsuir.productservice.client.dto.CellInfoDto;
+import by.bsuir.productservice.client.dto.PageResponse;
 import by.bsuir.productservice.client.dto.RackInfoDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,13 +30,14 @@ public class WarehouseClient {
     public List<RackInfoDto> getRacksByWarehouse(UUID warehouseId, String userRole) {
         try {
             HttpHeaders headers = buildHeaders(userRole);
-            ResponseEntity<List<RackInfoDto>> response = loadBalancedRestTemplate.exchange(
-                    BASE + "/warehouse/" + warehouseId,
+            ResponseEntity<PageResponse<RackInfoDto>> response = loadBalancedRestTemplate.exchange(
+                    BASE + "/warehouse/" + warehouseId + "?size=100",
                     HttpMethod.GET,
                     new HttpEntity<>(headers),
                     new ParameterizedTypeReference<>() {}
             );
-            return response.getBody() != null ? response.getBody() : Collections.emptyList();
+            PageResponse<RackInfoDto> body = response.getBody();
+            return body != null ? body.contentOrEmpty() : Collections.emptyList();
         } catch (Exception e) {
             log.error("Failed to fetch racks for warehouse {}: {}", warehouseId, e.getMessage());
             return Collections.emptyList();
@@ -64,6 +66,22 @@ public class WarehouseClient {
         } catch (Exception e) {
             log.error("Failed to fetch cells for rack {}: {}", rackId, e.getMessage());
             return Collections.emptyList();
+        }
+    }
+
+    public Map<String, Object> getCellInfo(UUID cellId, String userRole) {
+        try {
+            HttpHeaders headers = buildHeaders(userRole);
+            ResponseEntity<Map<String, Object>> response = loadBalancedRestTemplate.exchange(
+                    BASE + "/cells/" + cellId,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    new ParameterizedTypeReference<>() {}
+            );
+            return response.getBody();
+        } catch (Exception e) {
+            log.error("Failed to fetch cell info {}: {}", cellId, e.getMessage());
+            return null;
         }
     }
 

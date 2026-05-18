@@ -8,6 +8,7 @@ import by.bsuir.productservice.model.entity.ProductOperation;
 import by.bsuir.productservice.model.entity.ProductReadModel;
 import by.bsuir.productservice.model.enums.InventoryEventType;
 import by.bsuir.productservice.model.enums.InventoryStatus;
+import by.bsuir.productservice.model.enums.OperationStatus;
 import by.bsuir.productservice.model.enums.OperationType;
 import by.bsuir.productservice.repository.InventoryRepository;
 import by.bsuir.productservice.repository.ProductOperationRepository;
@@ -41,9 +42,18 @@ public class ProductOperationService {
 
     @Transactional
     public UUID receiveProduct(ReceiveProductRequest request, UUID organizationId) {
+        return doReceive(request, organizationId, null);
+    }
+
+    @Transactional
+    public UUID receiveItemInSession(ReceiveProductRequest request, UUID organizationId, UUID sessionId) {
+        return doReceive(request, organizationId, sessionId);
+    }
+
+    private UUID doReceive(ReceiveProductRequest request, UUID organizationId, UUID sessionId) {
         try {
-            log.info("Receiving product {} to warehouse {}, quantity: {} (org: {})",
-                    request.productId(), request.warehouseId(), request.quantity(), organizationId);
+            log.info("Receiving product {} to warehouse {}, quantity: {} (org: {}, session: {})",
+                    request.productId(), request.warehouseId(), request.quantity(), organizationId, sessionId);
 
             if (request.productId() == null) {
                 throw AppException.badRequest("Product ID обязателен");
@@ -75,13 +85,15 @@ public class ProductOperationService {
                     .toCellId(request.cellId())
                     .quantity(request.quantity())
                     .userId(request.userId())
+                    .sessionId(sessionId)
+                    .status(OperationStatus.PAUSED)
                     .operationDate(LocalDateTime.now())
                     .notes(request.notes())
                     .build();
             operationRepository.save(operation);
 
         Optional<Inventory> existingInventory = inventoryRepository
-                .findByProductIdAndWarehouseId(request.productId(), request.warehouseId());
+                .findByProductIdAndWarehouseIdForUpdate(request.productId(), request.warehouseId());
 
         if (existingInventory.isPresent()) {
 
@@ -184,7 +196,7 @@ public class ProductOperationService {
             UUID effectiveOrgId = organizationId != null ? organizationId : product.getOrganizationId();
 
             Inventory source = inventoryRepository
-                    .findByProductIdAndWarehouseId(request.productId(), request.fromWarehouseId())
+                    .findByProductIdAndWarehouseIdForUpdate(request.productId(), request.fromWarehouseId())
                     .orElseThrow(() -> AppException.notFound("Запасы товара на складе-отправителе не найдены"));
 
             if (organizationId != null && source.getOrganizationId() != null
@@ -206,7 +218,8 @@ public class ProductOperationService {
 
             Optional<Inventory> existingDest = (request.toCellId() != null)
                     ? inventoryRepository.findByCellId(request.toCellId())
-                    : inventoryRepository.findByProductIdAndWarehouseId(request.productId(), request.toWarehouseId());
+                            .map(inv -> inventoryRepository.findByIdForUpdate(inv.getInventoryId()).orElse(inv))
+                    : inventoryRepository.findByProductIdAndWarehouseIdForUpdate(request.productId(), request.toWarehouseId());
 
             BigDecimal dstBefore;
             Inventory dest;
@@ -218,7 +231,6 @@ public class ProductOperationService {
                 if (dest.getOrganizationId() == null) {
                     dest.setOrganizationId(effectiveOrgId);
                 }
-                dest.setUnitSku(null);
             } else {
                 dstBefore = BigDecimal.ZERO;
                 dest = Inventory.builder()

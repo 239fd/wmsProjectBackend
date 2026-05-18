@@ -1,5 +1,6 @@
 package by.bsuir.productservice.model.entity;
 
+import by.bsuir.productservice.model.enums.OperationStatus;
 import by.bsuir.productservice.model.enums.OperationType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -54,6 +55,13 @@ public class ProductOperation {
     @Column(name = "document_id")
     private UUID documentId;
 
+    @Column(name = "session_id")
+    private UUID sessionId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 32)
+    private OperationStatus status;
+
     @Column(name = "operation_date", nullable = false)
     private LocalDateTime operationDate;
 
@@ -67,6 +75,9 @@ public class ProductOperation {
         }
         if (operationDate == null) {
             operationDate = LocalDateTime.now();
+        }
+        if (status == null) {
+            status = OperationStatus.COMPLETED;
         }
     }
 }

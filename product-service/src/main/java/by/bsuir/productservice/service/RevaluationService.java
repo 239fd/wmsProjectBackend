@@ -86,14 +86,15 @@ public class RevaluationService {
                 .map(List::of)
                 .orElseGet(() -> inventoryRepository.findByProductId(request.productId()));
         for (Inventory inv : affected) {
-            inventoryEventService.record(inv.getInventoryId(), InventoryEventType.REVALUED, Map.of(
-                    "productId", request.productId(),
-                    "warehouseId", request.warehouseId(),
-                    "oldPrice", oldPrice,
-                    "newPrice", request.newPrice(),
-                    "operationId", operation.getOperationId(),
-                    "userId", request.userId(),
-                    "reason", request.reason()));
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("productId", request.productId());
+            payload.put("warehouseId", request.warehouseId());
+            payload.put("oldPrice", oldPrice);
+            payload.put("newPrice", request.newPrice());
+            payload.put("operationId", operation.getOperationId());
+            payload.put("userId", request.userId());
+            payload.put("reason", request.reason());
+            inventoryEventService.record(inv.getInventoryId(), InventoryEventType.REVALUED, payload);
         }
 
         log.info("Revaluation completed. Operation ID: {}", operation.getOperationId());

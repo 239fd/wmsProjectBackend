@@ -1,294 +1,258 @@
 package by.bsuir.documentservice.controller;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
+import by.bsuir.documentservice.config.RpaProperties;
+import by.bsuir.documentservice.dto.OfficeFillRequest;
+import by.bsuir.documentservice.rpa.OfficeDocumentBot;
 import by.bsuir.documentservice.service.DocumentService;
-import java.util.*;
+import by.bsuir.documentservice.service.DocumentService.GenerationResult;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 @ExtendWith(MockitoExtension.class)
+@DisplayName("DocumentController Tests")
 class DocumentControllerTest {
 
-    @Mock private DocumentService documentService;
+    @Mock
+    private DocumentService documentService;
 
-    @InjectMocks private DocumentController documentController;
+    @Mock
+    private ObjectProvider<OfficeDocumentBot> officeBotProvider;
 
-    private UUID testDocumentId;
-    private UUID testOrgId;
-    private UUID testUserId;
-    private byte[] testDocumentBytes;
-    private Map<String, Object> testMetadata;
-    private Map<String, Object> testData;
+    @Mock
+    private RpaProperties rpaProperties;
+
+    @InjectMocks
+    private DocumentController controller;
+
+    private final UUID orgId = UUID.randomUUID();
 
     @BeforeEach
-    void setUp() {
-        testDocumentId = UUID.randomUUID();
-        testOrgId = UUID.randomUUID();
-        testUserId = UUID.randomUUID();
-        testDocumentBytes = "test document content".getBytes();
-
-        testMetadata = new HashMap<>();
-        testMetadata.put("type", "receipt-order");
-        testMetadata.put("format", "pdf");
-        testMetadata.put("generatedAt", "2025-12-03T10:00:00");
-
-        testData = new HashMap<>();
-        testData.put("documentNumber", "TEST-001");
-        testData.put("organizationName", "Test Organization");
+    void setUpServiceStub() {
+        // each generate-*** delegates to documentService.generate; use lenient default for all types
+        org.mockito.Mockito.lenient().when(documentService.generate(any(), any(), any(), any(), any()))
+                .thenReturn(new GenerationResult(new byte[]{9, 9}, "programmatic", "pdf"));
     }
 
     @Test
-    void getDocument_Success() {
-        when(documentService.getDocument(testDocumentId, testOrgId)).thenReturn(testDocumentBytes);
+    @DisplayName("generateReceiptOrder: 200 OK + APPLICATION_PDF + X-Generation-Channel header")
+    void generateReceiptOrder_whenCalled_thenReturnsPdf() {
+        ResponseEntity<byte[]> response = controller.generateReceiptOrder(
+                Map.of("k", "v"), "pdf", "auto", orgId);
 
-        ResponseEntity<byte[]> response = documentController.getDocument(testDocumentId, testOrgId);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertArrayEquals(testDocumentBytes, response.getBody());
-        assertEquals(MediaType.APPLICATION_PDF, response.getHeaders().getContentType());
-        assertTrue(
-                response.getHeaders()
-                        .getContentDisposition()
-                        .toString()
-                        .contains(testDocumentId.toString()));
-        verify(documentService, times(1)).getDocument(testDocumentId, testOrgId);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_PDF);
+        assertThat(response.getHeaders().getFirst("X-Generation-Channel")).isEqualTo("programmatic");
+        verify(documentService).generate(eq("receipt-order"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    void getDocument_NotFound() {
-        when(documentService.getDocument(testDocumentId, testOrgId))
-                .thenThrow(new RuntimeException("Document not found: " + testDocumentId));
-
-        assertThrows(
-                RuntimeException.class,
-                () -> documentController.getDocument(testDocumentId, testOrgId));
-        verify(documentService, times(1)).getDocument(testDocumentId, testOrgId);
+    @DisplayName("generateInventoryReport: 200 OK")
+    void generateInventoryReport_whenCalled_thenDelegates() {
+        controller.generateInventoryReport(Map.of(), "pdf", "auto", orgId);
+        verify(documentService).generate(eq("inventory-report"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    void getDocumentMetadata_Success() {
-        when(documentService.getDocumentMetadata(testDocumentId, testOrgId))
-                .thenReturn(testMetadata);
-
-        ResponseEntity<Map<String, Object>> response =
-                documentController.getDocumentMetadata(testDocumentId, testOrgId);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(testMetadata, response.getBody());
-        assertNotNull(response.getBody());
-        assertEquals("receipt-order", response.getBody().get("type"));
-        verify(documentService, times(1)).getDocumentMetadata(testDocumentId, testOrgId);
+    @DisplayName("generateRevaluationAct: 200 OK")
+    void generateRevaluationAct_whenCalled_thenDelegates() {
+        controller.generateRevaluationAct(Map.of(), "pdf", "auto", orgId);
+        verify(documentService).generate(eq("revaluation-act"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    void getDocumentMetadata_NotFound() {
-        when(documentService.getDocumentMetadata(testDocumentId, testOrgId))
-                .thenThrow(new RuntimeException("Document metadata not found: " + testDocumentId));
-
-        assertThrows(
-                RuntimeException.class,
-                () -> documentController.getDocumentMetadata(testDocumentId, testOrgId));
-        verify(documentService, times(1)).getDocumentMetadata(testDocumentId, testOrgId);
+    @DisplayName("generateWriteOffAct: 200 OK")
+    void generateWriteOffAct_whenCalled_thenDelegates() {
+        controller.generateWriteOffAct(Map.of(), "pdf", "auto", orgId);
+        verify(documentService).generate(eq("write-off-act"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    void generateReceiptOrder_Success() {
-        when(documentService.generateReceiptOrder(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
-                .thenReturn(testDocumentId);
-
-        ResponseEntity<Map<String, String>> response =
-                documentController.generateReceiptOrder(testData, "pdf", testOrgId, testUserId);
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
-        assertEquals("receipt-order", response.getBody().get("type"));
-        assertEquals("generated", response.getBody().get("status"));
-        verify(documentService, times(1)).generateReceiptOrder(testData, testOrgId, testUserId, "pdf");
+    @DisplayName("generateWaybill: 200 OK")
+    void generateWaybill_whenCalled_thenDelegates() {
+        controller.generateWaybill(Map.of(), "pdf", "auto", orgId);
+        verify(documentService).generate(eq("waybill"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    void generateShipmentOrder_Success() {
-        when(documentService.generateShipmentOrder(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
-                .thenReturn(testDocumentId);
-
-        ResponseEntity<Map<String, String>> response =
-                documentController.generateShipmentOrder(testData, "pdf", testOrgId, testUserId);
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
-
-        assertEquals("release-order", response.getBody().get("type"));
-        assertEquals("generated", response.getBody().get("status"));
-        verify(documentService, times(1)).generateShipmentOrder(testData, testOrgId, testUserId, "pdf");
+    @DisplayName("generatePickingList: 200 OK")
+    void generatePickingList_whenCalled_thenDelegates() {
+        controller.generatePickingList(Map.of(), "pdf", "auto", orgId);
+        verify(documentService).generate(eq("picking-list"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    void generateInventoryReport_Success() {
-        when(documentService.generateInventoryReport(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
-                .thenReturn(testDocumentId);
-
-        ResponseEntity<Map<String, String>> response =
-                documentController.generateInventoryReport(testData, "pdf", testOrgId, testUserId);
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
-        assertEquals("inventory-report", response.getBody().get("type"));
-        assertEquals("generated", response.getBody().get("status"));
-        verify(documentService, times(1)).generateInventoryReport(testData, testOrgId, testUserId, "pdf");
+    @DisplayName("generatePlacementList: 200 OK")
+    void generatePlacementList_whenCalled_thenDelegates() {
+        controller.generatePlacementList(Map.of(), "pdf", "auto", orgId);
+        verify(documentService).generate(eq("placement-list"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    void generateRevaluationAct_Success() {
-        when(documentService.generateRevaluationAct(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
-                .thenReturn(testDocumentId);
-
-        ResponseEntity<Map<String, String>> response =
-                documentController.generateRevaluationAct(testData, "pdf", testOrgId, testUserId);
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
-        assertEquals("revaluation-act", response.getBody().get("type"));
-        assertEquals("generated", response.getBody().get("status"));
-        verify(documentService, times(1)).generateRevaluationAct(testData, testOrgId, testUserId, "pdf");
+    @DisplayName("generateReceiptAct: 200 OK")
+    void generateReceiptAct_whenCalled_thenDelegates() {
+        controller.generateReceiptAct(Map.of(), "pdf", "auto", orgId);
+        verify(documentService).generate(eq("receipt-act"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    void generateWriteOffAct_Success() {
-        when(documentService.generateWriteOffAct(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
-                .thenReturn(testDocumentId);
-
-        ResponseEntity<Map<String, String>> response =
-                documentController.generateWriteOffAct(testData, "pdf", testOrgId, testUserId);
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
-        assertEquals("write-off-act", response.getBody().get("type"));
-        assertEquals("generated", response.getBody().get("status"));
-        verify(documentService, times(1)).generateWriteOffAct(testData, testOrgId, testUserId, "pdf");
+    @DisplayName("generateInvoice: 200 OK")
+    void generateInvoice_whenCalled_thenDelegates() {
+        controller.generateInvoice(Map.of(), "pdf", "auto", orgId);
+        verify(documentService).generate(eq("invoice"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    void generateWaybill_Success() {
-        when(documentService.generateWaybill(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
-                .thenReturn(testDocumentId);
+    @DisplayName("generateTransportNote: вкладывает layout в payload")
+    void generateTransportNote_whenCalled_thenPutsLayoutIntoPayload() {
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        controller.generateTransportNote(data, "pdf", "vertical", "auto", orgId);
 
-        ResponseEntity<Map<String, String>> response =
-                documentController.generateWaybill(testData, "pdf", testOrgId, testUserId);
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
-        assertEquals("waybill", response.getBody().get("type"));
-        assertEquals("generated", response.getBody().get("status"));
-        verify(documentService, times(1)).generateWaybill(testData, testOrgId, testUserId, "pdf");
+        assertThat(data).containsEntry("layout", "vertical");
+        verify(documentService).generate(eq("transport-note"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    void generatePickingList_Success() {
-        when(documentService.generatePickingList(eq(testData), eq(testOrgId), eq(testUserId), eq("pdf")))
-                .thenReturn(testDocumentId);
-
-        ResponseEntity<Map<String, String>> response =
-                documentController.generatePickingList(testData, "pdf", testOrgId, testUserId);
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(testDocumentId.toString(), response.getBody().get("documentId"));
-        assertEquals("picking-list", response.getBody().get("type"));
-        assertEquals("generated", response.getBody().get("status"));
-        verify(documentService, times(1)).generatePickingList(testData, testOrgId, testUserId, "pdf");
+    @DisplayName("generateCmr: 200 OK")
+    void generateCmr_whenCalled_thenDelegates() {
+        controller.generateCmr(Map.of(), "pdf", "auto", orgId);
+        verify(documentService).generate(eq("cmr"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    void getAllDocuments_Success() {
-        Map<String, Object> mockResult = new HashMap<>();
-        mockResult.put("documents", List.of(testMetadata));
-        mockResult.put("page", 0);
-        mockResult.put("size", 20);
-        mockResult.put("total", 1);
+    @DisplayName("officeHealth: bot available → enabled=true")
+    void officeHealth_givenBotAvailable_whenCalled_thenReturnsEnabledTrue() {
+        when(officeBotProvider.getIfAvailable()).thenReturn(org.mockito.Mockito.mock(OfficeDocumentBot.class));
 
-        when(documentService.getAllDocuments(0, 20, testOrgId)).thenReturn(mockResult);
+        ResponseEntity<Map<String, Object>> response = controller.officeHealth();
 
-        ResponseEntity<Map<String, Object>> response =
-                documentController.getAllDocuments(0, 20, testOrgId);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(0, response.getBody().get("page"));
-        assertEquals(20, response.getBody().get("size"));
-        assertEquals(1, response.getBody().get("total"));
-        verify(documentService, times(1)).getAllDocuments(0, 20, testOrgId);
+        assertThat(response.getBody()).containsEntry("enabled", true);
     }
 
     @Test
-    void getAllDocuments_WithDefaultPagination() {
-        Map<String, Object> mockResult = new HashMap<>();
-        mockResult.put("documents", new ArrayList<>());
-        mockResult.put("page", 0);
-        mockResult.put("size", 20);
-        mockResult.put("total", 0);
+    @DisplayName("officeHealth: bot not available → enabled=false с reason")
+    void officeHealth_givenBotUnavailable_whenCalled_thenReturnsEnabledFalse() {
+        when(officeBotProvider.getIfAvailable()).thenReturn(null);
 
-        when(documentService.getAllDocuments(0, 20, testOrgId)).thenReturn(mockResult);
+        ResponseEntity<Map<String, Object>> response = controller.officeHealth();
 
-        ResponseEntity<Map<String, Object>> response =
-                documentController.getAllDocuments(0, 20, testOrgId);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertTrue(((List<?>) response.getBody().get("documents")).isEmpty());
-        verify(documentService, times(1)).getAllDocuments(0, 20, testOrgId);
+        assertThat(response.getBody()).containsEntry("enabled", false);
+        assertThat(response.getBody().get("reason").toString()).contains("not wired");
     }
 
     @Test
-    void getStubInfo_Success() {
-        ResponseEntity<Map<String, Object>> response = documentController.getStubInfo();
+    @DisplayName("fillOfficeTemplate: bot disabled → 503 SERVICE_UNAVAILABLE")
+    void fillOfficeTemplate_givenBotDisabled_whenCalled_thenReturns503() {
+        OfficeFillRequest req = new OfficeFillRequest("any.xlsx", null, Map.of(), Map.of());
+        when(officeBotProvider.getIfAvailable()).thenReturn(null);
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals("Document Service", response.getBody().get("service"));
-        assertEquals("active", response.getBody().get("status"));
-        assertNotNull(response.getBody().get("version"));
-        assertNotNull(response.getBody().get("documentTypes"));
-        assertNotNull(response.getBody().get("formats"));
+        ResponseEntity<byte[]> response = controller.fillOfficeTemplate(req);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     @Test
-    void generateReceiptOrder_WithEmptyData() {
-        Map<String, Object> emptyData = new HashMap<>();
-        when(documentService.generateReceiptOrder(eq(emptyData), eq(testOrgId), eq(testUserId), eq("pdf")))
-                .thenReturn(testDocumentId);
+    @DisplayName("fillOfficeTemplate: bot available но template не существует → 404 NOT_FOUND")
+    void fillOfficeTemplate_givenMissingTemplate_whenCalled_thenReturns404() {
+        OfficeFillRequest req = new OfficeFillRequest("nonexistent.xlsx", null, Map.of(), Map.of());
+        OfficeDocumentBot bot = org.mockito.Mockito.mock(OfficeDocumentBot.class);
+        when(officeBotProvider.getIfAvailable()).thenReturn(bot);
+        RpaProperties.Templates templates = new RpaProperties.Templates();
+        templates.setDir("nonexistent-dir/");
+        when(rpaProperties.getTemplates()).thenReturn(templates);
 
-        ResponseEntity<Map<String, String>> response =
-                documentController.generateReceiptOrder(emptyData, "pdf", testOrgId, testUserId);
+        ResponseEntity<byte[]> response = controller.fillOfficeTemplate(req);
 
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        verify(documentService, times(1)).generateReceiptOrder(emptyData, testOrgId, testUserId, "pdf");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
-    void generateInventoryReport_WithNullData() {
-        when(documentService.generateInventoryReport(eq(null), eq(testOrgId), eq(testUserId), eq("pdf")))
-                .thenReturn(testDocumentId);
+    @DisplayName("fillOfficeTemplate: bot available + xlsx template → Excel-вариант, 200 OK")
+    void fillOfficeTemplate_givenExcelTemplate_whenCalled_thenUsesExcelBranch(@TempDir Path tmp) throws Exception {
+        Path template = tmp.resolve("t.xlsx");
+        Files.writeString(template, "x");
+        Path output = tmp.resolve("out.xlsx");
+        Files.writeString(output, "result");
+        OfficeFillRequest req = new OfficeFillRequest("t.xlsx", null, Map.of("A1", "v"), null);
+        OfficeDocumentBot bot = org.mockito.Mockito.mock(OfficeDocumentBot.class);
+        when(officeBotProvider.getIfAvailable()).thenReturn(bot);
+        RpaProperties.Templates templates = new RpaProperties.Templates();
+        templates.setDir(tmp.toString() + java.io.File.separator);
+        when(rpaProperties.getTemplates()).thenReturn(templates);
+        when(bot.fillExcelTemplate(any(), any(), any())).thenReturn(output);
 
-        ResponseEntity<Map<String, String>> response =
-                documentController.generateInventoryReport(null, "pdf", testOrgId, testUserId);
+        ResponseEntity<byte[]> response = controller.fillOfficeTemplate(req);
 
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        verify(documentService, times(1)).generateInventoryReport(null, testOrgId, testUserId, "pdf");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getHeaders().getFirst("X-Generation-Channel")).isEqualTo("rpa");
+    }
+
+    @Test
+    @DisplayName("fillOfficeTemplate: bot available + docx template → Word-вариант, 200 OK")
+    void fillOfficeTemplate_givenWordTemplate_whenCalled_thenUsesWordBranch(@TempDir Path tmp) throws Exception {
+        Path template = tmp.resolve("t.docx");
+        Files.writeString(template, "x");
+        Path output = tmp.resolve("out.docx");
+        Files.writeString(output, "result");
+        OfficeFillRequest req = new OfficeFillRequest("t.docx", "custom-name", null, Map.of("k", "v"));
+        OfficeDocumentBot bot = org.mockito.Mockito.mock(OfficeDocumentBot.class);
+        when(officeBotProvider.getIfAvailable()).thenReturn(bot);
+        RpaProperties.Templates templates = new RpaProperties.Templates();
+        templates.setDir(tmp.toString() + java.io.File.separator);
+        when(rpaProperties.getTemplates()).thenReturn(templates);
+        when(bot.fillWordTemplate(any(), any(), any())).thenReturn(output);
+
+        ResponseEntity<byte[]> response = controller.fillOfficeTemplate(req);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("fillOfficeTemplate: bot бросает исключение → 500 INTERNAL_SERVER_ERROR")
+    void fillOfficeTemplate_givenBotThrows_whenCalled_thenReturns500(@TempDir Path tmp) throws Exception {
+        Path template = tmp.resolve("t.xlsx");
+        Files.writeString(template, "x");
+        OfficeFillRequest req = new OfficeFillRequest("t.xlsx", null, Map.of(), null);
+        OfficeDocumentBot bot = org.mockito.Mockito.mock(OfficeDocumentBot.class);
+        when(officeBotProvider.getIfAvailable()).thenReturn(bot);
+        RpaProperties.Templates templates = new RpaProperties.Templates();
+        templates.setDir(tmp.toString() + java.io.File.separator);
+        when(rpaProperties.getTemplates()).thenReturn(templates);
+        when(bot.fillExcelTemplate(any(), any(), any())).thenThrow(new RuntimeException("bot crash"));
+
+        ResponseEntity<byte[]> response = controller.fillOfficeTemplate(req);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
+    @DisplayName("getStubInfo: возвращает info Map с 10 типами документов")
+    void getStubInfo_whenCalled_thenReturnsServiceInfo() {
+        ResponseEntity<Map<String, Object>> response = controller.getStubInfo();
+
+        assertThat(response.getBody()).containsKeys("service", "status", "version", "documentTypes");
+        String[] types = (String[]) response.getBody().get("documentTypes");
+        assertThat(types).hasSize(10);
+        assertThat(types).contains("receipt-order", "cmr", "invoice", "picking-list");
     }
 }

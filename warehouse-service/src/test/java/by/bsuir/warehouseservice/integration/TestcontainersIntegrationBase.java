@@ -1,7 +1,9 @@
 package by.bsuir.warehouseservice.integration;
 
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,21 +20,31 @@ import static org.mockito.Mockito.mock;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 @ActiveProfiles("it")
+@EnabledIf(
+        value = "by.bsuir.warehouseservice.integration.DockerAvailability#dockerAvailable",
+        disabledReason = "Docker daemon недоступен — интеграционный тест пропущен (запустите Docker Desktop)."
+)
 public abstract class TestcontainersIntegrationBase {
 
     @SuppressWarnings("resource")
-    protected static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("warehouse_db_it")
-            .withUsername("test")
-            .withPassword("test")
-            .withReuse(true);
+    protected static final PostgreSQLContainer<?> POSTGRES;
 
     static {
-        POSTGRES.start();
+        if (DockerAvailability.dockerAvailable()) {
+            POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
+                    .withDatabaseName("warehouse_db_it")
+                    .withUsername("test")
+                    .withPassword("test")
+                    .withReuse(true);
+            POSTGRES.start();
+        } else {
+            POSTGRES = null;
+        }
     }
 
     @DynamicPropertySource
     static void registerProps(DynamicPropertyRegistry registry) {
+        if (POSTGRES == null) return;
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
@@ -54,6 +66,15 @@ public abstract class TestcontainersIntegrationBase {
         @Primary
         public RabbitTemplate testRabbitTemplate() {
             return mock(RabbitTemplate.class);
+        }
+
+        @Bean(name = "rabbitListenerContainerFactory")
+        @Primary
+        public SimpleRabbitListenerContainerFactory testRabbitListenerContainerFactory(ConnectionFactory cf) {
+            SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+            factory.setConnectionFactory(cf);
+            factory.setAutoStartup(false);
+            return factory;
         }
     }
 }

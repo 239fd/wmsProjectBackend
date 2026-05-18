@@ -11,6 +11,8 @@ import by.bsuir.productservice.repository.ProductReadModelRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,13 +34,22 @@ public class ProductService {
 
     @Transactional
     public ProductResponse createProduct(CreateProductRequest request) {
-        log.info("Creating product: {}", request.name());
+        return createProduct(request, null);
+    }
 
-        if (request.sku() != null && productRepository.existsBySku(request.sku())) {
+    @Transactional
+    public ProductResponse createProduct(CreateProductRequest request, UUID organizationId) {
+        log.info("Creating product: {} (org={})", request.name(), organizationId);
+
+        String sku = nullIfBlank(request.sku());
+        String barcode = nullIfBlank(request.barcode());
+
+        if (sku == null) {
+            sku = generateUniqueSku();
+        } else if (productRepository.existsBySku(sku)) {
             throw AppException.conflict("Товар с таким SKU уже существует");
         }
-
-        if (request.barcode() != null && productRepository.existsByBarcode(request.barcode())) {
+        if (barcode != null && productRepository.existsByBarcode(barcode)) {
             throw AppException.conflict("Товар с таким штрих-кодом уже существует");
         }
 
@@ -46,8 +57,8 @@ public class ProductService {
 
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("name", request.name());
-        eventData.put("sku", request.sku());
-        eventData.put("barcode", request.barcode());
+        eventData.put("sku", sku);
+        eventData.put("barcode", barcode);
         eventData.put("category", request.category());
         eventData.put("unitOfMeasure", request.unitOfMeasure());
 
@@ -62,9 +73,10 @@ public class ProductService {
 
         ProductReadModel readModel = ProductReadModel.builder()
                 .productId(productId)
+                .organizationId(organizationId)
                 .name(request.name())
-                .sku(request.sku())
-                .barcode(request.barcode())
+                .sku(sku)
+                .barcode(barcode)
                 .category(request.category())
                 .description(request.description())
                 .unitOfMeasure(request.unitOfMeasure())
@@ -73,10 +85,38 @@ public class ProductService {
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
-        productRepository.save(readModel);
+        try {
+            productRepository.saveAndFlush(readModel);
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            String msg = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : "";
+            if (msg.contains("sku")) {
+                throw AppException.conflict("Товар с таким SKU уже существует");
+            }
+            if (msg.contains("barcode")) {
+                throw AppException.conflict("Товар с таким штрих-кодом уже существует");
+            }
+            throw AppException.conflict("Нарушение уникальности при создании товара");
+        }
 
         log.info("Product created successfully with ID: {}", productId);
         return mapToResponse(readModel);
+    }
+
+    private static String nullIfBlank(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private String generateUniqueSku() {
+        for (int attempt = 0; attempt < 10; attempt++) {
+            String candidate = "SKU-" + java.time.Year.now().getValue()
+                    + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            if (!productRepository.existsBySku(candidate)) {
+                return candidate;
+            }
+        }
+        return "SKU-" + UUID.randomUUID();
     }
 
     @Transactional(readOnly = true)
@@ -89,6 +129,20 @@ public class ProductService {
     @Transactional(readOnly = true)
     public List<ProductResponse> getAllProducts() {
         return productRepository.findAll().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getAllProducts(Pageable pageable) {
+        return productRepository.findAll(pageable).map(this::mapToResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductResponse> searchProducts(String query, Pageable pageable) {
+        if (query == null || query.isBlank()) return List.of();
+        int limit = pageable != null && pageable.getPageSize() > 0 ? pageable.getPageSize() : 20;
+        return productRepository.searchByTextNative(query.trim(), limit).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -112,6 +166,11 @@ public class ProductService {
         return productRepository.findByCategory(category).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getProductsByCategory(String category, Pageable pageable) {
+        return productRepository.findByCategory(category, pageable).map(this::mapToResponse);
     }
 
     @Transactional

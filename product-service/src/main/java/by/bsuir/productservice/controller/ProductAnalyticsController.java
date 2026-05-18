@@ -1,5 +1,6 @@
 package by.bsuir.productservice.controller;
 
+import by.bsuir.productservice.config.SecurityUtils;
 import by.bsuir.productservice.service.ProductAnalyticsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -30,7 +31,8 @@ public class ProductAnalyticsController {
     @GetMapping("/inventory")
     public ResponseEntity<Map<String, Object>> getInventoryAnalytics(@Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String role = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(role) && !"ACCOUNTANT".equals(role)) {
             return ResponseEntity.status(403).build();
         }
 
@@ -43,7 +45,8 @@ public class ProductAnalyticsController {
     @GetMapping("/operations/dynamics")
     public ResponseEntity<Map<String, Object>> getOperationsDynamics(@Parameter(description = "Дата начала периода", required = true) @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate, @Parameter(description = "Дата окончания периода", required = true) @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate, @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String role = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(role) && !"ACCOUNTANT".equals(role)) {
             return ResponseEntity.status(403).build();
         }
 
@@ -56,7 +59,8 @@ public class ProductAnalyticsController {
     @GetMapping("/operations/summary")
     public ResponseEntity<Map<String, Object>> getOperationsSummary(@Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String role = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(role) && !"ACCOUNTANT".equals(role)) {
             return ResponseEntity.status(403).build();
         }
 
@@ -77,7 +81,8 @@ public class ProductAnalyticsController {
             @Parameter(description = "Дата окончания текущего периода", required = true) @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String role = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(role) && !"ACCOUNTANT".equals(role)) {
             return ResponseEntity.status(403).build();
         }
 
@@ -95,7 +100,8 @@ public class ProductAnalyticsController {
             @Parameter(description = "Дата окончания периода", required = true) @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String role = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(role) && !"ACCOUNTANT".equals(role)) {
             return ResponseEntity.status(403).build();
         }
 

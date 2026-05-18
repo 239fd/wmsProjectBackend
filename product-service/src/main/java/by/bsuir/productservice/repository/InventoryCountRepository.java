@@ -1,6 +1,8 @@
 package by.bsuir.productservice.repository;
 
 import by.bsuir.productservice.model.entity.InventoryCount;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -16,5 +18,9 @@ public interface InventoryCountRepository extends JpaRepository<InventoryCount, 
 
     List<InventoryCount> findByOrganizationIdAndWarehouseIdAndMarkedForWriteoffTrue(UUID organizationId, UUID warehouseId);
 
+    Page<InventoryCount> findByOrganizationIdAndWarehouseIdAndMarkedForWriteoffTrue(UUID organizationId, UUID warehouseId, Pageable pageable);
+
     List<InventoryCount> findByOrganizationIdAndMarkedForWriteoffTrue(UUID organizationId);
+
+    Page<InventoryCount> findByOrganizationIdAndMarkedForWriteoffTrue(UUID organizationId, Pageable pageable);
 }

@@ -10,11 +10,15 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -26,26 +30,36 @@ public class SupplyController {
 
     private final SupplyService supplyService;
 
-    @Operation(summary = "Получить все поставки")
+    private static final int MAX_PAGE_SIZE = 100;
+
+    @Operation(summary = "Получить все поставки (пагинация)")
     @GetMapping
-    public ResponseEntity<List<SupplyResponse>> getAll(
+    public ResponseEntity<Page<SupplyResponse>> getAll(
             @RequestParam(required = false) UUID warehouseId,
             @RequestParam(required = false) SupplyStatus status,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        Pageable capped = capSize(pageable);
 
         if (warehouseId != null) {
-            return ResponseEntity.ok(supplyService.getByWarehouse(warehouseId));
+            return ResponseEntity.ok(supplyService.getByWarehouse(warehouseId, capped));
         }
         if (organizationId != null && status != null) {
-            return ResponseEntity.ok(supplyService.getByOrganizationAndStatus(organizationId, status));
+            return ResponseEntity.ok(supplyService.getByOrganizationAndStatus(organizationId, status, capped));
         }
         if (organizationId != null) {
-            return ResponseEntity.ok(supplyService.getByOrganization(organizationId));
+            return ResponseEntity.ok(supplyService.getByOrganization(organizationId, capped));
         }
         if (status != null) {
-            return ResponseEntity.ok(supplyService.getByStatus(status));
+            return ResponseEntity.ok(supplyService.getByStatus(status, capped));
         }
-        return ResponseEntity.ok(supplyService.getAll());
+        return ResponseEntity.ok(supplyService.getAll(capped));
+    }
+
+    private static Pageable capSize(Pageable pageable) {
+        if (pageable.getPageSize() <= MAX_PAGE_SIZE) return pageable;
+        return PageRequest.of(pageable.getPageNumber(), MAX_PAGE_SIZE, pageable.getSort());
     }
 
     @Operation(summary = "Получить поставку по ID")

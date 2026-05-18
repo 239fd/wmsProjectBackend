@@ -35,15 +35,13 @@ public class AnalyticsReportService {
 
         Map<String, Object> dynamics = analyticsService.getOperationsDynamics(from, to);
         Map<String, Object> inventory = analyticsService.getInventoryAnalytics();
-        Map<String, Object> abcReport = Map.of(
-                "abcItems", abcAnalysisService.getAbcReport().size()
-        );
+        int abcItems = abcAnalysisService.getAbcReport().size();
 
-        return buildPdf(preset, from, to, dynamics, inventory);
+        return buildPdf(preset, from, to, dynamics, inventory, abcItems);
     }
 
     private byte[] buildPdf(String preset, LocalDate from, LocalDate to,
-                              Map<String, Object> dynamics, Map<String, Object> inventory) {
+                              Map<String, Object> dynamics, Map<String, Object> inventory, int abcItems) {
         try (PDDocument doc = new PDDocument()) {
             PDPage page = new PDPage(PDRectangle.A4);
             doc.addPage(page);
@@ -92,13 +90,15 @@ public class AnalyticsReportService {
 
                 y = writeLine(cs, fontBold, 13, MARGIN, y, "3. ABC-анализ");
                 y = writeLine(cs, fontRegular, 11, MARGIN, y,
+                        "Классифицировано товаров: " + abcItems);
+                y = writeLine(cs, fontRegular, 11, MARGIN, y,
                         "A (высокий оборот, 80% выручки) — ключевые товары");
                 y = writeLine(cs, fontRegular, 11, MARGIN, y,
                         "B (средний оборот, 15%) — вспомогательные");
                 y = writeLine(cs, fontRegular, 11, MARGIN, y,
                         "C (низкий оборот, 5%) — редкие позиции");
                 y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "Запустите /api/analytics/abc для актуального списка.");
+                        "Детальный список — /api/analytics/abc.");
                 y -= LINE_HEIGHT * 2;
 
                 cs.setFont(fontRegular, 9);

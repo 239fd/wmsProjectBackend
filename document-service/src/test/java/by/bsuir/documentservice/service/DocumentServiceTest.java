@@ -1,301 +1,237 @@
 package by.bsuir.documentservice.service;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
-import by.bsuir.documentservice.dto.ReceiptOrderData;
-import by.bsuir.documentservice.dto.RevaluationActData;
+import by.bsuir.documentservice.config.RpaProperties;
 import by.bsuir.documentservice.rpa.DocumentRpaService;
+import by.bsuir.documentservice.rpa.OfficeDocumentBot;
 import by.bsuir.documentservice.rpa.PdfDocumentService;
-import java.util.*;
+import by.bsuir.documentservice.rpa.RpaTemplateBinding;
+import by.bsuir.documentservice.service.DocumentService.GenerationResult;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
+
+import java.util.Map;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("DocumentService Tests")
 class DocumentServiceTest {
 
-    @Mock private DocumentRpaService rpaService;
-    @Mock private PdfDocumentService pdfService;
-    @Mock private DataEnrichmentService enrichmentService;
+    @Mock
+    private DocumentRpaService rpaService;
 
-    @InjectMocks private DocumentService documentService;
+    @Mock
+    private PdfDocumentService pdfService;
 
-    private UUID orgId;
-    private UUID userId;
-    private Map<String, Object> testData;
-    private byte[] testDocumentBytes;
+    @Mock
+    private DataEnrichmentService enrichmentService;
+
+    @Mock
+    private RpaTemplateBinding rpaTemplateBinding;
+
+    @Mock
+    private ObjectProvider<OfficeDocumentBot> officeBotProvider;
+
+    @Mock
+    private RpaProperties rpaProperties;
+
+    @InjectMocks
+    private DocumentService service;
+
+    private final UUID orgId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
-        orgId = UUID.randomUUID();
-        userId = UUID.randomUUID();
-        testDocumentBytes = "test document content".getBytes();
-
-        testData = new HashMap<>();
-        testData.put("documentNumber", "TEST-001");
-        testData.put("documentDate", "2025-12-03");
-        testData.put("organizationName", "Test Organization");
-        testData.put("inn", "1234567890");
-        testData.put("warehouseName", "Test Warehouse");
-
-        lenient().when(enrichmentService.enrich(any(), any())).thenAnswer(inv -> inv.getArgument(0));
+        Mockito.lenient().when(enrichmentService.enrich(any(), any()))
+                .thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
-    void generateReceiptOrder_StoresMetadata() {
-        UUID documentId = documentService.generateReceiptOrder(testData, orgId, userId, "pdf");
+    @DisplayName("generate(auto, pdf): использует PDF-канал и channel=programmatic")
+    void generate_givenAutoModePdf_whenCalled_thenUsesPdfChannel() {
+        when(pdfService.generateReceiptOrderPdf(any())).thenReturn(new byte[]{1, 2});
 
-        assertNotNull(documentId);
+        GenerationResult result = service.generate("receipt-order", Map.of(), orgId, "pdf", "auto");
 
-        Map<String, Object> metadata = documentService.getDocumentMetadata(documentId, orgId);
-        assertEquals(documentId.toString(), metadata.get("id"));
-        assertEquals("receipt-order", metadata.get("type"));
-        assertEquals("pdf", metadata.get("format"));
-        assertEquals(orgId, metadata.get("organizationId"));
-        assertEquals(userId, metadata.get("generatedBy"));
-        assertNotNull(metadata.get("generatedAt"));
+        assertThat(result.body()).containsExactly(1, 2);
+        assertThat(result.channel()).isEqualTo("programmatic");
+        assertThat(result.format()).isEqualTo("pdf");
     }
 
     @Test
-    void getDocument_PdfFormat_DelegatesToPdfService() {
-        when(pdfService.generateReceiptOrderPdf(any())).thenReturn(testDocumentBytes);
+    @DisplayName("generate(legacy 4-arg): возвращает только bytes, дефолт mode=auto")
+    void generate_givenLegacyOverload_whenCalled_thenReturnsBytesOnly() {
+        when(pdfService.generateReceiptOrderPdf(any())).thenReturn(new byte[]{7});
 
-        UUID documentId = documentService.generateReceiptOrder(testData, orgId, userId, "pdf");
-        byte[] result = documentService.getDocument(documentId, orgId);
+        byte[] body = service.generate("receipt-order", Map.of(), orgId, "pdf");
 
-        assertArrayEquals(testDocumentBytes, result);
-        verify(pdfService, times(1)).generateReceiptOrderPdf(any());
-        verifyNoInteractions(rpaService);
+        assertThat(body).containsExactly(7);
     }
 
     @Test
-    void getDocument_RpaXlsFormat_DelegatesToRpaService() {
-        when(rpaService.generateReceiptOrder(any(ReceiptOrderData.class))).thenReturn(testDocumentBytes);
+    @DisplayName("generate(format=rpa-xls): использует RPA POI generator")
+    void generate_givenRpaXlsFormat_whenCalled_thenUsesPoi() {
+        when(rpaService.generateReceiptOrder(any())).thenReturn(new byte[]{5, 5});
 
-        UUID documentId = documentService.generateReceiptOrder(testData, orgId, userId, "rpa-xls");
-        byte[] result = documentService.getDocument(documentId, orgId);
+        GenerationResult result = service.generate("receipt-order", Map.of(), orgId, "rpa-xls", "auto");
 
-        assertArrayEquals(testDocumentBytes, result);
-        verify(rpaService, times(1)).generateReceiptOrder(any(ReceiptOrderData.class));
-        verifyNoInteractions(pdfService);
+        assertThat(result.body()).containsExactly(5, 5);
+        assertThat(result.format()).isEqualTo("rpa-xls");
     }
 
     @Test
-    void getDocument_DefaultFormatIsPdf_WhenNullFormat() {
-        when(pdfService.generateReceiptOrderPdf(any())).thenReturn(testDocumentBytes);
+    @DisplayName("generate(rpa-mode): бот недоступен → fallback channel=rpa-fallback-disabled")
+    void generate_givenRpaModeNoBot_whenCalled_thenFallsBackDisabled() {
+        when(officeBotProvider.getIfAvailable()).thenReturn(null);
+        when(pdfService.generateReceiptOrderPdf(any())).thenReturn(new byte[]{1});
 
-        UUID documentId = documentService.generateReceiptOrder(testData, orgId, userId, null);
-        byte[] result = documentService.getDocument(documentId, orgId);
+        GenerationResult result = service.generate("receipt-order", Map.of(), orgId, "pdf", "rpa");
 
-        assertArrayEquals(testDocumentBytes, result);
-
-        Map<String, Object> metadata = documentService.getDocumentMetadata(documentId, orgId);
-        assertEquals("pdf", metadata.get("format"));
+        assertThat(result.channel()).isEqualTo("rpa-fallback-disabled");
     }
 
     @Test
-    void generateRevaluationAct_StoresMetadata() {
-        testData.put("reason", "INFLATION");
-        testData.put("reasonDescription", "Test revaluation");
-        testData.put("chairmanName", "Test Chairman");
-        testData.put("commissionMembers", Arrays.asList("Member1", "Member2"));
+    @DisplayName("generate(rpa-mode): нет binding → fallback channel=rpa-fallback-unsupported-type")
+    void generate_givenRpaModeNoBinding_whenCalled_thenFallsBackUnsupported() {
+        OfficeDocumentBot bot = Mockito.mock(OfficeDocumentBot.class);
+        when(officeBotProvider.getIfAvailable()).thenReturn(bot);
+        when(rpaTemplateBinding.bind(any(), any())).thenReturn(null);
+        when(pdfService.generateReceiptOrderPdf(any())).thenReturn(new byte[]{1});
 
-        UUID documentId = documentService.generateRevaluationAct(testData, orgId, userId, "pdf");
+        GenerationResult result = service.generate("receipt-order", Map.of(), orgId, "pdf", "rpa");
 
-        assertNotNull(documentId);
-        Map<String, Object> metadata = documentService.getDocumentMetadata(documentId, orgId);
-        assertEquals("revaluation-act", metadata.get("type"));
+        assertThat(result.channel()).isEqualTo("rpa-fallback-unsupported-type");
     }
 
     @Test
-    void getDocument_RevaluationAct_RpaXls_UsesRpaService() {
-        when(rpaService.generateRevaluationAct(any(RevaluationActData.class))).thenReturn(testDocumentBytes);
-
-        UUID documentId = documentService.generateRevaluationAct(testData, orgId, userId, "rpa-xls");
-        byte[] result = documentService.getDocument(documentId, orgId);
-
-        assertArrayEquals(testDocumentBytes, result);
-        verify(rpaService, times(1)).generateRevaluationAct(any(RevaluationActData.class));
+    @DisplayName("generate: неизвестный type → IllegalArgumentException")
+    void generate_givenUnknownType_whenCalled_thenThrows() {
+        assertThatThrownBy(() ->
+                service.generate("totally-unknown", Map.of(), orgId, "pdf", "auto"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unknown document type");
     }
 
     @Test
-    void generateInventoryReport_StoresMetadata() {
-        UUID documentId = documentService.generateInventoryReport(testData, orgId, userId, "pdf");
-
-        assertNotNull(documentId);
-        Map<String, Object> metadata = documentService.getDocumentMetadata(documentId, orgId);
-        assertEquals("inventory-report", metadata.get("type"));
+    @DisplayName("generate(rpa-xls для unknown): RPA generation failed")
+    void generate_givenUnknownTypeRpaFormat_whenCalled_thenThrows() {
+        assertThatThrownBy(() ->
+                service.generate("totally-unknown", Map.of(), orgId, "rpa-xls", "auto"))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    void generateWriteOffAct_StoresMetadata() {
-        testData.put("reason", "DAMAGE");
+    @DisplayName("generate: каждый из 11 типов делегирует в pdfService")
+    void generate_givenAllTypes_whenCalled_thenDelegatesToPdfService() {
+        when(pdfService.generateReceiptOrderPdf(any())).thenReturn(new byte[]{1});
+        when(pdfService.generateInventoryListPdf(any())).thenReturn(new byte[]{1});
+        when(pdfService.generateRevaluationActPdf(any())).thenReturn(new byte[]{1});
+        when(pdfService.generateWriteOffActPdf(any())).thenReturn(new byte[]{1});
+        when(pdfService.generateShippingInvoicePdf(any())).thenReturn(new byte[]{1});
+        when(pdfService.generatePickingListPdf(any())).thenReturn(new byte[]{1});
+        when(pdfService.generatePlacementListPdf(any())).thenReturn(new byte[]{1});
+        when(pdfService.generateReceiptActPdf(any())).thenReturn(new byte[]{1});
+        when(pdfService.generateInvoicePdf(any())).thenReturn(new byte[]{1});
+        when(pdfService.generateTransportNotePdf(any())).thenReturn(new byte[]{1});
+        when(pdfService.generateCmrPdf(any())).thenReturn(new byte[]{1});
 
-        UUID documentId = documentService.generateWriteOffAct(testData, orgId, userId, "pdf");
-
-        assertNotNull(documentId);
-        Map<String, Object> metadata = documentService.getDocumentMetadata(documentId, orgId);
-        assertEquals("write-off-act", metadata.get("type"));
-        assertEquals("pdf", metadata.get("format"));
-    }
-
-    @Test
-    void generateShipmentOrder_UsesReleaseOrderType() {
-        UUID documentId = documentService.generateShipmentOrder(testData, orgId, userId, "pdf");
-
-        assertNotNull(documentId);
-        Map<String, Object> metadata = documentService.getDocumentMetadata(documentId, orgId);
-        assertEquals("release-order", metadata.get("type"));
-    }
-
-    @Test
-    void generateWaybill_StoresMetadata() {
-        UUID documentId = documentService.generateWaybill(testData, orgId, userId, "pdf");
-
-        assertNotNull(documentId);
-        Map<String, Object> metadata = documentService.getDocumentMetadata(documentId, orgId);
-        assertEquals("waybill", metadata.get("type"));
-    }
-
-    @Test
-    void generatePickingList_StoresMetadata() {
-        UUID documentId = documentService.generatePickingList(testData, orgId, userId, "pdf");
-
-        assertNotNull(documentId);
-        Map<String, Object> metadata = documentService.getDocumentMetadata(documentId, orgId);
-        assertEquals("picking-list", metadata.get("type"));
-    }
-
-    @Test
-    void getDocument_NotFound_ThrowsException() {
-        UUID nonExistentId = UUID.randomUUID();
-
-        RuntimeException exception =
-                assertThrows(
-                        RuntimeException.class,
-                        () -> documentService.getDocument(nonExistentId, orgId));
-        assertTrue(exception.getMessage().contains("Document not found"));
-    }
-
-    @Test
-    void getDocument_DifferentOrganization_ThrowsException() {
-        UUID documentId = documentService.generateReceiptOrder(testData, orgId, userId, "pdf");
-
-        UUID otherOrg = UUID.randomUUID();
-
-        RuntimeException exception =
-                assertThrows(
-                        RuntimeException.class,
-                        () -> documentService.getDocument(documentId, otherOrg));
-        assertTrue(exception.getMessage().contains("another organization"));
-    }
-
-    @Test
-    void getDocumentMetadata_NotFound_ThrowsException() {
-        UUID nonExistentId = UUID.randomUUID();
-
-        RuntimeException exception =
-                assertThrows(
-                        RuntimeException.class,
-                        () -> documentService.getDocumentMetadata(nonExistentId, orgId));
-        assertTrue(exception.getMessage().contains("Document not found"));
-    }
-
-    @Test
-    void getAllDocuments_EmptyList() {
-        Map<String, Object> result = documentService.getAllDocuments(0, 20, orgId);
-
-        assertNotNull(result);
-        assertEquals(0, result.get("page"));
-        assertEquals(20, result.get("size"));
-        assertEquals(0, result.get("total"));
-        assertTrue(((List<?>) result.get("documents")).isEmpty());
-    }
-
-    @Test
-    void getAllDocuments_WithDocuments() {
-        documentService.generateReceiptOrder(testData, orgId, userId, "pdf");
-        documentService.generateShipmentOrder(testData, orgId, userId, "pdf");
-
-        Map<String, Object> result = documentService.getAllDocuments(0, 20, orgId);
-
-        assertNotNull(result);
-        assertEquals(0, result.get("page"));
-        assertEquals(20, result.get("size"));
-        assertEquals(2, result.get("total"));
-        assertEquals(2, ((List<?>) result.get("documents")).size());
-    }
-
-    @Test
-    void getAllDocuments_FiltersByOrganization() {
-        UUID otherOrg = UUID.randomUUID();
-        documentService.generateReceiptOrder(testData, orgId, userId, "pdf");
-        documentService.generateReceiptOrder(testData, orgId, userId, "pdf");
-        documentService.generateReceiptOrder(testData, otherOrg, userId, "pdf");
-
-        Map<String, Object> result = documentService.getAllDocuments(0, 20, orgId);
-
-        assertEquals(2, result.get("total"));
-        assertEquals(2, ((List<?>) result.get("documents")).size());
-    }
-
-    @Test
-    void getAllDocuments_WithPagination() {
-        for (int i = 0; i < 5; i++) {
-            documentService.generateReceiptOrder(testData, orgId, userId, "pdf");
+        for (String type : new String[]{
+                "receipt-order", "inventory-report", "revaluation-act", "write-off-act",
+                "waybill", "picking-list", "placement-list", "receipt-act",
+                "invoice", "transport-note", "cmr"}) {
+            GenerationResult result = service.generate(type, Map.of(), orgId, "pdf", "auto");
+            assertThat(result.body()).hasSize(1);
         }
-
-        Map<String, Object> result = documentService.getAllDocuments(1, 2, orgId);
-
-        assertNotNull(result);
-        assertEquals(1, result.get("page"));
-        assertEquals(2, result.get("size"));
-        assertEquals(5, result.get("total"));
-        assertEquals(2, ((List<?>) result.get("documents")).size());
     }
 
     @Test
-    void getAllDocuments_PageOutOfBounds() {
-        documentService.generateReceiptOrder(testData, orgId, userId, "pdf");
+    @DisplayName("generate(format=null): дефолтный pdf используется")
+    void generate_givenNullFormat_whenCalled_thenDefaultsToPdf() {
+        when(pdfService.generateReceiptOrderPdf(any())).thenReturn(new byte[]{1});
 
-        Map<String, Object> result = documentService.getAllDocuments(10, 20, orgId);
+        GenerationResult result = service.generate("receipt-order", Map.of(), orgId, null, "auto");
 
-        assertNotNull(result);
-        assertEquals(10, result.get("page"));
-        assertEquals(20, result.get("size"));
-        assertEquals(1, result.get("total"));
-        assertTrue(((List<?>) result.get("documents")).isEmpty());
+        assertThat(result.format()).isEqualTo("pdf");
     }
 
     @Test
-    void generateReceiptOrder_WithEmptyData() {
-        Map<String, Object> emptyData = new HashMap<>();
+    @DisplayName("generate(rpa-xls для каждого RPA-маппера): все 9 mapToXxxData проходят")
+    void generate_givenRpaXlsForEachType_whenCalled_thenInvokesMapper() {
+        when(rpaService.generateReceiptOrder(any())).thenReturn(new byte[]{1});
+        when(rpaService.generateRevaluationAct(any())).thenReturn(new byte[]{1});
+        when(rpaService.generateInventoryList(any())).thenReturn(new byte[]{1});
+        when(rpaService.generateWriteOffAct(any())).thenReturn(new byte[]{1});
+        when(rpaService.generateShippingInvoice(any())).thenReturn(new byte[]{1});
+        when(rpaService.generateReceiptAct(any())).thenReturn(new byte[]{1});
+        when(rpaService.generateInvoice(any())).thenReturn(new byte[]{1});
+        when(rpaService.generateTransportNote(any())).thenReturn(new byte[]{1});
+        when(rpaService.generateCmr(any())).thenReturn(new byte[]{1});
 
-        UUID documentId = documentService.generateReceiptOrder(emptyData, orgId, userId, "pdf");
+        // payload with realistic mix of fields to exercise mapper branches:
+        Map<String, Object> rich = new java.util.HashMap<>();
+        rich.put("documentNumber", "TEST-001");
+        rich.put("documentDate", "2026-05-15");
+        rich.put("organizationName", "ООО ВМС");
+        rich.put("supplierName", "ОАО Молоко");
+        rich.put("warehouseName", "Склад №1");
+        java.util.Map<String, Object> itemMap = new java.util.HashMap<>();
+        itemMap.put("productName", "p");
+        itemMap.put("quantity", 5);
+        itemMap.put("price", "10.50");
+        itemMap.put("amount", "52.50");
+        itemMap.put("batchNumber", "B-1");
+        itemMap.put("expectedQuantity", "10");
+        itemMap.put("actualQuantity", "8");
+        itemMap.put("discrepancy", "-2");
+        itemMap.put("rowNumber", 1);
+        itemMap.put("unitPrice", "10");
+        itemMap.put("vatRate", "20");
+        itemMap.put("vatAmount", "10.5");
+        itemMap.put("totalWithVat", "63");
+        itemMap.put("unit", "шт");
+        rich.put("items", java.util.List.of(itemMap));
+        rich.put("commission", java.util.List.of("Иванов И.И.", "Петров П.П."));
 
-        assertNotNull(documentId);
-        verify(enrichmentService).enrich(eq(emptyData), eq(orgId));
+        for (String type : new String[]{
+                "receipt-order", "revaluation-act", "inventory-report",
+                "write-off-act", "waybill", "receipt-act",
+                "invoice", "transport-note", "cmr"}) {
+            GenerationResult result = service.generate(type, rich, orgId, "rpa-xls", "auto");
+            assertThat(result.body()).isNotEmpty();
+        }
     }
 
     @Test
-    void multipleDocumentsGeneration_Success() {
-        UUID doc1 = documentService.generateReceiptOrder(testData, orgId, userId, "pdf");
-        UUID doc2 = documentService.generateRevaluationAct(testData, orgId, userId, "pdf");
-        UUID doc3 = documentService.generateInventoryReport(testData, orgId, userId, "pdf");
+    @DisplayName("generate(rpa-xls): rpaService бросает → IllegalStateException")
+    void generate_givenRpaFailure_whenCalled_thenWraps() {
+        when(rpaService.generateReceiptOrder(any())).thenThrow(new RuntimeException("POI fail"));
 
-        assertNotNull(doc1);
-        assertNotNull(doc2);
-        assertNotNull(doc3);
-        assertNotEquals(doc1, doc2);
-        assertNotEquals(doc2, doc3);
+        assertThatThrownBy(() ->
+                service.generate("receipt-order", Map.of(), orgId, "rpa-xls", "auto"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("RPA generation failed");
+    }
 
-        Map<String, Object> allDocs = documentService.getAllDocuments(0, 10, orgId);
-        assertEquals(3, allDocs.get("total"));
+    @Test
+    @DisplayName("generate(rpa-docx как format): то же что rpa-xls — идёт в RPA")
+    void generate_givenRpaDocxFormat_whenCalled_thenUsesRpa() {
+        when(rpaService.generateWriteOffAct(any())).thenReturn(new byte[]{1, 2});
+
+        GenerationResult result = service.generate("write-off-act", Map.of(), orgId, "rpa-docx", "auto");
+
+        assertThat(result.format()).isEqualTo("rpa-docx");
+        assertThat(result.body()).hasSize(2);
     }
 }

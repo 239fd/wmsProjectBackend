@@ -1,5 +1,6 @@
 package by.bsuir.productservice.controller;
 
+import by.bsuir.productservice.config.SecurityUtils;
 import by.bsuir.productservice.service.ProductJourneyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -35,6 +36,7 @@ public class ProductCardController {
             @Parameter(description = "Опциональный фильтр по конкретному запасу") @RequestParam(required = false) UUID inventoryId,
             @RequestHeader(value = "X-User-Role", required = false) String userRole,
             @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        userRole = SecurityUtils.resolveRole(userRole);
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -50,6 +52,7 @@ public class ProductCardController {
             @RequestParam(required = false) UUID inventoryId,
             @RequestHeader(value = "X-User-Role", required = false) String userRole,
             @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        userRole = SecurityUtils.resolveRole(userRole);
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }

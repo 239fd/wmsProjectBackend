@@ -193,17 +193,17 @@ All endpoints accept a `Map<String,Object>` body (no strict DTO yet — payload 
 | product-service | `AbcAnalysisService` | `0 0 2 * * *` | Recomputes `abc_class` on `product_read_model` from last-90-day operations |
 | product-service | `ErpExtractorJob` | `0 0 3 * * *` | Polls a configured ERP (Jsoup HTML + REST `ApiExtractorImpl`, switched by `erp.extraction.mode=rpa|api`); writes new rows into `planned_deliveries` keyed by `external_id` UNIQUE; logs to `extraction_log` |
 
-## Flyway migrations
+## Schema (no Flyway — sql-scripts is single source of truth)
 
-`spring.jpa.hibernate.ddl-auto=validate` for every service (except product-service, which currently has `update` — see PLAN.md / D-PR-11; do NOT switch to `validate` casually because it'll regress the saga-state columns). Migrations live in `src/main/resources/db/migration/`:
+`spring.jpa.hibernate.ddl-auto=validate` for every DB-backed service. Schema lives in `../sql-scripts/<service>DB.sql` and is applied once on first Postgres boot via `docker-compose.yml` volume mount.
 
-- `SSOService` — `V1__init.sql`, `V2__encrypt_sensitive_fields.sql` (AES converter on IP / sensitive columns)
-- `organization-service` — `V1__init.sql`, `V2__widen_encrypted_columns.sql` (UNP/address column widths after AES)
-- `warehouse-service` — `V1__init.sql`
-- `product-service` — `V1__init.sql`, `V2__inventory_and_operation_events.sql` (adds `inventory_events` / `product_operation_events`)
-- `eureka-server`, `api-gateway`, `document-service` — no migrations (eureka and gateway are stateless; document-service is stateless)
+**Flyway was removed 2026-05-17** — it was never actually wired (no `org.flywaydb` in any `build.gradle`), and `db/migration/V*.sql` files were sitting unused. When changing schema:
+1. Edit the relevant `sql-scripts/<service>DB.sql`.
+2. Add the matching JPA entity field / column / index.
+3. Recreate the DB volume (`cleanup-docker.ps1` + `deploy-docker.ps1`).
+4. **Do not** create new `V*.sql` files under `db/migration/` — the directory no longer exists.
 
-`baseline-on-migrate=true` is set, so a Flyway run on a database already populated by `sql-scripts/*.sql` will not error out.
+`eureka-server`, `api-gateway`, `document-service` have no schema (gateway/eureka stateless, document-service stateless).
 
 ## Auth (SSOService anchor)
 

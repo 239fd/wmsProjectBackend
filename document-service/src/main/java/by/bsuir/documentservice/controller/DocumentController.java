@@ -1,218 +1,222 @@
 package by.bsuir.documentservice.controller;
 
+import by.bsuir.documentservice.config.RpaProperties;
+import by.bsuir.documentservice.dto.OfficeFillRequest;
+import by.bsuir.documentservice.rpa.OfficeDocumentBot;
 import by.bsuir.documentservice.service.DocumentService;
+import by.bsuir.documentservice.service.DocumentService.GenerationResult;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
 @Tag(name = "Документы",
-        description = "API для генерации складских документов: накладные, акты, описи и другие документы")
+        description = "Stateless генератор: POST <type> возвращает PDF/XLS/DOCX bytes напрямую. "
+                + "Хранением занимается product-service (DocumentRegistryService + MinIO). "
+                + "Канал генерации выбирается через header X-Generation-Mode: auto (default) | rpa.")
 public class DocumentController {
 
+    private static final String MODE_HEADER = "X-Generation-Mode";
+    private static final String CHANNEL_HEADER = "X-Generation-Channel";
+
     private final DocumentService documentService;
-
-    @Operation(summary = "Получить документ", description = "Регенерирует PDF по сохранённым метаданным")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Документ найден"),
-            @ApiResponse(responseCode = "404", description = "Документ не найден"),
-            @ApiResponse(responseCode = "403", description = "Документ принадлежит другой организации")
-    })
-    @GetMapping("/{documentId}")
-    public ResponseEntity<byte[]> getDocument(
-            @Parameter(description = "ID документа", required = true) @PathVariable UUID documentId,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
-        byte[] document = documentService.getDocument(documentId, organizationId);
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_PDF);
-        headers.setContentDispositionFormData("inline", documentId + ".pdf");
-        return ResponseEntity.ok().headers(headers).body(document);
-    }
-
-    @Operation(summary = "Получить метаданные документа")
-    @GetMapping("/{documentId}/metadata")
-    public ResponseEntity<Map<String, Object>> getDocumentMetadata(
-            @PathVariable UUID documentId,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
-        return ResponseEntity.ok(documentService.getDocumentMetadata(documentId, organizationId));
-    }
+    private final ObjectProvider<OfficeDocumentBot> officeBotProvider;
+    private final RpaProperties rpaProperties;
 
     @PostMapping("/receipt-order")
-    @Operation(summary = "Сгенерировать приходный ордер")
-    public ResponseEntity<Map<String, String>> generateReceiptOrder(
+    @Operation(summary = "Сгенерировать приходный ордер (bytes)")
+    public ResponseEntity<byte[]> generateReceiptOrder(
             @RequestBody Map<String, Object> data,
             @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateReceiptOrder(data, organizationId, userId, format);
-        return created(id, "receipt-order");
-    }
-
-    @PostMapping("/release-order")
-    @Operation(summary = "Сгенерировать отпускной ордер")
-    public ResponseEntity<Map<String, String>> generateReleaseOrder(
-            @RequestBody Map<String, Object> data,
-            @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateShipmentOrder(data, organizationId, userId, format);
-        return created(id, "release-order");
-    }
-
-    @PostMapping("/shipment-order")
-    @Operation(summary = "Сгенерировать расходный ордер (alias for release-order)")
-    public ResponseEntity<Map<String, String>> generateShipmentOrder(
-            @RequestBody Map<String, Object> data,
-            @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateShipmentOrder(data, organizationId, userId, format);
-        return created(id, "release-order");
+            @RequestHeader(value = MODE_HEADER, required = false, defaultValue = "auto") String mode,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return wrap(documentService.generate("receipt-order", data, organizationId, format, mode));
     }
 
     @PostMapping("/inventory-report")
-    @Operation(summary = "Сгенерировать инвентаризационную опись")
-    public ResponseEntity<Map<String, String>> generateInventoryReport(
+    @Operation(summary = "Сгенерировать инвентаризационную опись (bytes)")
+    public ResponseEntity<byte[]> generateInventoryReport(
             @RequestBody Map<String, Object> data,
             @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateInventoryReport(data, organizationId, userId, format);
-        return created(id, "inventory-report");
+            @RequestHeader(value = MODE_HEADER, required = false, defaultValue = "auto") String mode,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return wrap(documentService.generate("inventory-report", data, organizationId, format, mode));
     }
 
     @PostMapping("/revaluation-act")
-    @Operation(summary = "Сгенерировать акт переоценки")
-    public ResponseEntity<Map<String, String>> generateRevaluationAct(
+    @Operation(summary = "Сгенерировать акт переоценки (bytes)")
+    public ResponseEntity<byte[]> generateRevaluationAct(
             @RequestBody Map<String, Object> data,
             @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateRevaluationAct(data, organizationId, userId, format);
-        return created(id, "revaluation-act");
+            @RequestHeader(value = MODE_HEADER, required = false, defaultValue = "auto") String mode,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return wrap(documentService.generate("revaluation-act", data, organizationId, format, mode));
     }
 
     @PostMapping("/write-off-act")
-    @Operation(summary = "Сгенерировать акт списания")
-    public ResponseEntity<Map<String, String>> generateWriteOffAct(
+    @Operation(summary = "Сгенерировать акт списания (bytes)")
+    public ResponseEntity<byte[]> generateWriteOffAct(
             @RequestBody Map<String, Object> data,
             @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateWriteOffAct(data, organizationId, userId, format);
-        return created(id, "write-off-act");
+            @RequestHeader(value = MODE_HEADER, required = false, defaultValue = "auto") String mode,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return wrap(documentService.generate("write-off-act", data, organizationId, format, mode));
     }
 
     @PostMapping("/waybill")
-    @Operation(summary = "Сгенерировать ТТН")
-    public ResponseEntity<Map<String, String>> generateWaybill(
+    @Operation(summary = "Сгенерировать ТТН (bytes)")
+    public ResponseEntity<byte[]> generateWaybill(
             @RequestBody Map<String, Object> data,
             @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateWaybill(data, organizationId, userId, format);
-        return created(id, "waybill");
+            @RequestHeader(value = MODE_HEADER, required = false, defaultValue = "auto") String mode,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return wrap(documentService.generate("waybill", data, organizationId, format, mode));
     }
 
     @PostMapping("/picking-list")
-    @Operation(summary = "Сгенерировать лист подбора")
-    public ResponseEntity<Map<String, String>> generatePickingList(
+    @Operation(summary = "Сгенерировать лист подбора (bytes)")
+    public ResponseEntity<byte[]> generatePickingList(
             @RequestBody Map<String, Object> data,
             @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generatePickingList(data, organizationId, userId, format);
-        return created(id, "picking-list");
+            @RequestHeader(value = MODE_HEADER, required = false, defaultValue = "auto") String mode,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return wrap(documentService.generate("picking-list", data, organizationId, format, mode));
+    }
+
+    @PostMapping("/placement-list")
+    @Operation(summary = "Сгенерировать лист размещения (bytes)",
+               description = "Список товаров с рекомендованными стеллажами/ячейками после приёмки")
+    public ResponseEntity<byte[]> generatePlacementList(
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = MODE_HEADER, required = false, defaultValue = "auto") String mode,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return wrap(documentService.generate("placement-list", data, organizationId, format, mode));
     }
 
     @PostMapping("/receipt-act")
-    @Operation(summary = "Сгенерировать акт приёмки товара")
-    public ResponseEntity<Map<String, String>> generateReceiptAct(
+    @Operation(summary = "Сгенерировать акт приёмки (bytes)")
+    public ResponseEntity<byte[]> generateReceiptAct(
             @RequestBody Map<String, Object> data,
             @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateReceiptAct(data, organizationId, userId, format);
-        return created(id, "receipt-act");
-    }
-
-    @PostMapping("/invoice-fact")
-    @Operation(summary = "Сгенерировать счёт-фактуру")
-    public ResponseEntity<Map<String, String>> generateInvoiceFact(
-            @RequestBody Map<String, Object> data,
-            @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateInvoiceFact(data, organizationId, userId, format);
-        return created(id, "invoice-fact");
+            @RequestHeader(value = MODE_HEADER, required = false, defaultValue = "auto") String mode,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return wrap(documentService.generate("receipt-act", data, organizationId, format, mode));
     }
 
     @PostMapping("/invoice")
-    @Operation(summary = "Сгенерировать инвойс")
-    public ResponseEntity<Map<String, String>> generateInvoice(
+    @Operation(summary = "Сгенерировать инвойс (bytes)")
+    public ResponseEntity<byte[]> generateInvoice(
             @RequestBody Map<String, Object> data,
             @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateInvoice(data, organizationId, userId, format);
-        return created(id, "invoice");
+            @RequestHeader(value = MODE_HEADER, required = false, defaultValue = "auto") String mode,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return wrap(documentService.generate("invoice", data, organizationId, format, mode));
     }
 
     @PostMapping("/transport-note")
-    @Operation(summary = "Сгенерировать товарную накладную (ТН)")
-    public ResponseEntity<Map<String, String>> generateTransportNote(
+    @Operation(summary = "Сгенерировать товарную накладную ТН (bytes). layout = horizontal | vertical")
+    public ResponseEntity<byte[]> generateTransportNote(
             @RequestBody Map<String, Object> data,
             @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateTransportNote(data, organizationId, userId, format);
-        return created(id, "transport-note");
+            @RequestParam(required = false, defaultValue = "horizontal") String layout,
+            @RequestHeader(value = MODE_HEADER, required = false, defaultValue = "auto") String mode,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        data.putIfAbsent("layout", layout);
+        return wrap(documentService.generate("transport-note", data, organizationId, format, mode));
     }
 
     @PostMapping("/cmr")
-    @Operation(summary = "Сгенерировать CMR")
-    public ResponseEntity<Map<String, String>> generateCmr(
+    @Operation(summary = "Сгенерировать CMR (bytes)")
+    public ResponseEntity<byte[]> generateCmr(
             @RequestBody Map<String, Object> data,
             @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateCmr(data, organizationId, userId, format);
-        return created(id, "cmr");
-    }
-
-    @PostMapping("/discrepancy-act")
-    @Operation(summary = "Сгенерировать акт о расхождении")
-    public ResponseEntity<Map<String, String>> generateDiscrepancyAct(
-            @RequestBody Map<String, Object> data,
-            @RequestParam(required = false, defaultValue = "pdf") String format,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
-            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
-        UUID id = documentService.generateDiscrepancyAct(data, organizationId, userId, format);
-        return created(id, "discrepancy-act");
-    }
-
-    @Operation(summary = "Получить все документы (фильтр по организации)")
-    @GetMapping
-    public ResponseEntity<Map<String, Object>> getAllDocuments(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
+            @RequestHeader(value = MODE_HEADER, required = false, defaultValue = "auto") String mode,
             @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
-        return ResponseEntity.ok(documentService.getAllDocuments(page, size, organizationId));
+        return wrap(documentService.generate("cmr", data, organizationId, format, mode));
+    }
+
+    @GetMapping("/office/health")
+    @Operation(summary = "Готовность RPA-канала (OfficeDocumentBot)")
+    public ResponseEntity<Map<String, Object>> officeHealth() {
+        boolean enabled = officeBotProvider.getIfAvailable() != null;
+        Map<String, Object> body = new HashMap<>();
+        body.put("enabled", enabled);
+        body.put("reason", enabled ? "ok" : "rpa.office.enabled=false or bot not wired");
+        return ResponseEntity.ok(body);
+    }
+
+    @PostMapping("/office/fill")
+    @Operation(summary = "RPA-2: заполнить локальный шаблон MS Office (Excel/Word) через WinAppDriver",
+            description = "Прямой эндпоинт RPA-бота (без бизнес-маппинга). Принимает templateName + cells/placeholders, "
+                    + "возвращает заполненный файл. Включается через rpa.office.enabled=true.")
+    public ResponseEntity<byte[]> fillOfficeTemplate(@Valid @RequestBody OfficeFillRequest request) {
+        OfficeDocumentBot bot = officeBotProvider.getIfAvailable();
+        if (bot == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(("OfficeDocumentBot не включён: установите rpa.office.enabled=true "
+                            + "и запустите WinAppDriver").getBytes());
+        }
+
+        Path templatePath = resolveTemplate(request.templateName());
+        if (!Files.exists(templatePath)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(("Шаблон не найден: " + request.templateName()).getBytes());
+        }
+
+        try {
+            Path output;
+            String lower = request.templateName().toLowerCase();
+            boolean isWord = lower.endsWith(".doc") || lower.endsWith(".docx")
+                    || lower.endsWith(".rtf");
+            String outputName = request.outputName() != null && !request.outputName().isBlank()
+                    ? request.outputName()
+                    : request.templateName().replaceFirst("\\.[^.]+$", "");
+            if (isWord) {
+                output = bot.fillWordTemplate(templatePath,
+                        request.placeholders() != null ? request.placeholders() : Map.of(),
+                        outputName);
+            } else {
+                output = bot.fillExcelTemplate(templatePath,
+                        request.cells() != null ? request.cells() : Map.of(),
+                        outputName);
+            }
+
+            byte[] body = Files.readAllBytes(output);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(contentTypeForFile(output.getFileName().toString()));
+            headers.setContentDispositionFormData("attachment", output.getFileName().toString());
+            headers.set(CHANNEL_HEADER, "rpa");
+            return ResponseEntity.ok().headers(headers).body(body);
+        } catch (Exception e) {
+            log.error("RPA-2: ошибка при заполнении шаблона {}: {}", request.templateName(), e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(("Office bot failed: " + e.getMessage()).getBytes());
+        }
     }
 
     @GetMapping("/stub-info")
@@ -220,20 +224,53 @@ public class DocumentController {
         Map<String, Object> info = new HashMap<>();
         info.put("service", "Document Service");
         info.put("status", "active");
-        info.put("version", "0.2.0-SNAPSHOT");
+        info.put("version", "0.4.0-SNAPSHOT");
+        info.put("mode", "stateless-bytes");
         info.put("documentTypes", new String[] {
-                "receipt-order", "release-order", "shipment-order", "inventory-report",
+                "receipt-order", "inventory-report",
                 "revaluation-act", "write-off-act", "waybill", "picking-list",
-                "receipt-act", "invoice-fact", "invoice", "transport-note", "cmr", "discrepancy-act"
+                "receipt-act", "invoice", "transport-note", "cmr"
+        });
+        info.put("generationModes", new String[] {"auto (POI/PDFBox)", "rpa (WinAppDriver)"});
+        info.put("rpaTemplatesBound", new String[] {
+                "receipt-order", "revaluation-act", "inventory-report",
+                "write-off-act", "waybill", "receipt-act (with discrepancies only)",
+                "invoice", "transport-note", "cmr"
         });
         info.put("formats", new String[] {"pdf (default)", "rpa-xls", "rpa-docx"});
+        info.put("hint", "POST <type> возвращает bytes напрямую. Mode через header X-Generation-Mode. "
+                + "Хранение — product-service /api/document-registry");
         return ResponseEntity.ok(info);
     }
 
-    private ResponseEntity<Map<String, String>> created(UUID id, String type) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                "documentId", id.toString(),
-                "type", type,
-                "status", "generated"));
+    private ResponseEntity<byte[]> wrap(GenerationResult result) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(contentTypeFor(result.format()));
+        headers.set(CHANNEL_HEADER, result.channel());
+        return ResponseEntity.ok().headers(headers).body(result.body());
+    }
+
+    private Path resolveTemplate(String name) {
+        Path direct = Paths.get(rpaProperties.getTemplates().getDir() + name).toAbsolutePath();
+        if (Files.exists(direct)) return direct;
+        return Paths.get("documents template/" + name).toAbsolutePath();
+    }
+
+    private MediaType contentTypeForFile(String filename) throws IOException {
+        String probed = Files.probeContentType(Path.of(filename));
+        return probed != null ? MediaType.parseMediaType(probed) : MediaType.APPLICATION_OCTET_STREAM;
+    }
+
+    private MediaType contentTypeFor(String format) {
+        return switch (format) {
+            case "rpa-xls", "xls" -> MediaType.parseMediaType("application/vnd.ms-excel");
+            case "xlsx" -> MediaType.parseMediaType(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            case "rpa-docx", "docx" -> MediaType.parseMediaType(
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            case "doc" -> MediaType.parseMediaType("application/msword");
+            case "rtf" -> MediaType.parseMediaType("application/rtf");
+            default -> MediaType.APPLICATION_PDF;
+        };
     }
 }

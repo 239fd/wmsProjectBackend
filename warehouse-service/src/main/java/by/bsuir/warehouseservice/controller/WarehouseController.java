@@ -1,5 +1,6 @@
 package by.bsuir.warehouseservice.controller;
 
+import by.bsuir.warehouseservice.config.SecurityUtils;
 import by.bsuir.warehouseservice.dto.request.CreateWarehouseRequest;
 import by.bsuir.warehouseservice.dto.request.UpdateWarehouseRequest;
 import by.bsuir.warehouseservice.dto.response.WarehouseResponse;
@@ -14,11 +15,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -30,6 +35,8 @@ import java.util.UUID;
 public class WarehouseController {
 
     private final WarehouseService warehouseService;
+
+    private static final int MAX_PAGE_SIZE = 100;
 
     @Operation(
             summary = "Создать склад",
@@ -44,9 +51,10 @@ public class WarehouseController {
     @PostMapping
     public ResponseEntity<WarehouseResponse> createWarehouse(
             @Valid @RequestBody CreateWarehouseRequest request,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
+        if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -71,38 +79,45 @@ public class WarehouseController {
     }
 
     @Operation(
-            summary = "Получить склады организации",
-            description = "Возвращает список всех складов для указанной организации"
+            summary = "Получить склады организации (пагинация)",
+            description = "Возвращает страницу складов для указанной организации"
     )
     @ApiResponse(responseCode = "200", description = "Список складов получен")
     @GetMapping("/organization/{orgId}")
-    public ResponseEntity<List<WarehouseResponse>> getWarehousesByOrganization(
+    public ResponseEntity<Page<WarehouseResponse>> getWarehousesByOrganization(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
-            @Parameter(description = "Только активные склады") @RequestParam(defaultValue = "false") boolean activeOnly) {
+            @Parameter(description = "Только активные склады") @RequestParam(defaultValue = "false") boolean activeOnly,
+            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
 
-        List<WarehouseResponse> response = activeOnly
-                ? warehouseService.getActiveWarehousesByOrganization(orgId)
-                : warehouseService.getWarehousesByOrganization(orgId);
+        Pageable capped = capSize(pageable);
+        Page<WarehouseResponse> response = activeOnly
+                ? warehouseService.getActiveWarehousesByOrganization(orgId, capped)
+                : warehouseService.getWarehousesByOrganization(orgId, capped);
 
         return ResponseEntity.ok(response);
     }
 
     @Operation(
-            summary = "Получить склады своей организации",
-            description = "Возвращает список складов организации, определяемой по заголовку X-Organization-Id (заполняется gateway)"
+            summary = "Получить склады своей организации (пагинация)",
+            description = "Возвращает страницу складов организации, определяемой по заголовку X-Organization-Id (заполняется gateway)"
     )
     @ApiResponse(responseCode = "200", description = "Список складов получен")
     @GetMapping
-    public ResponseEntity<List<WarehouseResponse>> getAllWarehouses(
+    public ResponseEntity<Page<WarehouseResponse>> getAllWarehouses(
             @Parameter(description = "ID организации (из JWT через gateway)")
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
 
         if (organizationId == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        List<WarehouseResponse> response = warehouseService.getWarehousesByOrganization(organizationId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(warehouseService.getWarehousesByOrganization(organizationId, capSize(pageable)));
+    }
+
+    private static Pageable capSize(Pageable pageable) {
+        if (pageable.getPageSize() <= MAX_PAGE_SIZE) return pageable;
+        return PageRequest.of(pageable.getPageNumber(), MAX_PAGE_SIZE, pageable.getSort());
     }
 
     @Operation(
@@ -120,8 +135,9 @@ public class WarehouseController {
     public ResponseEntity<WarehouseResponse> updateWarehouse(
             @Parameter(description = "ID склада", required = true) @PathVariable UUID warehouseId,
             @Valid @RequestBody UpdateWarehouseRequest request,
-            @Parameter(description = "Роль пользователя") @RequestHeader("X-User-Role") String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
         if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -142,9 +158,10 @@ public class WarehouseController {
     @DeleteMapping("/{warehouseId}")
     public ResponseEntity<Map<String, String>> deleteWarehouse(
             @Parameter(description = "ID склада", required = true) @PathVariable UUID warehouseId,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
+        if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -165,9 +182,10 @@ public class WarehouseController {
     @PostMapping("/{warehouseId}/activate")
     public ResponseEntity<WarehouseResponse> activateWarehouse(
             @Parameter(description = "ID склада", required = true) @PathVariable UUID warehouseId,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
+        if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -188,9 +206,10 @@ public class WarehouseController {
     @PostMapping("/{warehouseId}/deactivate")
     public ResponseEntity<WarehouseResponse> deactivateWarehouse(
             @Parameter(description = "ID склада", required = true) @PathVariable UUID warehouseId,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
+        if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 

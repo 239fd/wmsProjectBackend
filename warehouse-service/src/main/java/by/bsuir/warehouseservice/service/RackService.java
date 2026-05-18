@@ -27,6 +27,8 @@ import by.bsuir.warehouseservice.repository.WarehouseReadModelRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -271,6 +273,11 @@ public class RackService {
         return rackRepository.findByWarehouseId(warehouseId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RackResponse> getRacksByWarehouse(UUID warehouseId, Pageable pageable) {
+        return rackRepository.findByWarehouseId(warehouseId, pageable).map(this::mapToResponse);
     }
 
     @Transactional(readOnly = true)

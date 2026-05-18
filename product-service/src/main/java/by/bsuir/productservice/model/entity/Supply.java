@@ -11,6 +11,7 @@ import lombok.*;
 import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.springframework.data.domain.Persistable;
 
 @Entity
 @Table(name = "supplies")
@@ -20,10 +21,9 @@ import org.hibernate.type.SqlTypes;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Supply {
+public class Supply implements Persistable<UUID> {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "supply_id")
     private UUID supplyId;
 
@@ -78,5 +78,17 @@ public class Supply {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    @Override
+    @Transient
+    public UUID getId() {
+        return supplyId;
+    }
+
+    @Override
+    @Transient
+    public boolean isNew() {
+        return createdAt == null;
     }
 }

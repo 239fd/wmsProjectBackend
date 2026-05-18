@@ -1,23 +1,31 @@
 package by.bsuir.documentservice.service;
 
 import by.bsuir.documentservice.dto.InventoryListData;
+import by.bsuir.documentservice.dto.CmrData;
+import by.bsuir.documentservice.dto.InvoiceData;
+import by.bsuir.documentservice.dto.ReceiptActData;
+import by.bsuir.documentservice.dto.TransportNoteData;
 import by.bsuir.documentservice.dto.ReceiptOrderData;
 import by.bsuir.documentservice.dto.RevaluationActData;
 import by.bsuir.documentservice.dto.ShippingInvoiceData;
 import by.bsuir.documentservice.dto.WriteOffActData;
+import by.bsuir.documentservice.config.RpaProperties;
 import by.bsuir.documentservice.rpa.DocumentRpaService;
+import by.bsuir.documentservice.rpa.OfficeDocumentBot;
 import by.bsuir.documentservice.rpa.PdfDocumentService;
+import by.bsuir.documentservice.rpa.RpaTemplateBinding;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -25,183 +33,126 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class DocumentService {
 
+    public record GenerationResult(byte[] body, String channel, String format) { }
+
     private final DocumentRpaService rpaService;
     private final PdfDocumentService pdfService;
     private final DataEnrichmentService enrichmentService;
+    private final RpaTemplateBinding rpaTemplateBinding;
+    private final ObjectProvider<OfficeDocumentBot> officeBotProvider;
+    private final RpaProperties rpaProperties;
 
-    private final Map<UUID, DocumentRecord> records = new ConcurrentHashMap<>();
-
-    public record DocumentRecord(
-            UUID id,
-            String type,
-            String format,
-            UUID organizationId,
-            UUID generatedBy,
-            LocalDateTime generatedAt,
-            Map<String, Object> payload) {
+    public byte[] generate(String type, Map<String, Object> data, UUID organizationId, String format) {
+        return generate(type, data, organizationId, format, "auto").body();
     }
 
-    public UUID generateReceiptOrder(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("receipt-order", data, organizationId, userId, format);
-    }
-
-    public UUID generateShipmentOrder(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("release-order", data, organizationId, userId, format);
-    }
-
-    public UUID generateInventoryReport(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("inventory-report", data, organizationId, userId, format);
-    }
-
-    public UUID generateRevaluationAct(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("revaluation-act", data, organizationId, userId, format);
-    }
-
-    public UUID generateWriteOffAct(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("write-off-act", data, organizationId, userId, format);
-    }
-
-    public UUID generateWaybill(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("waybill", data, organizationId, userId, format);
-    }
-
-    public UUID generatePickingList(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("picking-list", data, organizationId, userId, format);
-    }
-
-    public UUID generateReceiptAct(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("receipt-act", data, organizationId, userId, format);
-    }
-
-    public UUID generateInvoiceFact(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("invoice-fact", data, organizationId, userId, format);
-    }
-
-    public UUID generateInvoice(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("invoice", data, organizationId, userId, format);
-    }
-
-    public UUID generateTransportNote(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("transport-note", data, organizationId, userId, format);
-    }
-
-    public UUID generateCmr(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("cmr", data, organizationId, userId, format);
-    }
-
-    public UUID generateDiscrepancyAct(Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        return generate("discrepancy-act", data, organizationId, userId, format);
-    }
-
-    private UUID generate(String type, Map<String, Object> data, UUID organizationId, UUID userId, String format) {
-        UUID id = UUID.randomUUID();
+    public GenerationResult generate(
+            String type, Map<String, Object> data, UUID organizationId, String format, String mode) {
         String effectiveFormat = format != null ? format : "pdf";
         Map<String, Object> enriched = enrichmentService.enrich(data, organizationId);
-        records.put(id, new DocumentRecord(id, type, effectiveFormat, organizationId, userId, LocalDateTime.now(), enriched));
-        log.info("Generated document record: id={}, type={}, format={}, org={}", id, type, effectiveFormat, organizationId);
-        return id;
-    }
 
-    public byte[] getDocument(UUID documentId, UUID organizationId) {
-        DocumentRecord record = findOwned(documentId, organizationId);
-        return regenerate(record);
-    }
-
-    public Map<String, Object> getDocumentMetadata(UUID documentId, UUID organizationId) {
-        DocumentRecord record = findOwned(documentId, organizationId);
-        Map<String, Object> meta = new HashMap<>();
-        meta.put("id", record.id().toString());
-        meta.put("type", record.type());
-        meta.put("format", record.format());
-        meta.put("organizationId", record.organizationId());
-        meta.put("generatedBy", record.generatedBy());
-        meta.put("generatedAt", record.generatedAt().toString());
-        return meta;
-    }
-
-    public Map<String, Object> getAllDocuments(int page, int size, UUID organizationId) {
-        List<Map<String, Object>> docs = new ArrayList<>();
-        records.values().stream()
-                .filter(r -> organizationId == null
-                        || r.organizationId() == null
-                        || organizationId.equals(r.organizationId()))
-                .forEach(r -> {
-                    Map<String, Object> doc = new HashMap<>();
-                    doc.put("id", r.id().toString());
-                    doc.put("type", r.type());
-                    doc.put("format", r.format());
-                    doc.put("organizationId", r.organizationId());
-                    doc.put("generatedAt", r.generatedAt().toString());
-                    docs.add(doc);
-                });
-        int start = page * size;
-        int end = Math.min(start + size, docs.size());
-        List<Map<String, Object>> pageDocs = start < docs.size() ? docs.subList(start, end) : new ArrayList<>();
-        Map<String, Object> result = new HashMap<>();
-        result.put("documents", pageDocs);
-        result.put("page", page);
-        result.put("size", size);
-        result.put("total", docs.size());
-        return result;
-    }
-
-    private DocumentRecord findOwned(UUID documentId, UUID organizationId) {
-        DocumentRecord record = records.get(documentId);
-        if (record == null) {
-            throw new RuntimeException("Document not found: " + documentId);
+        if ("rpa".equalsIgnoreCase(mode)) {
+            OfficeDocumentBot bot = officeBotProvider.getIfAvailable();
+            RpaTemplateBinding.Binding binding = rpaTemplateBinding.bind(type, enriched);
+            if (bot != null && binding != null) {
+                String outputName = enriched.get("documentNumber") != null
+                        ? enriched.get("documentNumber").toString()
+                        : type;
+                try {
+                    return generateViaOfficeBot(bot, binding, outputName);
+                } catch (Exception e) {
+                    log.warn("RPA bot failed for {} ({}), fallback to programmatic", type, e.getMessage());
+                    return new GenerationResult(
+                            generateProgrammatically(type, enriched, effectiveFormat),
+                            "rpa-fallback-error", effectiveFormat);
+                }
+            }
+            String reason = bot == null ? "rpa-fallback-disabled" : "rpa-fallback-unsupported-type";
+            log.info("RPA mode requested for {} but {}, falling back to programmatic", type, reason);
+            return new GenerationResult(
+                    generateProgrammatically(type, enriched, effectiveFormat),
+                    reason, effectiveFormat);
         }
-        if (organizationId != null && record.organizationId() != null
-                && !organizationId.equals(record.organizationId())) {
-            throw new RuntimeException("Document belongs to another organization");
-        }
-        return record;
+
+        return new GenerationResult(
+                generateProgrammatically(type, enriched, effectiveFormat),
+                "programmatic", effectiveFormat);
     }
 
-    private byte[] regenerate(DocumentRecord record) {
-        Map<String, Object> data = record.payload();
-        String format = record.format();
-
+    private byte[] generateProgrammatically(String type, Map<String, Object> data, String format) {
         if ("rpa-xls".equals(format) || "rpa-docx".equals(format)) {
-            return regenerateViaRpa(record);
+            return generateViaRpa(type, data);
         }
+        return generateViaPdf(type, data);
+    }
 
-        return switch (record.type()) {
+    private GenerationResult generateViaOfficeBot(
+            OfficeDocumentBot bot, RpaTemplateBinding.Binding binding, String outputName)
+            throws Exception {
+        Path templatePath = resolveTemplate(binding.templateName());
+        if (!Files.exists(templatePath)) {
+            throw new IllegalStateException("Template not found: " + binding.templateName());
+        }
+        Path output;
+        if (binding.isWord()) {
+            output = bot.fillWordTemplate(templatePath, binding.placeholders(), outputName);
+        } else {
+            output = bot.fillExcelTemplate(templatePath, binding.cells(), outputName);
+        }
+        byte[] body = Files.readAllBytes(output);
+        String fmt = extOf(output.getFileName().toString(), "bin");
+        log.info("RPA bot: produced {} bytes via {} → {}", body.length, binding.templateName(), output);
+        return new GenerationResult(body, "rpa", fmt);
+    }
+
+    private Path resolveTemplate(String name) {
+        Path direct = Paths.get(rpaProperties.getTemplates().getDir() + name).toAbsolutePath();
+        if (Files.exists(direct)) return direct;
+        return Paths.get("documents template/" + name).toAbsolutePath();
+    }
+
+    private String extOf(String name, String fallback) {
+        int idx = name.lastIndexOf('.');
+        return idx > 0 ? name.substring(idx + 1).toLowerCase() : fallback;
+    }
+
+    private byte[] generateViaPdf(String type, Map<String, Object> data) {
+        return switch (type) {
             case "receipt-order" -> pdfService.generateReceiptOrderPdf(data);
-            case "release-order" -> pdfService.generateReleaseOrderPdf(data);
             case "inventory-report" -> pdfService.generateInventoryListPdf(data);
             case "revaluation-act" -> pdfService.generateRevaluationActPdf(data);
             case "write-off-act" -> pdfService.generateWriteOffActPdf(data);
             case "waybill" -> pdfService.generateShippingInvoicePdf(data);
             case "picking-list" -> pdfService.generatePickingListPdf(data);
+            case "placement-list" -> pdfService.generatePlacementListPdf(data);
             case "receipt-act" -> pdfService.generateReceiptActPdf(data);
-            case "invoice-fact" -> pdfService.generateInvoiceFactPdf(data);
             case "invoice" -> pdfService.generateInvoicePdf(data);
             case "transport-note" -> pdfService.generateTransportNotePdf(data);
             case "cmr" -> pdfService.generateCmrPdf(data);
-            case "discrepancy-act" -> pdfService.generateDiscrepancyActPdf(data);
-            default -> throw new RuntimeException("Unknown document type: " + record.type());
+            default -> throw new IllegalArgumentException("Unknown document type: " + type);
         };
     }
 
-    @SuppressWarnings("unchecked")
-    private byte[] regenerateViaRpa(DocumentRecord record) {
-        Map<String, Object> data = record.payload();
+    private byte[] generateViaRpa(String type, Map<String, Object> data) {
         try {
-            return switch (record.type()) {
+            return switch (type) {
                 case "receipt-order" -> rpaService.generateReceiptOrder(mapToReceiptOrderData(data));
                 case "revaluation-act" -> rpaService.generateRevaluationAct(mapToRevaluationActData(data));
                 case "inventory-report" -> rpaService.generateInventoryList(mapToInventoryListData(data));
                 case "write-off-act" -> rpaService.generateWriteOffAct(mapToWriteOffActData(data));
                 case "waybill" -> rpaService.generateShippingInvoice(mapToShippingInvoiceData(data));
-                default -> throw new RuntimeException("RPA template not available for type: " + record.type());
+                case "receipt-act" -> rpaService.generateReceiptAct(mapToReceiptActData(data));
+                case "invoice" -> rpaService.generateInvoice(mapToInvoiceData(data));
+                case "transport-note" -> rpaService.generateTransportNote(mapToTransportNoteData(data));
+                case "cmr" -> rpaService.generateCmr(mapToCmrData(data));
+                default -> throw new IllegalArgumentException("RPA template not available for type: " + type);
             };
         } catch (Exception e) {
-            log.error("RPA regeneration failed: {}", e.getMessage(), e);
-            throw new RuntimeException("RPA regeneration failed: " + e.getMessage(), e);
+            log.error("RPA generation failed for {}: {}", type, e.getMessage(), e);
+            throw new IllegalStateException("RPA generation failed: " + e.getMessage(), e);
         }
     }
 
-    @SuppressWarnings("unchecked")
     private ReceiptOrderData mapToReceiptOrderData(Map<String, Object> data) {
         return ReceiptOrderData.builder()
                 .documentNumber(getString(data, "documentNumber", "ПО-001"))
@@ -263,6 +214,257 @@ public class DocumentService {
                 .build();
     }
 
+    @SuppressWarnings("unchecked")
+    private ReceiptActData mapToReceiptActData(Map<String, Object> data) {
+        List<ReceiptActData.DiscrepancyItem> discrepancies = new ArrayList<>();
+        Object rawList = data.get("discrepancies");
+        if (rawList instanceof List<?> rawItems) {
+            int idx = 1;
+            for (Object raw : rawItems) {
+                if (!(raw instanceof Map<?, ?> map)) continue;
+                Map<String, Object> item = (Map<String, Object>) map;
+                discrepancies.add(ReceiptActData.DiscrepancyItem.builder()
+                        .rowNumber(idx++)
+                        .productName(getString(item, "productName", "—"))
+                        .sku(getString(item, "sku", "—"))
+                        .unit(getString(item, "unit", "шт"))
+                        .expectedQty(toDecimal(item.get("expectedQty")))
+                        .actualQty(toDecimal(item.get("actualQty")))
+                        .differenceQty(diff(item.get("expectedQty"), item.get("actualQty")))
+                        .discrepancyType(getString(item, "discrepancyType", ""))
+                        .defectDescription(getString(item, "defectDescription", ""))
+                        .build());
+            }
+        }
+
+        return ReceiptActData.builder()
+                .documentNumber(getString(data, "documentNumber", "АП-001"))
+                .documentDate(getDate(data, "documentDate", LocalDate.now()))
+                .organizationName(getString(data, "organizationName", "ООО Компания"))
+                .inn(getString(data, "inn", "—"))
+                .warehouseName(getString(data, "warehouseName", "—"))
+                .supplierName(getString(data, "supplierName", "—"))
+                .supplierInn(getString(data, "supplierInn", "—"))
+                .contractNumber(getString(data, "contractNumber", "—"))
+                .contractDate(getString(data, "contractDate", "—"))
+                .waybillNumber(getString(data, "waybillNumber", "—"))
+                .waybillDate(getString(data, "waybillDate", "—"))
+                .chairmanName(getString(data, "chairmanName", "—"))
+                .commissionMembers((List<String>) data.getOrDefault("commissionMembers", new ArrayList<>()))
+                .acceptedBy(getString(data, "acceptedBy", "—"))
+                .approvedBy(getString(data, "approvedBy", "—"))
+                .generalNotes(getString(data, "generalNotes", ""))
+                .discrepancies(discrepancies)
+                .build();
+    }
+
+    private BigDecimal toDecimal(Object value) {
+        if (value == null) return BigDecimal.ZERO;
+        if (value instanceof BigDecimal bd) return bd;
+        if (value instanceof Number n) return BigDecimal.valueOf(n.doubleValue());
+        try {
+            return new BigDecimal(value.toString());
+        } catch (NumberFormatException e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private BigDecimal diff(Object expected, Object actual) {
+        return toDecimal(actual).subtract(toDecimal(expected));
+    }
+
+    @SuppressWarnings("unchecked")
+    private InvoiceData mapToInvoiceData(Map<String, Object> data) {
+        List<InvoiceData.InvoiceItem> items = new ArrayList<>();
+        Object rawList = data.get("items");
+        if (rawList instanceof List<?> rawItems) {
+            int idx = 1;
+            for (Object raw : rawItems) {
+                if (!(raw instanceof Map<?, ?> map)) continue;
+                Map<String, Object> item = (Map<String, Object>) map;
+                BigDecimal qty = toDecimal(item.get("quantity"));
+                BigDecimal unitPrice = toDecimal(item.get("unitPrice"));
+                BigDecimal totalPrice = item.get("totalPrice") != null
+                        ? toDecimal(item.get("totalPrice"))
+                        : qty.multiply(unitPrice);
+                items.add(InvoiceData.InvoiceItem.builder()
+                        .rowNumber(idx++)
+                        .productName(getString(item, "productName", "—"))
+                        .sku(getString(item, "sku", "—"))
+                        .unit(getString(item, "unit", "шт"))
+                        .quantity(qty)
+                        .unitPrice(unitPrice)
+                        .totalPrice(totalPrice)
+                        .build());
+            }
+        }
+
+        BigDecimal totalAmount = items.stream()
+                .map(InvoiceData.InvoiceItem::getTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return InvoiceData.builder()
+                .documentNumber(getString(data, "documentNumber", "И-001"))
+                .documentDate(getDate(data, "documentDate", LocalDate.now()))
+                .currency(getString(data, "currency", "BYN"))
+                .sellerName(getString(data, "sellerName", "—"))
+                .sellerInn(getString(data, "sellerInn", "—"))
+                .sellerAddress(getString(data, "sellerAddress", "—"))
+                .buyerName(getString(data, "buyerName", "—"))
+                .buyerInn(getString(data, "buyerInn", "—"))
+                .buyerAddress(getString(data, "buyerAddress", "—"))
+                .contractNumber(getString(data, "contractNumber", "—"))
+                .contractDate(getString(data, "contractDate", "—"))
+                .items(items)
+                .totalAmount(totalAmount)
+                .totalAmountInWords(getString(data, "totalAmountInWords", ""))
+                .vatRate(toDecimal(data.get("vatRate")))
+                .vatAmount(toDecimal(data.get("vatAmount")))
+                .responsiblePerson(getString(data, "responsiblePerson", "—"))
+                .notes(getString(data, "notes", ""))
+                .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private TransportNoteData mapToTransportNoteData(Map<String, Object> data) {
+        List<TransportNoteData.TransportItem> items = new ArrayList<>();
+        Object rawList = data.get("items");
+        if (rawList instanceof List<?> rawItems) {
+            int idx = 1;
+            for (Object raw : rawItems) {
+                if (!(raw instanceof Map<?, ?> map)) continue;
+                Map<String, Object> item = (Map<String, Object>) map;
+                BigDecimal qty = toDecimal(item.get("quantity"));
+                BigDecimal unitPrice = toDecimal(item.get("unitPrice"));
+                BigDecimal totalPrice = item.get("totalPrice") != null
+                        ? toDecimal(item.get("totalPrice"))
+                        : qty.multiply(unitPrice);
+                items.add(TransportNoteData.TransportItem.builder()
+                        .rowNumber(idx++)
+                        .productName(getString(item, "productName", "—"))
+                        .sku(getString(item, "sku", "—"))
+                        .unit(getString(item, "unit", "шт"))
+                        .quantity(qty)
+                        .unitPrice(unitPrice)
+                        .totalPrice(totalPrice)
+                        .vatRate(toDecimal(item.get("vatRate")))
+                        .vatAmount(toDecimal(item.get("vatAmount")))
+                        .build());
+            }
+        }
+
+        BigDecimal totalQty = items.stream()
+                .map(TransportNoteData.TransportItem::getQuantity)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalAmount = items.stream()
+                .map(TransportNoteData.TransportItem::getTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalVat = items.stream()
+                .map(TransportNoteData.TransportItem::getVatAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return TransportNoteData.builder()
+                .layout(getString(data, "layout", "horizontal"))
+                .documentNumber(getString(data, "documentNumber", "ТН-001"))
+                .documentDate(getDate(data, "documentDate", LocalDate.now()))
+                .currency(getString(data, "currency", "BYN"))
+                .shipperName(getString(data, "shipperName", "—"))
+                .shipperInn(getString(data, "shipperInn", "—"))
+                .shipperAddress(getString(data, "shipperAddress", "—"))
+                .consigneeName(getString(data, "consigneeName", "—"))
+                .consigneeInn(getString(data, "consigneeInn", "—"))
+                .consigneeAddress(getString(data, "consigneeAddress", "—"))
+                .warehouseName(getString(data, "warehouseName", "—"))
+                .contractNumber(getString(data, "contractNumber", "—"))
+                .contractDate(getString(data, "contractDate", "—"))
+                .waybillReference(getString(data, "waybillReference", "—"))
+                .items(items)
+                .totalQuantity(totalQty)
+                .totalAmount(totalAmount)
+                .totalVat(totalVat)
+                .releasedBy(getString(data, "releasedBy", "—"))
+                .acceptedBy(getString(data, "acceptedBy", "—"))
+                .notes(getString(data, "notes", ""))
+                .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private CmrData mapToCmrData(Map<String, Object> data) {
+        List<CmrData.CmrItem> items = new ArrayList<>();
+        Object rawList = data.get("items");
+        if (rawList instanceof List<?> rawItems) {
+            int idx = 1;
+            for (Object raw : rawItems) {
+                if (!(raw instanceof Map<?, ?> map)) continue;
+                Map<String, Object> item = (Map<String, Object>) map;
+                items.add(CmrData.CmrItem.builder()
+                        .rowNumber(idx++)
+                        .marks(getString(item, "marks", "—"))
+                        .packagingType(getString(item, "packagingType", "—"))
+                        .productName(getString(item, "productName", "—"))
+                        .hsCode(getString(item, "hsCode", "—"))
+                        .quantity(toDecimal(item.get("quantity")))
+                        .unit(getString(item, "unit", "шт"))
+                        .grossWeightKg(toDecimal(item.get("grossWeightKg")))
+                        .volumeM3(toDecimal(item.get("volumeM3")))
+                        .declaredValue(toDecimal(item.get("declaredValue")))
+                        .build());
+            }
+        }
+
+        BigDecimal totalQty = items.stream()
+                .map(CmrData.CmrItem::getQuantity)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalWeight = items.stream()
+                .map(CmrData.CmrItem::getGrossWeightKg)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalVolume = items.stream()
+                .map(CmrData.CmrItem::getVolumeM3)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalDeclared = items.stream()
+                .map(CmrData.CmrItem::getDeclaredValue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return CmrData.builder()
+                .documentNumber(getString(data, "documentNumber", "CMR-001"))
+                .documentDate(getDate(data, "documentDate", LocalDate.now()))
+                .currency(getString(data, "currency", "EUR"))
+                .shipperName(getString(data, "shipperName", "—"))
+                .shipperInn(getString(data, "shipperInn", "—"))
+                .shipperAddress(getString(data, "shipperAddress", "—"))
+                .shipperCountry(getString(data, "shipperCountry", "BY"))
+                .shipperGln(getString(data, "shipperGln", ""))
+                .consigneeName(getString(data, "consigneeName", "—"))
+                .consigneeInn(getString(data, "consigneeInn", "—"))
+                .consigneeAddress(getString(data, "consigneeAddress", "—"))
+                .consigneeCountry(getString(data, "consigneeCountry", "RU"))
+                .consigneeGln(getString(data, "consigneeGln", ""))
+                .carrierName(getString(data, "carrierName", "—"))
+                .carrierAddress(getString(data, "carrierAddress", "—"))
+                .vehicleNumber(getString(data, "vehicleNumber", "—"))
+                .trailerNumber(getString(data, "trailerNumber", ""))
+                .driverName(getString(data, "driverName", "—"))
+                .driverPassport(getString(data, "driverPassport", "—"))
+                .placeOfLoading(getString(data, "placeOfLoading", "—"))
+                .placeOfDelivery(getString(data, "placeOfDelivery", "—"))
+                .loadingDate(getDate(data, "loadingDate", LocalDate.now()))
+                .deliveryDate(getDate(data, "deliveryDate", LocalDate.now()))
+                .items(items)
+                .totalQuantity(totalQty)
+                .totalWeight(totalWeight)
+                .totalVolume(totalVolume)
+                .cargoDeclaredValue(data.get("cargoDeclaredValue") != null
+                        ? toDecimal(data.get("cargoDeclaredValue"))
+                        : totalDeclared)
+                .paymentInstructions(getString(data, "paymentInstructions", ""))
+                .specialInstructions(getString(data, "specialInstructions", ""))
+                .contractNumber(getString(data, "contractNumber", "—"))
+                .shipperSignedBy(getString(data, "shipperSignedBy", "—"))
+                .carrierSignedBy(getString(data, "carrierSignedBy", "—"))
+                .consigneeSignedBy(getString(data, "consigneeSignedBy", "—"))
+                .build();
+    }
+
     private ShippingInvoiceData mapToShippingInvoiceData(Map<String, Object> data) {
         return ShippingInvoiceData.builder()
                 .invoiceNumber(getString(data, "invoiceNumber", "ТТН-001"))
@@ -284,8 +486,8 @@ public class DocumentService {
 
     private LocalDate getDate(Map<String, Object> map, String key, LocalDate defaultValue) {
         Object value = map.get(key);
-        if (value instanceof String) {
-            return LocalDate.parse((String) value);
+        if (value instanceof String s) {
+            return LocalDate.parse(s);
         }
         return defaultValue;
     }

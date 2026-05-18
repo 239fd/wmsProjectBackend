@@ -200,13 +200,15 @@ public class InventoryCheckService {
         result.put("warehouseId", session.getWarehouseId().toString());
         result.put("totalRecords", counts.size());
         result.put("discrepanciesCount", discrepancies.size());
-        result.put("discrepancies", discrepancies.stream().map(d -> Map.of(
-                "productId", d.getProductId().toString(),
-                "cellId", d.getCellId() != null ? d.getCellId().toString() : "N/A",
-                "expected", d.getExpectedQuantity().toString(),
-                "actual", d.getActualQuantity().toString(),
-                "discrepancy", d.getDiscrepancy().toString()
-        )).collect(Collectors.toList()));
+        result.put("discrepancies", discrepancies.stream().map(d -> {
+            Map<String, Object> row = new HashMap<>();
+            row.put("productId", d.getProductId() != null ? d.getProductId().toString() : null);
+            row.put("cellId", d.getCellId() != null ? d.getCellId().toString() : "N/A");
+            row.put("expected", d.getExpectedQuantity() != null ? d.getExpectedQuantity().toString() : null);
+            row.put("actual", d.getActualQuantity() != null ? d.getActualQuantity().toString() : null);
+            row.put("discrepancy", d.getDiscrepancy() != null ? d.getDiscrepancy().toString() : null);
+            return row;
+        }).collect(Collectors.toList()));
 
         log.info("Inventory session completed: {}", sessionId);
         return result;
@@ -219,7 +221,7 @@ public class InventoryCheckService {
             return;
         }
         Optional<Inventory> inventoryOpt = inventoryRepository
-                .findByProductIdAndWarehouseId(count.getProductId(), warehouseId);
+                .findByProductIdAndWarehouseIdForUpdate(count.getProductId(), warehouseId);
 
         if (inventoryOpt.isPresent()) {
             Inventory inventory = inventoryOpt.get();
@@ -246,9 +248,12 @@ public class InventoryCheckService {
             InventoryEventType eventType = delta.signum() >= 0
                     ? InventoryEventType.ITEM_ADDED
                     : InventoryEventType.ITEM_REMOVED;
+            Map<String, Object> extra = new HashMap<>();
+            extra.put("source", "INVENTORY_CHECK");
+            extra.put("countId", count.getCountId());
+            extra.put("sessionId", count.getSessionId());
             inventoryEventService.recordQuantityChange(inventory, eventType,
-                    oldQuantity, delta, operation.getOperationId(), userId,
-                    Map.of("source", "INVENTORY_CHECK", "countId", count.getCountId(), "sessionId", count.getSessionId()));
+                    oldQuantity, delta, operation.getOperationId(), userId, extra);
 
             log.info("Adjusted inventory for product {} from {} to {}",
                     count.getProductId(), oldQuantity, count.getActualQuantity());

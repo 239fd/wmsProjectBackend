@@ -12,6 +12,8 @@ import by.bsuir.productservice.repository.InventoryRepository;
 import by.bsuir.productservice.repository.ProductOperationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,7 +41,7 @@ public class WriteOffService {
                 request.productId(), request.quantity(), request.warehouseId(), organizationId);
 
         Inventory inventory = inventoryRepository
-                .findByProductIdAndWarehouseId(request.productId(), request.warehouseId())
+                .findByProductIdAndWarehouseIdForUpdate(request.productId(), request.warehouseId())
                 .orElseThrow(() -> AppException.notFound("Запасы товара на складе не найдены"));
 
         if (organizationId != null && inventory.getOrganizationId() != null
@@ -114,19 +116,31 @@ public class WriteOffService {
                 ? countRepository.findByOrganizationIdAndWarehouseIdAndMarkedForWriteoffTrue(organizationId, warehouseId)
                 : countRepository.findByOrganizationIdAndMarkedForWriteoffTrue(organizationId);
 
-        return marked.stream().map(c -> {
-            Map<String, Object> m = new HashMap<>();
-            m.put("countId", c.getCountId());
-            m.put("sessionId", c.getSessionId());
-            m.put("productId", c.getProductId());
-            m.put("batchId", c.getBatchId());
-            m.put("cellId", c.getCellId());
-            m.put("warehouseId", c.getWarehouseId());
-            m.put("expectedQuantity", c.getExpectedQuantity());
-            m.put("actualQuantity", c.getActualQuantity());
-            m.put("discrepancy", c.getDiscrepancy());
-            m.put("notes", c.getNotes());
-            return m;
-        }).collect(Collectors.toList());
+        return marked.stream().map(this::toMarkedItemMap).collect(Collectors.toList());
+    }
+
+    public Page<Map<String, Object>> getMarkedItems(UUID warehouseId, UUID organizationId, Pageable pageable) {
+        if (organizationId == null) {
+            return Page.empty(pageable);
+        }
+        Page<InventoryCount> marked = (warehouseId != null)
+                ? countRepository.findByOrganizationIdAndWarehouseIdAndMarkedForWriteoffTrue(organizationId, warehouseId, pageable)
+                : countRepository.findByOrganizationIdAndMarkedForWriteoffTrue(organizationId, pageable);
+        return marked.map(this::toMarkedItemMap);
+    }
+
+    private Map<String, Object> toMarkedItemMap(InventoryCount c) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("countId", c.getCountId());
+        m.put("sessionId", c.getSessionId());
+        m.put("productId", c.getProductId());
+        m.put("batchId", c.getBatchId());
+        m.put("cellId", c.getCellId());
+        m.put("warehouseId", c.getWarehouseId());
+        m.put("expectedQuantity", c.getExpectedQuantity());
+        m.put("actualQuantity", c.getActualQuantity());
+        m.put("discrepancy", c.getDiscrepancy());
+        m.put("notes", c.getNotes());
+        return m;
     }
 }

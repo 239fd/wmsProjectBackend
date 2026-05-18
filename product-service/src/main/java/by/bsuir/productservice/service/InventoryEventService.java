@@ -32,7 +32,13 @@ public class InventoryEventService {
             return null;
         }
         int version = repository.findMaxEventVersionByInventoryId(inventoryId) + 1;
-        JsonNode data = objectMapper.valueToTree(payload != null ? payload : Map.of());
+        Map<String, Object> safePayload = new HashMap<>();
+        if (payload != null) {
+            payload.forEach((k, v) -> {
+                if (k != null && v != null) safePayload.put(k, v);
+            });
+        }
+        JsonNode data = objectMapper.valueToTree(safePayload);
         InventoryEvent event = InventoryEvent.builder()
                 .inventoryId(inventoryId)
                 .eventType(type.name())

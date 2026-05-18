@@ -6,7 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -19,7 +18,6 @@ import java.util.stream.Collectors;
 public class EmployeeAnalyticsService {
 
     private final OrganizationEmployeeRepository employeeRepository;
-    private final RestTemplate restTemplate = new RestTemplate();
 
     @Cacheable(value = "employeesAnalytics", key = "#orgId")
     public List<Map<String, Object>> getEmployeesAnalytics(UUID orgId) {
@@ -36,15 +34,6 @@ public class EmployeeAnalyticsService {
 
                     long daysWorked = ChronoUnit.DAYS.between(emp.getJoinedAt(), LocalDateTime.now());
                     analytics.put("daysWorked", daysWorked);
-
-                    try {
-                        Map<String, Object> operationsStats = getEmployeeOperationsStats(emp.getUserId());
-                        analytics.put("operationsStats", operationsStats);
-                    } catch (Exception e) {
-                        log.warn("Could not fetch operations stats for user {}: {}", emp.getUserId(), e.getMessage());
-                        analytics.put("operationsStats", Map.of("available", false));
-                    }
-
                     return analytics;
                 })
                 .collect(Collectors.toList());
@@ -68,42 +57,6 @@ public class EmployeeAnalyticsService {
         analytics.put("daysWorked", daysWorked);
         analytics.put("monthsWorked", daysWorked / 30);
 
-        try {
-            Map<String, Object> operationsStats = getEmployeeOperationsStats(userId);
-            analytics.put("operationsStats", operationsStats);
-
-            if (operationsStats.containsKey("totalOperations")) {
-                int totalOps = (int) operationsStats.get("totalOperations");
-                double avgOpsPerDay = daysWorked > 0 ? (double) totalOps / daysWorked : 0;
-                analytics.put("avgOperationsPerDay", Math.round(avgOpsPerDay * 100.0) / 100.0);
-                analytics.put("performanceRating", calculatePerformanceRating(avgOpsPerDay));
-            }
-        } catch (Exception e) {
-            log.warn("Could not calculate detailed stats for user {}: {}", userId, e.getMessage());
-        }
-
         return analytics;
     }
-
-    private Map<String, Object> getEmployeeOperationsStats(UUID userId) {
-        try {
-            String url = "http://localhost:8030/api/operations/user/" + userId + "/stats";
-            return restTemplate.getForObject(url, Map.class);
-        } catch (Exception e) {
-            log.debug("Operations stats not available for user {}", userId);
-            return Map.of(
-                    "totalOperations", 0,
-                    "available", false
-            );
-        }
-    }
-
-    private String calculatePerformanceRating(double avgOpsPerDay) {
-        if (avgOpsPerDay >= 20) return "EXCELLENT";
-        if (avgOpsPerDay >= 15) return "GOOD";
-        if (avgOpsPerDay >= 10) return "AVERAGE";
-        if (avgOpsPerDay >= 5) return "BELOW_AVERAGE";
-        return "LOW";
-    }
 }
-

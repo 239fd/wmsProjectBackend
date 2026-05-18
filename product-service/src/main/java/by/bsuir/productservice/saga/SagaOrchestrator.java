@@ -9,12 +9,14 @@ import by.bsuir.productservice.repository.InventoryRepository;
 import by.bsuir.productservice.repository.ProductBatchRepository;
 import by.bsuir.productservice.repository.ProductOperationRepository;
 import by.bsuir.productservice.repository.SagaStateRepository;
+import by.bsuir.productservice.service.DocumentRegistryService;
 import by.bsuir.productservice.service.InventoryEventService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,6 +44,9 @@ public class SagaOrchestrator {
     private final InventoryRepository inventoryRepository;
     private final ProductOperationRepository operationRepository;
     private final InventoryEventService inventoryEventService;
+
+    @Autowired(required = false)
+    private DocumentRegistryService documentRegistryService;
 
     private final Map<UUID, ReceiveSagaState> activeSagas = new ConcurrentHashMap<>();
     private final Map<UUID, ShipSagaState> activeShipSagas = new ConcurrentHashMap<>();
@@ -150,7 +156,7 @@ public class SagaOrchestrator {
                 saga.setCurrentStep("DOCUMENT_GENERATION");
                 break;
             case "DOCUMENT_GENERATION":
-                saga.setDocumentId((UUID) data.get("documentId"));
+                saga.setDocumentIds(extractDocumentIds(data, saga.getDocumentIds()));
                 saga.setCurrentStep("INVENTORY_UPDATE");
                 break;
             case "INVENTORY_UPDATE":
@@ -230,7 +236,7 @@ public class SagaOrchestrator {
             if (stepReached(currentStep, "INVENTORY_UPDATE") && saga.getInventoryId() != null) {
                 log.info("Compensating: reverting inventory {} (qty -{})",
                         saga.getInventoryId(), saga.getQuantity());
-                inventoryRepository.findById(saga.getInventoryId()).ifPresent(inv -> {
+                inventoryRepository.findByIdForUpdate(saga.getInventoryId()).ifPresent(inv -> {
                     BigDecimal qty = saga.getQuantity() != null ? saga.getQuantity() : BigDecimal.ZERO;
                     BigDecimal qtyBefore = inv.getQuantity();
                     BigDecimal newQty = qtyBefore.subtract(qty);
@@ -292,7 +298,7 @@ public class SagaOrchestrator {
 
             if (shipStepReached(currentStep, "INVENTORY_UPDATE") && saga.getInventoryId() != null) {
                 log.info("Compensating: restoring inventory {} (+{})", saga.getInventoryId(), qty);
-                inventoryRepository.findById(saga.getInventoryId()).ifPresent(inv -> {
+                inventoryRepository.findByIdForUpdate(saga.getInventoryId()).ifPresent(inv -> {
                     BigDecimal qtyBefore = inv.getQuantity();
                     inv.setQuantity(qtyBefore.add(qty));
                     inv.setLastUpdated(LocalDateTime.now());
@@ -303,9 +309,21 @@ public class SagaOrchestrator {
                 });
             }
 
-            if (shipStepReached(currentStep, "DOCUMENT_GENERATION") && saga.getDocumentId() != null) {
-                log.info("Compensating: skipping document deletion (document-service is stateless), id={}",
-                        saga.getDocumentId());
+            if (shipStepReached(currentStep, "DOCUMENT_GENERATION")
+                    && saga.getDocumentIds() != null
+                    && !saga.getDocumentIds().isEmpty()) {
+                if (documentRegistryService == null) {
+                    log.warn("Compensating: documentRegistryService not wired, skipping document cleanup");
+                } else {
+                    for (UUID docId : saga.getDocumentIds()) {
+                        try {
+                            documentRegistryService.deleteDocument(docId, saga.getOrganizationId());
+                            log.info("Compensating: deleted generated document {}", docId);
+                        } catch (Exception ex) {
+                            log.warn("Compensating: failed to delete document {}: {}", docId, ex.getMessage());
+                        }
+                    }
+                }
             }
 
             if (shipStepReached(currentStep, "STAGING") && saga.getStagingOperationId() != null) {
@@ -317,7 +335,7 @@ public class SagaOrchestrator {
             if (shipStepReached(currentStep, "STOCK_RESERVATION") && saga.getReservationId() != null) {
                 log.info("Compensating: releasing reservation on inventory {} (-{})",
                         saga.getReservationId(), qty);
-                inventoryRepository.findById(saga.getReservationId()).ifPresent(inv -> {
+                inventoryRepository.findByIdForUpdate(saga.getReservationId()).ifPresent(inv -> {
                     BigDecimal currentReserved = inv.getReservedQuantity() != null
                             ? inv.getReservedQuantity()
                             : BigDecimal.ZERO;
@@ -385,6 +403,28 @@ public class SagaOrchestrator {
         }
 
         return currentIndex >= checkIndex;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<UUID> extractDocumentIds(Map<String, Object> data, List<UUID> existing) {
+        List<UUID> merged = existing != null ? new ArrayList<>(existing) : new ArrayList<>();
+        Object docIds = data.get("documentIds");
+        if (docIds instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof UUID u) {
+                    merged.add(u);
+                } else if (o != null) {
+                    merged.add(UUID.fromString(o.toString()));
+                }
+            }
+        }
+        Object singleDocId = data.get("documentId");
+        if (singleDocId instanceof UUID u) {
+            merged.add(u);
+        } else if (singleDocId != null) {
+            merged.add(UUID.fromString(singleDocId.toString()));
+        }
+        return merged;
     }
 
     private boolean shipStepReached(String currentStep, String checkStep) {

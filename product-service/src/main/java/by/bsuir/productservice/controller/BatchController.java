@@ -1,5 +1,6 @@
 package by.bsuir.productservice.controller;
 
+import by.bsuir.productservice.config.SecurityUtils;
 import by.bsuir.productservice.dto.request.CreateBatchRequest;
 import by.bsuir.productservice.dto.response.BatchResponse;
 import by.bsuir.productservice.service.BatchService;
@@ -13,11 +14,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -28,6 +33,8 @@ import java.util.UUID;
 public class BatchController {
 
     private final BatchService batchService;
+
+    private static final int MAX_PAGE_SIZE = 100;
 
     @Operation(
             summary = "Создать партию товара",
@@ -47,6 +54,7 @@ public class BatchController {
             @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole,
             @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
 
+        userRole = SecurityUtils.resolveRole(userRole);
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -67,19 +75,24 @@ public class BatchController {
     }
 
     @Operation(
-            summary = "Получить партии товара",
-            description = "Возвращает список всех партий для указанного товара"
+            summary = "Получить партии товара (пагинация)",
+            description = "Возвращает страницу партий для указанного товара"
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Список партий получен"),
             @ApiResponse(responseCode = "404", description = "Товар не найден")
     })
     @GetMapping("/products/{productId}/batches")
-    public ResponseEntity<List<BatchResponse>> getBatchesByProduct(
+    public ResponseEntity<Page<BatchResponse>> getBatchesByProduct(
             @Parameter(description = "ID товара", required = true) @PathVariable UUID productId,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
-        List<BatchResponse> response = batchService.getBatchesByProduct(productId, organizationId);
-        return ResponseEntity.ok(response);
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(batchService.getBatchesByProduct(productId, organizationId, capSize(pageable)));
+    }
+
+    private static Pageable capSize(Pageable pageable) {
+        if (pageable.getPageSize() <= MAX_PAGE_SIZE) return pageable;
+        return PageRequest.of(pageable.getPageNumber(), MAX_PAGE_SIZE, pageable.getSort());
     }
 
     @Operation(
@@ -100,14 +113,14 @@ public class BatchController {
     }
 
     @Operation(
-            summary = "Получить все партии",
-            description = "Возвращает список всех партий товаров в системе"
+            summary = "Получить все партии (пагинация)",
+            description = "Возвращает страницу всех партий товаров в системе"
     )
     @ApiResponse(responseCode = "200", description = "Список партий получен")
     @GetMapping("/batches")
-    public ResponseEntity<List<BatchResponse>> getAllBatches(
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
-        List<BatchResponse> response = batchService.getAllBatches(organizationId);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Page<BatchResponse>> getAllBatches(
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(batchService.getAllBatches(organizationId, capSize(pageable)));
     }
 }

@@ -1,0 +1,2 @@
+org.springframework.boot.env.EnvironmentPostProcessor=\
+by.bsuir.organizationservice.config.DotEnvEnvironmentPostProcessor

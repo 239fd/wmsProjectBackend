@@ -75,6 +75,9 @@ public class Inventory {
         if (lastUpdated == null) {
             lastUpdated = LocalDateTime.now();
         }
+        if (unitSku == null) {
+            unitSku = "INV-" + inventoryId.toString().replace("-", "").substring(0, 8).toUpperCase();
+        }
     }
 
     @PreUpdate

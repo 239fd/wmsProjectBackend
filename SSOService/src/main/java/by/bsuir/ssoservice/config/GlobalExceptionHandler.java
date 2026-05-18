@@ -11,6 +11,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -84,6 +85,19 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(403).body(error);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSize(
+            MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        log.warn("Upload size exceeded: {}", ex.getMessage());
+        ErrorResponse error = new ErrorResponse(
+                413,
+                "PAYLOAD_TOO_LARGE",
+                "Размер файла превышает лимит. Максимальный размер фото профиля — 2 МБ.",
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(413).body(error);
     }
 
     @ExceptionHandler(Exception.class)

@@ -38,6 +38,7 @@ public class SagaState {
     @Column(name = "current_step", nullable = false, length = 50)
     private String currentStep;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
     private String payload;
 

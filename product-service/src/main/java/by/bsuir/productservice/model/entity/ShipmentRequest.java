@@ -1,7 +1,10 @@
 package by.bsuir.productservice.model.entity;
 
 import by.bsuir.productservice.model.enums.AllocationStrategy;
+import by.bsuir.productservice.model.enums.DocumentLayout;
+import by.bsuir.productservice.model.enums.DomesticDocumentKind;
 import by.bsuir.productservice.model.enums.ShipmentRequestStatus;
+import by.bsuir.productservice.model.enums.ShipmentType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Filter;
@@ -53,6 +56,27 @@ public class ShipmentRequest {
     @Column(name = "strategy", length = 16)
     private AllocationStrategy strategy;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "shipment_type", nullable = false, length = 16)
+    private ShipmentType shipmentType;
+
+    @Column(name = "currency", nullable = false, length = 3)
+    private String currency;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "document_layout", nullable = false, length = 16)
+    private DocumentLayout documentLayout;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "domestic_document_kind", nullable = false, length = 8)
+    private DomesticDocumentKind domesticDocumentKind;
+
+    @Column(name = "recipient_country", length = 64)
+    private String recipientCountry;
+
+    @Column(name = "recipient_gln", length = 32)
+    private String recipientGln;
+
     @Column(name = "created_by")
     private UUID createdBy;
 
@@ -69,6 +93,10 @@ public class ShipmentRequest {
         if (updatedAt == null) updatedAt = LocalDateTime.now();
         if (status == null) status = ShipmentRequestStatus.PLANNED;
         if (strategy == null) strategy = AllocationStrategy.AUTO;
+        if (shipmentType == null) shipmentType = ShipmentType.DOMESTIC;
+        if (currency == null) currency = "BYN";
+        if (documentLayout == null) documentLayout = DocumentLayout.HORIZONTAL;
+        if (domesticDocumentKind == null) domesticDocumentKind = DomesticDocumentKind.TN;
     }
 
     @PreUpdate

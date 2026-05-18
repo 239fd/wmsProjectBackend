@@ -3,6 +3,8 @@ package by.bsuir.productservice.model.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -36,6 +38,7 @@ public class InventorySession {
     @Column(name = "reason", length = 255)
     private String reason;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "commission_members", columnDefinition = "jsonb")
     private String commissionMembers;
 

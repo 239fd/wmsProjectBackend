@@ -4,27 +4,36 @@ import by.bsuir.productservice.dto.request.CreateShipmentRequestRequest;
 import by.bsuir.productservice.dto.request.PickRequest;
 import by.bsuir.productservice.dto.response.ShipmentRequestResponse;
 import by.bsuir.productservice.exception.AppException;
+import by.bsuir.productservice.model.entity.GeneratedDocument;
 import by.bsuir.productservice.model.entity.Inventory;
 import by.bsuir.productservice.model.entity.ProductOperation;
 import by.bsuir.productservice.model.entity.ShipmentRequest;
 import by.bsuir.productservice.model.entity.ShipmentRequestItem;
 import by.bsuir.productservice.model.enums.AllocationStrategy;
+import by.bsuir.productservice.model.enums.DocumentLayout;
+import by.bsuir.productservice.model.enums.DomesticDocumentKind;
 import by.bsuir.productservice.model.enums.InventoryEventType;
 import by.bsuir.productservice.model.enums.OperationType;
 import by.bsuir.productservice.model.enums.ShipmentRequestStatus;
+import by.bsuir.productservice.model.enums.ShipmentType;
 import by.bsuir.productservice.repository.InventoryRepository;
 import by.bsuir.productservice.repository.ProductOperationRepository;
 import by.bsuir.productservice.repository.ShipmentRequestItemRepository;
 import by.bsuir.productservice.repository.ShipmentRequestRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -39,11 +48,25 @@ public class ShipmentRequestService {
     private final ProductOperationRepository operationRepository;
     private final FEFOService fefoService;
     private final InventoryEventService inventoryEventService;
+    private final DocumentRegistryService documentRegistryService;
 
     @Transactional
     public ShipmentRequestResponse create(CreateShipmentRequestRequest request, UUID userId, UUID organizationId) {
-        log.info("Creating shipment request for warehouse {} (org={}, user={})",
-                request.warehouseId(), organizationId, userId);
+        log.info("Creating shipment request for warehouse {} (org={}, user={}, type={})",
+                request.warehouseId(), organizationId, userId, request.shipmentType());
+
+        ShipmentType shipmentType = request.shipmentType() != null ? request.shipmentType() : ShipmentType.DOMESTIC;
+        String currency = request.currency() != null ? request.currency().toUpperCase() : "BYN";
+        DocumentLayout documentLayout = request.documentLayout() != null
+                ? request.documentLayout()
+                : DocumentLayout.HORIZONTAL;
+        DomesticDocumentKind documentKind = request.domesticDocumentKind() != null
+                ? request.domesticDocumentKind()
+                : DomesticDocumentKind.TN;
+
+        if (shipmentType == ShipmentType.EXPORT && "BYN".equals(currency)) {
+            throw AppException.badRequest("Для экспортной отгрузки укажите валюту контракта (USD/EUR/RUB)");
+        }
 
         ShipmentRequest entity = ShipmentRequest.builder()
                 .requestId(UUID.randomUUID())
@@ -56,6 +79,12 @@ public class ShipmentRequestService {
                 .comment(request.comment())
                 .status(ShipmentRequestStatus.PLANNED)
                 .strategy(request.strategy() != null ? request.strategy() : AllocationStrategy.AUTO)
+                .shipmentType(shipmentType)
+                .currency(currency)
+                .documentLayout(documentLayout)
+                .domesticDocumentKind(documentKind)
+                .recipientCountry(request.recipientCountry())
+                .recipientGln(request.recipientGln())
                 .createdBy(userId)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -75,7 +104,7 @@ public class ShipmentRequestService {
             itemRepository.save(item);
         }
 
-        return mapToResponse(entity);
+        return mapToResponse(entity, List.of());
     }
 
     @Transactional(readOnly = true)
@@ -83,13 +112,21 @@ public class ShipmentRequestService {
         List<ShipmentRequest> reqs = (organizationId != null)
                 ? requestRepository.findByOrganizationId(organizationId)
                 : requestRepository.findAll();
-        return reqs.stream().map(this::mapToResponse).collect(Collectors.toList());
+        return reqs.stream().map(r -> mapToResponse(r, List.of())).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ShipmentRequestResponse> getAll(UUID organizationId, Pageable pageable) {
+        Page<ShipmentRequest> reqs = (organizationId != null)
+                ? requestRepository.findByOrganizationId(organizationId, pageable)
+                : requestRepository.findAll(pageable);
+        return reqs.map(r -> mapToResponse(r, List.of()));
     }
 
     @Transactional(readOnly = true)
     public ShipmentRequestResponse get(UUID requestId, UUID organizationId) {
         ShipmentRequest entity = findOwned(requestId, organizationId);
-        return mapToResponse(entity);
+        return mapToResponse(entity, List.of());
     }
 
     @Transactional
@@ -117,7 +154,7 @@ public class ShipmentRequestService {
 
         if ("PICKED".equals(item.getStatus()) && pick.unitSku().equals(item.getUnitSku())) {
             log.info("Idempotent pick of {} — already picked, no-op", pick.unitSku());
-            return mapToResponse(req);
+            return mapToResponse(req, List.of());
         }
 
         BigDecimal newPicked = item.getPickedQty().add(pick.qty());
@@ -135,7 +172,7 @@ public class ShipmentRequestService {
         }
         itemRepository.save(item);
 
-        return mapToResponse(req);
+        return mapToResponse(req, List.of());
     }
 
     @Transactional
@@ -158,11 +195,11 @@ public class ShipmentRequestService {
         item.setStatus(newPicked.compareTo(BigDecimal.ZERO) == 0 ? "PENDING" : "PARTIAL");
         itemRepository.save(item);
 
-        return mapToResponse(req);
+        return mapToResponse(req, List.of());
     }
 
     @Transactional
-    public ShipmentRequestResponse complete(UUID requestId, List<String> documentTypes, UUID organizationId) {
+    public ShipmentRequestResponse complete(UUID requestId, UUID userId, UUID organizationId) {
         ShipmentRequest req = findOwned(requestId, organizationId);
         if (req.getStatus() == ShipmentRequestStatus.COMPLETED) {
             throw AppException.badRequest("Заявка уже завершена");
@@ -175,6 +212,7 @@ public class ShipmentRequestService {
         }
 
         AllocationStrategy strategy = req.getStrategy() != null ? req.getStrategy() : AllocationStrategy.AUTO;
+        UUID primaryOperationId = null;
 
         for (ShipmentRequestItem item : items) {
             List<FEFOService.InventoryAllocation> allocations = fefoService.selectInventory(
@@ -184,7 +222,7 @@ public class ShipmentRequestService {
                     strategy);
 
             for (FEFOService.InventoryAllocation allocation : allocations) {
-                Inventory inventory = inventoryRepository.findById(allocation.getInventoryId())
+                Inventory inventory = inventoryRepository.findByIdForUpdate(allocation.getInventoryId())
                         .orElseThrow(() -> AppException.notFound("Inventory не найден"));
                 BigDecimal qtyBefore = inventory.getQuantity();
                 inventory.setQuantity(qtyBefore.subtract(allocation.getQuantity()));
@@ -205,20 +243,24 @@ public class ShipmentRequestService {
                         .notes(String.format("Отгрузка по заявке %s (стратегия %s)", requestId, strategy))
                         .build();
                 operationRepository.save(operation);
+                if (primaryOperationId == null) primaryOperationId = operation.getOperationId();
 
                 inventoryEventService.recordQuantityChange(inventory, InventoryEventType.ITEM_REMOVED,
                         qtyBefore, allocation.getQuantity().negate(),
                         operation.getOperationId(), req.getCreatedBy(),
-                        java.util.Map.of("requestId", requestId, "strategy", strategy.name()));
+                        Map.of("requestId", requestId, "strategy", strategy.name()));
             }
         }
+
+        List<UUID> generatedIds = generateShipmentDocuments(req, items, primaryOperationId,
+                userId != null ? userId : req.getCreatedBy(), organizationId);
 
         req.setStatus(ShipmentRequestStatus.COMPLETED);
         req.setUpdatedAt(LocalDateTime.now());
         requestRepository.save(req);
-        log.info("Shipment request {} completed (strategy={}). Documents requested: {}",
-                requestId, strategy, documentTypes);
-        return mapToResponse(req);
+        log.info("Shipment request {} completed (strategy={}, type={}). Documents generated: {}",
+                requestId, strategy, req.getShipmentType(), generatedIds);
+        return mapToResponse(req, generatedIds);
     }
 
     @Transactional
@@ -232,11 +274,81 @@ public class ShipmentRequestService {
         requestRepository.save(req);
     }
 
+    private List<UUID> generateShipmentDocuments(
+            ShipmentRequest req,
+            List<ShipmentRequestItem> items,
+            UUID operationId,
+            UUID userId,
+            UUID organizationId) {
+
+        ShipmentType shipmentType = req.getShipmentType() != null ? req.getShipmentType() : ShipmentType.DOMESTIC;
+        DocumentLayout layout = req.getDocumentLayout() != null ? req.getDocumentLayout() : DocumentLayout.HORIZONTAL;
+        DomesticDocumentKind kind = req.getDomesticDocumentKind() != null
+                ? req.getDomesticDocumentKind() : DomesticDocumentKind.TN;
+        String currency = req.getCurrency() != null ? req.getCurrency() : "BYN";
+
+        Map<String, Object> basePayload = buildBasePayload(req, items, layout, currency);
+        List<UUID> result = new ArrayList<>();
+
+        if (shipmentType == ShipmentType.EXPORT) {
+            for (String type : List.of("transport-note", "cmr", "invoice")) {
+                GeneratedDocument doc = documentRegistryService.register(
+                        operationId, type, basePayload, organizationId, userId);
+                result.add(doc.getId());
+            }
+        } else {
+            String type = kind == DomesticDocumentKind.TTN ? "waybill" : "transport-note";
+            GeneratedDocument doc = documentRegistryService.register(
+                    operationId, type, basePayload, organizationId, userId);
+            result.add(doc.getId());
+        }
+        return result;
+    }
+
+    private Map<String, Object> buildBasePayload(
+            ShipmentRequest req,
+            List<ShipmentRequestItem> items,
+            DocumentLayout layout,
+            String currency) {
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("requestId", req.getRequestId().toString());
+        payload.put("warehouseId", req.getWarehouseId() != null ? req.getWarehouseId().toString() : null);
+        payload.put("recipientName", req.getRecipientName());
+        payload.put("recipientAddress", req.getRecipientAddress());
+        payload.put("recipientInn", req.getRecipientInn());
+        payload.put("recipientCountry", req.getRecipientCountry());
+        payload.put("recipientGln", req.getRecipientGln());
+        payload.put("plannedDate", req.getPlannedDate() != null ? req.getPlannedDate().toString() : null);
+        payload.put("layout", layout.name().toLowerCase());
+        payload.put("currency", currency);
+        payload.put("shipmentType", req.getShipmentType() != null ? req.getShipmentType().name() : "DOMESTIC");
+        payload.put("comment", req.getComment());
+
+        List<Map<String, Object>> itemPayloads = items.stream().map(i -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("productId", i.getProductId().toString());
+            m.put("batchId", i.getBatchId() != null ? i.getBatchId().toString() : null);
+            m.put("quantity", i.getPickedQty());
+            m.put("unitSku", i.getUnitSku());
+            return m;
+        }).collect(Collectors.toList());
+        payload.put("items", itemPayloads);
+
+        return payload;
+    }
+
     private ShipmentRequestItem findItemByInventorySku(UUID requestId, String unitSku) {
         Inventory inv = inventoryRepository.findByUnitSku(unitSku).orElse(null);
         if (inv == null) return null;
+        ShipmentRequestItem exact = inv.getBatchId() != null
+                ? itemRepository
+                        .findByRequestIdAndProductIdAndBatchId(requestId, inv.getProductId(), inv.getBatchId())
+                        .orElse(null)
+                : null;
+        if (exact != null) return exact;
         return itemRepository
-                .findByRequestIdAndProductIdAndBatchId(requestId, inv.getProductId(), inv.getBatchId())
+                .findFirstByRequestIdAndProductIdAndBatchIdIsNull(requestId, inv.getProductId())
                 .orElse(null);
     }
 
@@ -250,7 +362,7 @@ public class ShipmentRequestService {
         return req;
     }
 
-    private ShipmentRequestResponse mapToResponse(ShipmentRequest entity) {
+    private ShipmentRequestResponse mapToResponse(ShipmentRequest entity, List<UUID> documentIds) {
         List<ShipmentRequestItem> items = itemRepository.findByRequestId(entity.getRequestId());
         BigDecimal totalExpected = items.stream()
                 .map(ShipmentRequestItem::getExpectedQty)
@@ -278,10 +390,17 @@ public class ShipmentRequestService {
                 entity.getPlannedDate(),
                 entity.getComment(),
                 entity.getStatus(),
+                entity.getShipmentType(),
+                entity.getCurrency(),
+                entity.getDocumentLayout(),
+                entity.getDomesticDocumentKind(),
+                entity.getRecipientCountry(),
+                entity.getRecipientGln(),
                 entity.getCreatedBy(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
                 progress,
+                documentIds != null ? documentIds : List.of(),
                 itemDtos
         );
     }

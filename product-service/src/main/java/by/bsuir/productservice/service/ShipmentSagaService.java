@@ -143,12 +143,7 @@ public class ShipmentSagaService {
                     .build();
 
             operationRepository.save(stagingOp);
-            saveOperationEvent(stagingOp, "OPERATION_RECORDED", Map.of(
-                    "operationType", stagingOp.getOperationType().name(),
-                    "productId", stagingOp.getProductId().toString(),
-                    "warehouseId", stagingOp.getWarehouseId().toString(),
-                    "quantity", stagingOp.getQuantity().toString()
-            ));
+            saveOperationEvent(stagingOp, "OPERATION_RECORDED", buildOperationEventPayload(stagingOp));
 
             Map<String, Object> data = new HashMap<>();
             data.put("stagingOperationId", stagingOp.getOperationId());
@@ -187,7 +182,7 @@ public class ShipmentSagaService {
 
             Inventory inventory;
             if (reservationInventoryId != null) {
-                inventory = inventoryRepository.findById(reservationInventoryId).orElse(null);
+                inventory = inventoryRepository.findByIdForUpdate(reservationInventoryId).orElse(null);
             } else {
                 inventory = findInventoryForShipment(
                         request.productId(),
@@ -243,12 +238,7 @@ public class ShipmentSagaService {
                     .build();
 
             operationRepository.save(operation);
-            saveOperationEvent(operation, "OPERATION_RECORDED", Map.of(
-                    "operationType", operation.getOperationType().name(),
-                    "productId", operation.getProductId().toString(),
-                    "warehouseId", operation.getWarehouseId().toString(),
-                    "quantity", operation.getQuantity().toString()
-            ));
+            saveOperationEvent(operation, "OPERATION_RECORDED", buildOperationEventPayload(operation));
 
             Map<String, Object> data = new HashMap<>();
             data.put("operationId", operation.getOperationId());
@@ -274,6 +264,23 @@ public class ShipmentSagaService {
 
         UUID inventoryId = allocations.get(0).getInventoryId();
         return inventoryRepository.findById(inventoryId).orElse(null);
+    }
+
+    private Map<String, Object> buildOperationEventPayload(ProductOperation operation) {
+        Map<String, Object> payload = new HashMap<>();
+        if (operation.getOperationType() != null) {
+            payload.put("operationType", operation.getOperationType().name());
+        }
+        if (operation.getProductId() != null) {
+            payload.put("productId", operation.getProductId().toString());
+        }
+        if (operation.getWarehouseId() != null) {
+            payload.put("warehouseId", operation.getWarehouseId().toString());
+        }
+        if (operation.getQuantity() != null) {
+            payload.put("quantity", operation.getQuantity().toString());
+        }
+        return payload;
     }
 
     private void saveOperationEvent(ProductOperation operation, String eventType, Map<String, Object> payload) {

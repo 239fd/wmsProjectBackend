@@ -1,5 +1,6 @@
 package by.bsuir.productservice.controller;
 
+import by.bsuir.productservice.config.SecurityUtils;
 import by.bsuir.productservice.dto.request.StartInventoryRequest;
 import by.bsuir.productservice.service.InventoryCheckService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,7 +44,8 @@ public class InventoryCheckController {
             @Parameter(description = "Примечания") @RequestParam(required = false) String notes,
             @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
-        if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
+        userRole = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -66,7 +68,8 @@ public class InventoryCheckController {
             @RequestHeader(value = "X-User-Role", required = false) String userRole,
             @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
 
-        if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
+        userRole = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -97,6 +100,7 @@ public class InventoryCheckController {
             @Parameter(description = "Примечания") @RequestParam(required = false) String notes,
             @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
+        userRole = SecurityUtils.resolveRole(userRole);
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -126,7 +130,8 @@ public class InventoryCheckController {
             @Parameter(description = "ID пользователя", required = true) @RequestParam UUID userId,
             @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
-        if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
+        userRole = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -149,7 +154,8 @@ public class InventoryCheckController {
             @Parameter(description = "ID сессии инвентаризации", required = true) @PathVariable UUID sessionId,
             @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
-        if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
+        userRole = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 

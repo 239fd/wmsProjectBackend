@@ -14,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +29,9 @@ import java.nio.charset.StandardCharsets;
 public class OAuthController {
 
     private final OAuthService oauthService;
+
+    @Value("${app.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
 
     @Operation(
             summary = "Инициировать OAuth2 аутентификацию",
@@ -69,7 +73,7 @@ public class OAuthController {
         if (error != null) {
             String errorMessage = error_description != null ? error_description : error;
             String redirectUrl = String.format(
-                    "http://localhost:3000/auth/callback?error=%s",
+                    frontendUrl + "/auth/callback?error=%s",
                     URLEncoder.encode(errorMessage, StandardCharsets.UTF_8)
             );
             response.sendRedirect(redirectUrl);
@@ -77,7 +81,7 @@ public class OAuthController {
         }
 
         if (code == null) {
-            String redirectUrl = "http://localhost:3000/auth/callback?error=" +
+            String redirectUrl = frontendUrl + "/auth/callback?error=" +
                     URLEncoder.encode("Не получен код авторизации", StandardCharsets.UTF_8);
             response.sendRedirect(redirectUrl);
             return;
@@ -95,7 +99,7 @@ public class OAuthController {
             if (result instanceof AuthResponse authResponse) {
 
                 String redirectUrl = String.format(
-                        "http://localhost:3000/auth/callback?access_token=%s&refresh_token=%s",
+                        frontendUrl + "/auth/callback?access_token=%s&refresh_token=%s",
                         URLEncoder.encode(authResponse.accessToken(), StandardCharsets.UTF_8),
                         URLEncoder.encode(authResponse.refreshToken(), StandardCharsets.UTF_8)
                 );
@@ -104,7 +108,7 @@ public class OAuthController {
             else if (result instanceof OAuthRegistrationResponse regResponse) {
 
                 String redirectUrl = String.format(
-                        "http://localhost:3000/auth/callback?token=%s&email=%s&name=%s",
+                        frontendUrl + "/auth/callback?token=%s&email=%s&name=%s",
                         URLEncoder.encode(regResponse.temporaryToken(), StandardCharsets.UTF_8),
                         URLEncoder.encode(regResponse.email() != null ? regResponse.email() : "", StandardCharsets.UTF_8),
                         URLEncoder.encode(regResponse.fullName() != null ? regResponse.fullName() : "", StandardCharsets.UTF_8)
@@ -113,7 +117,7 @@ public class OAuthController {
             }
         } catch (Exception e) {
             String redirectUrl = String.format(
-                    "http://localhost:3000/auth/callback?error=%s",
+                    frontendUrl + "/auth/callback?error=%s",
                     URLEncoder.encode(e.getMessage() != null ? e.getMessage() : "Ошибка авторизации", StandardCharsets.UTF_8)
             );
             response.sendRedirect(redirectUrl);

@@ -11,6 +11,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,30 +34,37 @@ public class InventoryController {
     private final InventoryService inventoryService;
     private final InventoryEventRepository inventoryEventRepository;
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     @Operation(
-            summary = "Получить остатки по складу",
-            description = "Возвращает список всех товаров с их остатками на указанном складе"
+            summary = "Получить остатки по складу (пагинация)",
+            description = "Возвращает страницу остатков на указанном складе"
     )
     @ApiResponse(responseCode = "200", description = "Остатки успешно получены")
     @GetMapping("/warehouse/{warehouseId}")
-    public ResponseEntity<List<InventoryResponse>> getInventoryByWarehouse(
+    public ResponseEntity<Page<InventoryResponse>> getInventoryByWarehouse(
             @Parameter(description = "ID склада", required = true) @PathVariable UUID warehouseId,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
-        List<InventoryResponse> response = inventoryService.getInventoryByWarehouse(warehouseId, organizationId);
-        return ResponseEntity.ok(response);
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @PageableDefault(size = 20, sort = "lastUpdated", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(inventoryService.getInventoryByWarehouse(warehouseId, organizationId, capSize(pageable)));
     }
 
     @Operation(
-            summary = "Получить остатки товара",
-            description = "Возвращает информацию об остатках конкретного товара на всех складах"
+            summary = "Получить остатки товара (пагинация)",
+            description = "Возвращает страницу остатков конкретного товара по складам"
     )
     @ApiResponse(responseCode = "200", description = "Остатки успешно получены")
     @GetMapping("/product/{productId}")
-    public ResponseEntity<List<InventoryResponse>> getInventoryByProduct(
+    public ResponseEntity<Page<InventoryResponse>> getInventoryByProduct(
             @Parameter(description = "ID товара", required = true) @PathVariable UUID productId,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
-        List<InventoryResponse> response = inventoryService.getInventoryByProduct(productId, organizationId);
-        return ResponseEntity.ok(response);
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @PageableDefault(size = 20, sort = "lastUpdated", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(inventoryService.getInventoryByProduct(productId, organizationId, capSize(pageable)));
+    }
+
+    private static Pageable capSize(Pageable pageable) {
+        if (pageable.getPageSize() <= MAX_PAGE_SIZE) return pageable;
+        return PageRequest.of(pageable.getPageNumber(), MAX_PAGE_SIZE, pageable.getSort());
     }
 
     @Operation(

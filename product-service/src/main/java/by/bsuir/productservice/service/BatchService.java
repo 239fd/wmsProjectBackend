@@ -9,6 +9,8 @@ import by.bsuir.productservice.repository.ProductBatchRepository;
 import by.bsuir.productservice.repository.ProductReadModelRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,6 +85,14 @@ public class BatchService {
     }
 
     @Transactional(readOnly = true)
+    public Page<BatchResponse> getBatchesByProduct(UUID productId, UUID organizationId, Pageable pageable) {
+        Page<ProductBatch> batches = (organizationId != null)
+                ? batchRepository.findByOrganizationIdAndProductId(organizationId, productId, pageable)
+                : batchRepository.findByProductIdOrderByCreatedAtDesc(productId, pageable);
+        return batches.map(this::mapToResponse);
+    }
+
+    @Transactional(readOnly = true)
     public BatchResponse getBatch(UUID batchId, UUID organizationId) {
         ProductBatch batch = batchRepository.findById(batchId)
                 .orElseThrow(() -> AppException.notFound("Партия не найдена"));
@@ -99,6 +109,14 @@ public class BatchService {
                 ? batchRepository.findByOrganizationId(organizationId)
                 : batchRepository.findAll();
         return batches.stream().map(this::mapToResponse).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<BatchResponse> getAllBatches(UUID organizationId, Pageable pageable) {
+        Page<ProductBatch> batches = (organizationId != null)
+                ? batchRepository.findByOrganizationId(organizationId, pageable)
+                : batchRepository.findAll(pageable);
+        return batches.map(this::mapToResponse);
     }
 
     private BatchResponse mapToResponse(ProductBatch batch) {

@@ -72,6 +72,9 @@ public class ProductReadModel {
         if (updatedAt == null) {
             updatedAt = LocalDateTime.now();
         }
+        if (abcClass == null) {
+            abcClass = "C";
+        }
     }
 
     @PreUpdate

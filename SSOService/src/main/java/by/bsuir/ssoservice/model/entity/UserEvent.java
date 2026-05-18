@@ -1,13 +1,13 @@
 package by.bsuir.ssoservice.model.entity;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.Type;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -31,7 +31,7 @@ public class UserEvent {
     @Column(name = "event_type", nullable = false, length = 50)
     private String eventType;
 
-    @Type(JsonBinaryType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "event_data", nullable = false, columnDefinition = "jsonb")
     private JsonNode eventData;
 

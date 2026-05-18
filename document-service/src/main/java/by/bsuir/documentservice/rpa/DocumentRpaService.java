@@ -1,6 +1,10 @@
 package by.bsuir.documentservice.rpa;
 
 import by.bsuir.documentservice.dto.InventoryListData;
+import by.bsuir.documentservice.dto.CmrData;
+import by.bsuir.documentservice.dto.InvoiceData;
+import by.bsuir.documentservice.dto.ReceiptActData;
+import by.bsuir.documentservice.dto.TransportNoteData;
 import by.bsuir.documentservice.dto.ReceiptOrderData;
 import by.bsuir.documentservice.dto.RevaluationActData;
 import by.bsuir.documentservice.dto.ShippingInvoiceData;
@@ -382,6 +386,378 @@ public class DocumentRpaService {
             log.error("RPA: Error generating Shipping Invoice", e);
             throw new RuntimeException("Failed to generate shipping invoice", e);
         }
+    }
+
+    public byte[] generateReceiptAct(ReceiptActData data) {
+        log.info("RPA: Generating Receipt Act (discrepancies={})",
+                data.hasDiscrepancies() ? data.getDiscrepancies().size() : 0);
+
+        String templateName = data.hasDiscrepancies()
+                ? "Акт расхождения.xls"
+                : "Акт приемки.RTF";
+
+        if (templateName.endsWith(".xls")) {
+            return generateReceiptActXls(data, templateName);
+        }
+        return generateReceiptActRtf(data, templateName);
+    }
+
+    private byte[] generateReceiptActXls(ReceiptActData data, String templateName) {
+        try (InputStream template = loadTemplate(templateName);
+                HSSFWorkbook workbook = new HSSFWorkbook(template)) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+
+            setCellValue(sheet, 2, 1, "АКТ О РАСХОЖДЕНИИ №" + safe(data.getDocumentNumber()));
+            setCellValue(sheet, 3, 1, "от " + formatDate(data.getDocumentDate()));
+
+            setCellValue(sheet, 5, 0, "Организация:");
+            setCellValue(sheet, 5, 2, safe(data.getOrganizationName()));
+            setCellValue(sheet, 6, 2, "ИНН/УНП: " + safe(data.getInn()));
+            setCellValue(sheet, 7, 2, "Склад: " + safe(data.getWarehouseName()));
+
+            setCellValue(sheet, 9, 0, "Поставщик:");
+            setCellValue(sheet, 9, 2, safe(data.getSupplierName()));
+            setCellValue(sheet, 10, 2, "ИНН/УНП: " + safe(data.getSupplierInn()));
+
+            setCellValue(sheet, 12, 0, "Договор:");
+            setCellValue(sheet, 12, 2,
+                    safe(data.getContractNumber()) + " от " + safe(data.getContractDate()));
+            setCellValue(sheet, 13, 0, "ТТН/ТН:");
+            setCellValue(sheet, 13, 2,
+                    safe(data.getWaybillNumber()) + " от " + safe(data.getWaybillDate()));
+
+            int rowNum = 16;
+            setCellValue(sheet, rowNum, 0, "№");
+            setCellValue(sheet, rowNum, 1, "Товар");
+            setCellValue(sheet, rowNum, 2, "SKU");
+            setCellValue(sheet, rowNum, 3, "Ед.");
+            setCellValue(sheet, rowNum, 4, "По док.");
+            setCellValue(sheet, rowNum, 5, "Факт");
+            setCellValue(sheet, rowNum, 6, "Разница");
+            setCellValue(sheet, rowNum, 7, "Тип");
+            setCellValue(sheet, rowNum, 8, "Описание дефекта");
+            rowNum++;
+
+            if (data.getDiscrepancies() != null) {
+                for (ReceiptActData.DiscrepancyItem item : data.getDiscrepancies()) {
+                    Row row = getOrCreateRow(sheet, rowNum);
+                    setCellValue(row, 0, item.getRowNumber());
+                    setCellValue(row, 1, safe(item.getProductName()));
+                    setCellValue(row, 2, safe(item.getSku()));
+                    setCellValue(row, 3, safe(item.getUnit()));
+                    setCellValue(row, 4, item.getExpectedQty());
+                    setCellValue(row, 5, item.getActualQty());
+                    setCellValue(row, 6, item.getDifferenceQty());
+                    setCellValue(row, 7, safe(item.getDiscrepancyType()));
+                    setCellValue(row, 8, safe(item.getDefectDescription()));
+                    rowNum++;
+                }
+            }
+
+            int notesRow = rowNum + 2;
+            setCellValue(sheet, notesRow, 0, "Заключение комиссии:");
+            setCellValue(sheet, notesRow, 1, safe(data.getGeneralNotes()));
+
+            int signRow = notesRow + 3;
+            setCellValue(sheet, signRow, 0, "Председатель: " + safe(data.getChairmanName()));
+            int memberRow = signRow + 1;
+            if (data.getCommissionMembers() != null) {
+                for (String member : data.getCommissionMembers()) {
+                    setCellValue(sheet, memberRow++, 0, "Член комиссии: " + member);
+                }
+            }
+            setCellValue(sheet, memberRow + 1, 0, "Принял: " + safe(data.getAcceptedBy()));
+            setCellValue(sheet, memberRow + 2, 0, "Утвердил: " + safe(data.getApprovedBy()));
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            log.error("RPA: Error generating Receipt Act XLS", e);
+            throw new RuntimeException("Failed to generate receipt act", e);
+        }
+    }
+
+    private byte[] generateReceiptActRtf(ReceiptActData data, String templateName) {
+        try (InputStream template = loadTemplate(templateName)) {
+            String rtf = new String(template.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+            String filled = rtf
+                    .replace("{{documentNumber}}", safe(data.getDocumentNumber()))
+                    .replace("{{documentDate}}", formatDate(data.getDocumentDate()))
+                    .replace("{{organizationName}}", safe(data.getOrganizationName()))
+                    .replace("{{inn}}", safe(data.getInn()))
+                    .replace("{{warehouseName}}", safe(data.getWarehouseName()))
+                    .replace("{{supplierName}}", safe(data.getSupplierName()))
+                    .replace("{{supplierInn}}", safe(data.getSupplierInn()))
+                    .replace("{{contractNumber}}", safe(data.getContractNumber()))
+                    .replace("{{waybillNumber}}", safe(data.getWaybillNumber()))
+                    .replace("{{chairmanName}}", safe(data.getChairmanName()))
+                    .replace("{{acceptedBy}}", safe(data.getAcceptedBy()))
+                    .replace("{{approvedBy}}", safe(data.getApprovedBy()));
+
+            return filled.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            log.error("RPA: Error generating Receipt Act RTF", e);
+            throw new RuntimeException("Failed to generate receipt act", e);
+        }
+    }
+
+    private String safe(String value) {
+        return value != null ? value : "—";
+    }
+
+    public byte[] generateInvoice(InvoiceData data) {
+        log.info("RPA: Generating Invoice (currency={})", data.getCurrency());
+
+        try (InputStream template = loadTemplate("blank-invojs.doc");
+                org.apache.poi.hwpf.HWPFDocument doc = new org.apache.poi.hwpf.HWPFDocument(template)) {
+
+            org.apache.poi.hwpf.usermodel.Range range = doc.getRange();
+            String currency = data.getCurrency() != null ? data.getCurrency() : "BYN";
+
+            replaceInDoc(range, "{{documentNumber}}", safe(data.getDocumentNumber()));
+            replaceInDoc(range, "{{documentDate}}", formatDate(data.getDocumentDate()));
+            replaceInDoc(range, "{{currency}}", currency);
+            replaceInDoc(range, "{{sellerName}}", safe(data.getSellerName()));
+            replaceInDoc(range, "{{sellerInn}}", safe(data.getSellerInn()));
+            replaceInDoc(range, "{{sellerAddress}}", safe(data.getSellerAddress()));
+            replaceInDoc(range, "{{buyerName}}", safe(data.getBuyerName()));
+            replaceInDoc(range, "{{buyerInn}}", safe(data.getBuyerInn()));
+            replaceInDoc(range, "{{buyerAddress}}", safe(data.getBuyerAddress()));
+            replaceInDoc(range, "{{contractNumber}}", safe(data.getContractNumber()));
+            replaceInDoc(range, "{{contractDate}}", safe(data.getContractDate()));
+            replaceInDoc(range, "{{totalAmount}}",
+                    data.getTotalAmount() != null ? data.getTotalAmount().toPlainString() : "0.00");
+            replaceInDoc(range, "{{totalAmountInWords}}", safe(data.getTotalAmountInWords()));
+            replaceInDoc(range, "{{vatRate}}",
+                    data.getVatRate() != null ? data.getVatRate().toPlainString() : "0");
+            replaceInDoc(range, "{{vatAmount}}",
+                    data.getVatAmount() != null ? data.getVatAmount().toPlainString() : "0.00");
+            replaceInDoc(range, "{{responsiblePerson}}", safe(data.getResponsiblePerson()));
+            replaceInDoc(range, "{{notes}}", safe(data.getNotes()));
+
+            replaceInDoc(range, "{{itemsTable}}", buildItemsBlock(data));
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.write(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            log.error("RPA: Error generating Invoice", e);
+            throw new RuntimeException("Failed to generate invoice", e);
+        }
+    }
+
+    private void replaceInDoc(org.apache.poi.hwpf.usermodel.Range range, String token, String value) {
+        try {
+            range.replaceText(token, value != null ? value : "");
+        } catch (Exception ignored) {
+        }
+    }
+
+    public byte[] generateCmr(CmrData data) {
+        log.info("RPA: Generating CMR (currency={}, country {} → {})",
+                data.getCurrency(), data.getShipperCountry(), data.getConsigneeCountry());
+
+        try (InputStream template = loadTemplate("CMR Международная товарно-транспортная накладная.doc");
+                org.apache.poi.hwpf.HWPFDocument doc = new org.apache.poi.hwpf.HWPFDocument(template)) {
+
+            org.apache.poi.hwpf.usermodel.Range range = doc.getRange();
+            String currency = data.getCurrency() != null ? data.getCurrency() : "EUR";
+
+            replaceInDoc(range, "{{documentNumber}}", safe(data.getDocumentNumber()));
+            replaceInDoc(range, "{{documentDate}}", formatDate(data.getDocumentDate()));
+            replaceInDoc(range, "{{currency}}", currency);
+
+            replaceInDoc(range, "{{shipperName}}", safe(data.getShipperName()));
+            replaceInDoc(range, "{{shipperInn}}", safe(data.getShipperInn()));
+            replaceInDoc(range, "{{shipperAddress}}", safe(data.getShipperAddress()));
+            replaceInDoc(range, "{{shipperCountry}}", safe(data.getShipperCountry()));
+            replaceInDoc(range, "{{shipperGln}}", safe(data.getShipperGln()));
+
+            replaceInDoc(range, "{{consigneeName}}", safe(data.getConsigneeName()));
+            replaceInDoc(range, "{{consigneeInn}}", safe(data.getConsigneeInn()));
+            replaceInDoc(range, "{{consigneeAddress}}", safe(data.getConsigneeAddress()));
+            replaceInDoc(range, "{{consigneeCountry}}", safe(data.getConsigneeCountry()));
+            replaceInDoc(range, "{{consigneeGln}}", safe(data.getConsigneeGln()));
+
+            replaceInDoc(range, "{{carrierName}}", safe(data.getCarrierName()));
+            replaceInDoc(range, "{{carrierAddress}}", safe(data.getCarrierAddress()));
+            replaceInDoc(range, "{{vehicleNumber}}", safe(data.getVehicleNumber()));
+            replaceInDoc(range, "{{trailerNumber}}", safe(data.getTrailerNumber()));
+            replaceInDoc(range, "{{driverName}}", safe(data.getDriverName()));
+            replaceInDoc(range, "{{driverPassport}}", safe(data.getDriverPassport()));
+
+            replaceInDoc(range, "{{placeOfLoading}}", safe(data.getPlaceOfLoading()));
+            replaceInDoc(range, "{{placeOfDelivery}}", safe(data.getPlaceOfDelivery()));
+            replaceInDoc(range, "{{loadingDate}}", formatDate(data.getLoadingDate()));
+            replaceInDoc(range, "{{deliveryDate}}", formatDate(data.getDeliveryDate()));
+
+            replaceInDoc(range, "{{totalQuantity}}",
+                    data.getTotalQuantity() != null ? data.getTotalQuantity().toPlainString() : "0");
+            replaceInDoc(range, "{{totalWeightKg}}",
+                    data.getTotalWeight() != null ? data.getTotalWeight().toPlainString() : "0");
+            replaceInDoc(range, "{{totalVolumeM3}}",
+                    data.getTotalVolume() != null ? data.getTotalVolume().toPlainString() : "0");
+            replaceInDoc(range, "{{cargoDeclaredValue}}",
+                    data.getCargoDeclaredValue() != null
+                            ? data.getCargoDeclaredValue().toPlainString() + " " + currency
+                            : "0 " + currency);
+
+            replaceInDoc(range, "{{paymentInstructions}}", safe(data.getPaymentInstructions()));
+            replaceInDoc(range, "{{specialInstructions}}", safe(data.getSpecialInstructions()));
+            replaceInDoc(range, "{{contractNumber}}", safe(data.getContractNumber()));
+
+            replaceInDoc(range, "{{shipperSignedBy}}", safe(data.getShipperSignedBy()));
+            replaceInDoc(range, "{{carrierSignedBy}}", safe(data.getCarrierSignedBy()));
+            replaceInDoc(range, "{{consigneeSignedBy}}", safe(data.getConsigneeSignedBy()));
+
+            replaceInDoc(range, "{{itemsTable}}", buildCmrItemsBlock(data, currency));
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.write(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            log.error("RPA: Error generating CMR", e);
+            throw new RuntimeException("Failed to generate CMR", e);
+        }
+    }
+
+    private String buildCmrItemsBlock(CmrData data, String currency) {
+        if (data.getItems() == null || data.getItems().isEmpty()) {
+            return "—";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (CmrData.CmrItem item : data.getItems()) {
+            sb.append(item.getRowNumber() != null ? item.getRowNumber() : "?")
+                    .append(". ")
+                    .append(safe(item.getProductName()))
+                    .append(" [HS ").append(safe(item.getHsCode())).append("]")
+                    .append(" — упак.: ").append(safe(item.getPackagingType()))
+                    .append(", марк.: ").append(safe(item.getMarks()))
+                    .append(", кол.: ")
+                    .append(item.getQuantity() != null ? item.getQuantity().toPlainString() : "0")
+                    .append(" ").append(safe(item.getUnit()))
+                    .append(", вес: ")
+                    .append(item.getGrossWeightKg() != null ? item.getGrossWeightKg().toPlainString() : "0")
+                    .append(" кг, объём: ")
+                    .append(item.getVolumeM3() != null ? item.getVolumeM3().toPlainString() : "0")
+                    .append(" м³, ст-ть: ")
+                    .append(item.getDeclaredValue() != null ? item.getDeclaredValue().toPlainString() : "0")
+                    .append(" ").append(currency)
+                    .append("\n");
+        }
+        return sb.toString();
+    }
+
+    public byte[] generateTransportNote(TransportNoteData data) {
+        String layout = data.getLayout() != null ? data.getLayout().toLowerCase() : "horizontal";
+        String templateName = "vertical".equals(layout) ? "tn-vert.xls" : "tn-gor.xls";
+        log.info("RPA: Generating Transport Note (layout={}, template={})", layout, templateName);
+
+        try (InputStream template = loadTemplate(templateName);
+                HSSFWorkbook workbook = new HSSFWorkbook(template)) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+            String currency = data.getCurrency() != null ? data.getCurrency() : "BYN";
+
+            setCellValue(sheet, 2, 1,
+                    "ТОВАРНАЯ НАКЛАДНАЯ №" + safe(data.getDocumentNumber())
+                            + " от " + formatDate(data.getDocumentDate()));
+
+            setCellValue(sheet, 4, 0, "Грузоотправитель:");
+            setCellValue(sheet, 4, 2, safe(data.getShipperName()));
+            setCellValue(sheet, 5, 2, "ИНН/УНП: " + safe(data.getShipperInn()));
+            setCellValue(sheet, 6, 2, safe(data.getShipperAddress()));
+
+            setCellValue(sheet, 8, 0, "Грузополучатель:");
+            setCellValue(sheet, 8, 2, safe(data.getConsigneeName()));
+            setCellValue(sheet, 9, 2, "ИНН/УНП: " + safe(data.getConsigneeInn()));
+            setCellValue(sheet, 10, 2, safe(data.getConsigneeAddress()));
+
+            setCellValue(sheet, 12, 0, "Склад отгрузки:");
+            setCellValue(sheet, 12, 2, safe(data.getWarehouseName()));
+            setCellValue(sheet, 13, 0, "Договор:");
+            setCellValue(sheet, 13, 2,
+                    safe(data.getContractNumber()) + " от " + safe(data.getContractDate()));
+            setCellValue(sheet, 14, 0, "Валюта:");
+            setCellValue(sheet, 14, 2, currency);
+
+            int headerRow = 16;
+            setCellValue(sheet, headerRow, 0, "№");
+            setCellValue(sheet, headerRow, 1, "Товар");
+            setCellValue(sheet, headerRow, 2, "SKU");
+            setCellValue(sheet, headerRow, 3, "Ед.");
+            setCellValue(sheet, headerRow, 4, "Кол-во");
+            setCellValue(sheet, headerRow, 5, "Цена, " + currency);
+            setCellValue(sheet, headerRow, 6, "Сумма, " + currency);
+            setCellValue(sheet, headerRow, 7, "НДС %");
+            setCellValue(sheet, headerRow, 8, "НДС, " + currency);
+
+            int rowNum = headerRow + 1;
+            if (data.getItems() != null) {
+                for (TransportNoteData.TransportItem item : data.getItems()) {
+                    Row row = getOrCreateRow(sheet, rowNum);
+                    setCellValue(row, 0, item.getRowNumber());
+                    setCellValue(row, 1, safe(item.getProductName()));
+                    setCellValue(row, 2, safe(item.getSku()));
+                    setCellValue(row, 3, safe(item.getUnit()));
+                    setCellValue(row, 4, item.getQuantity());
+                    setCellValue(row, 5, item.getUnitPrice());
+                    setCellValue(row, 6, item.getTotalPrice());
+                    setCellValue(row, 7, item.getVatRate());
+                    setCellValue(row, 8, item.getVatAmount());
+                    rowNum++;
+                }
+            }
+
+            int totalsRow = rowNum + 1;
+            setCellValue(sheet, totalsRow, 0, "ИТОГО:");
+            setCellValue(sheet, totalsRow, 4, data.getTotalQuantity());
+            setCellValue(sheet, totalsRow, 6, data.getTotalAmount());
+            setCellValue(sheet, totalsRow, 8, data.getTotalVat());
+
+            int waybillRow = totalsRow + 2;
+            setCellValue(sheet, waybillRow, 0, "Товар к доставке принял:");
+            setCellValue(sheet, waybillRow, 2, safe(data.getWaybillReference()));
+
+            int signRow = waybillRow + 2;
+            setCellValue(sheet, signRow, 0, "Отпустил: " + safe(data.getReleasedBy()));
+            setCellValue(sheet, signRow + 1, 0, "Принял: " + safe(data.getAcceptedBy()));
+
+            if (data.getNotes() != null && !data.getNotes().isBlank()) {
+                setCellValue(sheet, signRow + 3, 0, "Примечание: " + data.getNotes());
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            log.error("RPA: Error generating Transport Note", e);
+            throw new RuntimeException("Failed to generate transport note", e);
+        }
+    }
+
+    private String buildItemsBlock(InvoiceData data) {
+        if (data.getItems() == null || data.getItems().isEmpty()) {
+            return "—";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (InvoiceData.InvoiceItem item : data.getItems()) {
+            sb.append(item.getRowNumber() != null ? item.getRowNumber() : "?")
+                    .append(". ")
+                    .append(safe(item.getProductName()))
+                    .append(" (").append(safe(item.getSku())).append(") — ")
+                    .append(item.getQuantity() != null ? item.getQuantity().toPlainString() : "0")
+                    .append(" ").append(safe(item.getUnit()))
+                    .append(" × ")
+                    .append(item.getUnitPrice() != null ? item.getUnitPrice().toPlainString() : "0.00")
+                    .append(" = ")
+                    .append(item.getTotalPrice() != null ? item.getTotalPrice().toPlainString() : "0.00")
+                    .append("\n");
+        }
+        return sb.toString();
     }
 
     private InputStream loadTemplate(String filename) throws IOException {

@@ -9,6 +9,8 @@ import by.bsuir.productservice.model.enums.SupplyStatus;
 import by.bsuir.productservice.repository.SupplyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
@@ -30,6 +32,11 @@ public class SupplyService {
     }
 
     @Transactional(readOnly = true)
+    public Page<SupplyResponse> getAll(Pageable pageable) {
+        return supplyRepository.findAll(pageable).map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
     public SupplyResponse getById(UUID supplyId) {
         return toResponse(find(supplyId));
     }
@@ -42,10 +49,20 @@ public class SupplyService {
     }
 
     @Transactional(readOnly = true)
+    public Page<SupplyResponse> getByWarehouse(UUID warehouseId, Pageable pageable) {
+        return supplyRepository.findByWarehouseId(warehouseId, pageable).map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
     public List<SupplyResponse> getByStatus(SupplyStatus status) {
         return supplyRepository.findByStatus(status).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<SupplyResponse> getByStatus(SupplyStatus status, Pageable pageable) {
+        return supplyRepository.findByStatus(status, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -55,9 +72,19 @@ public class SupplyService {
     }
 
     @Transactional(readOnly = true)
+    public Page<SupplyResponse> getByOrganization(UUID organizationId, Pageable pageable) {
+        return supplyRepository.findByOrganizationId(organizationId, pageable).map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
     public List<SupplyResponse> getByOrganizationAndStatus(UUID organizationId, SupplyStatus status) {
         return supplyRepository.findByOrganizationIdAndStatus(organizationId, status).stream()
                 .map(this::toResponse).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<SupplyResponse> getByOrganizationAndStatus(UUID organizationId, SupplyStatus status, Pageable pageable) {
+        return supplyRepository.findByOrganizationIdAndStatus(organizationId, status, pageable).map(this::toResponse);
     }
 
     @Transactional
@@ -69,10 +96,13 @@ public class SupplyService {
     public SupplyResponse create(CreateSupplyRequest request, UUID organizationId) {
         log.info("Creating supply for warehouse: {}", request.warehouseId());
 
+        UUID supplyId = UUID.randomUUID();
+
         List<SupplyItem> items = new ArrayList<>();
         if (request.items() != null) {
             for (CreateSupplyRequest.SupplyItemRequest itemReq : request.items()) {
                 items.add(SupplyItem.builder()
+                        .supplyId(supplyId)
                         .productId(itemReq.productId())
                         .expectedQty(itemReq.expectedQty())
                         .unitPrice(itemReq.unitPrice())
@@ -82,6 +112,7 @@ public class SupplyService {
         }
 
         Supply supply = Supply.builder()
+                .supplyId(supplyId)
                 .organizationId(organizationId)
                 .supplierId(request.supplierId())
                 .warehouseId(request.warehouseId())

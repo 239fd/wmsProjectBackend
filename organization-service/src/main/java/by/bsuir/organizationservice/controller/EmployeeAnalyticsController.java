@@ -1,5 +1,6 @@
 package by.bsuir.organizationservice.controller;
 
+import by.bsuir.organizationservice.config.SecurityUtils;
 import by.bsuir.organizationservice.service.EmployeeAnalyticsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -36,9 +37,10 @@ public class EmployeeAnalyticsController {
     @GetMapping("/employees")
     public ResponseEntity<List<Map<String, Object>>> getEmployeesAnalytics(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String userRole = userRoleHdr != null ? userRoleHdr : SecurityUtils.currentRole();
+        if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(403).build();
         }
 
@@ -59,9 +61,10 @@ public class EmployeeAnalyticsController {
     public ResponseEntity<Map<String, Object>> getEmployeeAnalytics(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
             @Parameter(description = "ID пользователя (сотрудника)", required = true) @PathVariable UUID userId,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String userRole = userRoleHdr != null ? userRoleHdr : SecurityUtils.currentRole();
+        if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(403).build();
         }
 

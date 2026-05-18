@@ -1,5 +1,6 @@
 package by.bsuir.warehouseservice.controller;
 
+import by.bsuir.warehouseservice.config.SecurityUtils;
 import by.bsuir.warehouseservice.service.WarehouseAnalyticsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -35,8 +36,9 @@ public class WarehouseAnalyticsController {
     @GetMapping("/{warehouseId}")
     public ResponseEntity<Map<String, Object>> getWarehouseAnalytics(
             @Parameter(description = "ID склада", required = true) @PathVariable UUID warehouseId,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
         if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(403).build();
         }
@@ -57,8 +59,9 @@ public class WarehouseAnalyticsController {
     @GetMapping("/organization/{orgId}/summary")
     public ResponseEntity<Map<String, Object>> getOrganizationWarehousesSummary(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
         if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(403).build();
         }

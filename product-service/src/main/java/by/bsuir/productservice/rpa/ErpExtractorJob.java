@@ -8,6 +8,8 @@ import by.bsuir.productservice.repository.PlannedDeliveryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -34,23 +36,44 @@ public class ErpExtractorJob {
     @Qualifier("apiExtractor")
     private final PlannedDeliveryExtractor apiExtractor;
 
-    @Value("${erp.extraction.mode:rpa}")
+    @Autowired(required = false)
+    @Qualifier("oneCExtractor")
+    private PlannedDeliveryExtractor oneCExtractor;
+
+    @Value("${erp.extraction.mode:onec}")
     private String extractionMode;
 
     @Scheduled(cron = "0 0 3 * * *")
     public void runScheduled() {
         log.info("ErpExtractorJob: плановый запуск в {}", LocalDateTime.now());
-        run(extractionMode);
+        run(extractionMode, null);
     }
 
     @Transactional
     public Map<String, Object> runManually(String mode) {
-        log.info("ErpExtractorJob: ручной запуск, режим={}", mode);
-        return run(mode != null ? mode : extractionMode);
+        return runManually(mode, null);
     }
 
-    private Map<String, Object> run(String mode) {
-        PlannedDeliveryExtractor extractor = "api".equalsIgnoreCase(mode) ? apiExtractor : rpaExtractor;
+    @Transactional
+    public Map<String, Object> runManually(String mode, ErpConnectionParams params) {
+        log.info("ErpExtractorJob: ручной запуск, режим={}, params={}", mode, params != null && !params.isEmpty());
+        return run(mode != null ? mode : extractionMode, params);
+    }
+
+    private Map<String, Object> run(String mode, ErpConnectionParams params) {
+        PlannedDeliveryExtractor extractor;
+        if ("onec".equalsIgnoreCase(mode)) {
+            if (oneCExtractor == null) {
+                log.warn("1C extractor выключен (rpa.onec.enabled=false), fallback на rpaExtractor");
+                extractor = rpaExtractor;
+            } else {
+                extractor = oneCExtractor;
+            }
+        } else if ("api".equalsIgnoreCase(mode)) {
+            extractor = apiExtractor;
+        } else {
+            extractor = rpaExtractor;
+        }
         String source = extractor.getSourceName();
         LocalDateTime startedAt = LocalDateTime.now();
 
@@ -59,7 +82,9 @@ public class ErpExtractorJob {
         String error = null;
 
         try {
-            List<Map<String, Object>> deliveries = extractor.extractDeliveries();
+            List<Map<String, Object>> deliveries = (params != null && !params.isEmpty())
+                    ? extractor.extractDeliveries(params)
+                    : extractor.extractDeliveries();
             found = deliveries.size();
 
             for (Map<String, Object> d : deliveries) {

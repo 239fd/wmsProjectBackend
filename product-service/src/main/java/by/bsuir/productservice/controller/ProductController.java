@@ -1,5 +1,6 @@
 package by.bsuir.productservice.controller;
 
+import by.bsuir.productservice.config.SecurityUtils;
 import by.bsuir.productservice.dto.request.CreateProductRequest;
 import by.bsuir.productservice.dto.request.UpdateProductRequest;
 import by.bsuir.productservice.dto.response.ProductResponse;
@@ -15,11 +16,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -33,6 +38,8 @@ public class ProductController {
     private final ProductService productService;
     private final ProductJourneyService journeyService;
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     @Operation(summary = "Создать товар", description = "Создает новый товар в системе")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Товар успешно создан",
@@ -43,14 +50,26 @@ public class ProductController {
     @PostMapping
     public ResponseEntity<ProductResponse> createProduct(
             @Valid @RequestBody CreateProductRequest request,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
 
+        userRole = SecurityUtils.resolveRole(userRole);
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        ProductResponse response = productService.createProduct(request);
+        ProductResponse response = productService.createProduct(request, organizationId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @Operation(summary = "Поиск товара по тексту",
+            description = "Ищет товары по подстроке в name/SKU/barcode (case-insensitive). Лимит — пагинация (default 20).")
+    @ApiResponse(responseCode = "200", description = "Список товаров")
+    @GetMapping("/search")
+    public ResponseEntity<java.util.List<ProductResponse>> searchProducts(
+            @RequestParam("query") String query,
+            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
+        return ResponseEntity.ok(productService.searchProducts(query, capSize(pageable)));
     }
 
     @Operation(summary = "Получить товар по ID", description = "Возвращает информацию о товаре по его уникальному идентификатору")
@@ -65,12 +84,17 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Получить все товары", description = "Возвращает список всех товаров в системе")
+    @Operation(summary = "Получить все товары (пагинация)", description = "Возвращает страницу товаров")
     @ApiResponse(responseCode = "200", description = "Список товаров получен")
     @GetMapping
-    public ResponseEntity<List<ProductResponse>> getAllProducts() {
-        List<ProductResponse> response = productService.getAllProducts();
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Page<ProductResponse>> getAllProducts(
+            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
+        return ResponseEntity.ok(productService.getAllProducts(capSize(pageable)));
+    }
+
+    private static Pageable capSize(Pageable pageable) {
+        if (pageable.getPageSize() <= MAX_PAGE_SIZE) return pageable;
+        return PageRequest.of(pageable.getPageNumber(), MAX_PAGE_SIZE, pageable.getSort());
     }
 
     @Operation(summary = "Получить товар по SKU", description = "Возвращает товар по его артикулу (SKU)")
@@ -97,13 +121,13 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Получить товары по категории", description = "Возвращает список товаров определенной категории")
+    @Operation(summary = "Получить товары по категории (пагинация)", description = "Возвращает страницу товаров категории")
     @ApiResponse(responseCode = "200", description = "Список товаров получен")
     @GetMapping("/category/{category}")
-    public ResponseEntity<List<ProductResponse>> getProductsByCategory(
-            @Parameter(description = "Название категории", required = true) @PathVariable String category) {
-        List<ProductResponse> response = productService.getProductsByCategory(category);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Page<ProductResponse>> getProductsByCategory(
+            @Parameter(description = "Название категории", required = true) @PathVariable String category,
+            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
+        return ResponseEntity.ok(productService.getProductsByCategory(category, capSize(pageable)));
     }
 
     @Operation(summary = "Обновить товар", description = "Обновляет информацию о товаре")
@@ -119,6 +143,7 @@ public class ProductController {
             @Valid @RequestBody UpdateProductRequest request,
             @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
+        userRole = SecurityUtils.resolveRole(userRole);
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -138,7 +163,8 @@ public class ProductController {
             @Parameter(description = "ID товара", required = true) @PathVariable UUID productId,
             @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
-        if (userRole != null && !"DIRECTOR".equals(userRole)) {
+        userRole = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 

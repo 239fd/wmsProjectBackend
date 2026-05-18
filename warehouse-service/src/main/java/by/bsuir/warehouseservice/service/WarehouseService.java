@@ -13,6 +13,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -88,10 +90,20 @@ public class WarehouseService {
     }
 
     @Transactional(readOnly = true)
+    public Page<WarehouseResponse> getWarehousesByOrganization(UUID orgId, Pageable pageable) {
+        return readModelRepository.findByOrgId(orgId, pageable).map(this::mapToResponse);
+    }
+
+    @Transactional(readOnly = true)
     public List<WarehouseResponse> getActiveWarehousesByOrganization(UUID orgId) {
         return readModelRepository.findByOrgIdAndIsActiveTrue(orgId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<WarehouseResponse> getActiveWarehousesByOrganization(UUID orgId, Pageable pageable) {
+        return readModelRepository.findByOrgIdAndIsActiveTrue(orgId, pageable).map(this::mapToResponse);
     }
 
     @Transactional(readOnly = true)

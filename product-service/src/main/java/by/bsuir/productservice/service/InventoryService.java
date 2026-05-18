@@ -6,6 +6,8 @@ import by.bsuir.productservice.model.entity.Inventory;
 import by.bsuir.productservice.repository.InventoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,12 +48,28 @@ public class InventoryService {
     }
 
     @Transactional(readOnly = true)
+    public Page<InventoryResponse> getInventoryByWarehouse(UUID warehouseId, UUID organizationId, Pageable pageable) {
+        Page<Inventory> records = (organizationId != null)
+                ? inventoryRepository.findByOrganizationIdAndWarehouseId(organizationId, warehouseId, pageable)
+                : inventoryRepository.findByWarehouseId(warehouseId, pageable);
+        return records.map(this::mapToResponse);
+    }
+
+    @Transactional(readOnly = true)
     public List<InventoryResponse> getInventoryByProduct(UUID productId, UUID organizationId) {
         log.info("Getting inventory for product: {} (org: {})", productId, organizationId);
         List<Inventory> records = (organizationId != null)
                 ? inventoryRepository.findByOrganizationIdAndProductId(organizationId, productId)
                 : inventoryRepository.findByProductId(productId);
         return records.stream().map(this::mapToResponse).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<InventoryResponse> getInventoryByProduct(UUID productId, UUID organizationId, Pageable pageable) {
+        Page<Inventory> records = (organizationId != null)
+                ? inventoryRepository.findByOrganizationIdAndProductId(organizationId, productId, pageable)
+                : inventoryRepository.findByProductId(productId, pageable);
+        return records.map(this::mapToResponse);
     }
 
     @Transactional(readOnly = true)

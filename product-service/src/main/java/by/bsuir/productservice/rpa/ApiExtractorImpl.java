@@ -6,8 +6,11 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import java.util.Collections;
 import java.util.List;
@@ -63,11 +66,13 @@ public class ApiExtractorImpl implements PlannedDeliveryExtractor {
 
     private String login() {
         String url = erpBaseUrl + "/login";
-        Map<String, String> credentials = Map.of(
-                "username", erpUsername,
-                "password", erpPassword
-        );
-        Map<?, ?> response = restTemplate.postForObject(url, credentials, Map.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("username", erpUsername);
+        form.add("password", erpPassword);
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(form, headers);
+        Map<?, ?> response = restTemplate.postForObject(url, request, Map.class);
         if (response == null || !response.containsKey("token")) {
             throw new RuntimeException("Не удалось получить токен от ERP API");
         }

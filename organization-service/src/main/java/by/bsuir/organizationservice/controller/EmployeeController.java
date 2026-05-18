@@ -1,5 +1,6 @@
 package by.bsuir.organizationservice.controller;
 
+import by.bsuir.organizationservice.config.SecurityUtils;
 import by.bsuir.organizationservice.dto.AddEmployeeRequest;
 import by.bsuir.organizationservice.dto.EmployeeResponse;
 import by.bsuir.organizationservice.dto.UpdateEmployeeStatusRequest;
@@ -51,9 +52,10 @@ public class EmployeeController {
     public ResponseEntity<EmployeeResponse> addEmployee(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
             @Valid @RequestBody AddEmployeeRequest request,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String userRole = userRoleHdr != null ? userRoleHdr : SecurityUtils.currentRole();
+        if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -74,9 +76,10 @@ public class EmployeeController {
     public ResponseEntity<Map<String, String>> removeEmployee(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
             @Parameter(description = "ID пользователя (сотрудника)", required = true) @PathVariable UUID userId,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String userRole = userRoleHdr != null ? userRoleHdr : SecurityUtils.currentRole();
+        if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -103,9 +106,10 @@ public class EmployeeController {
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
             @Parameter(description = "ID пользователя", required = true) @PathVariable UUID userId,
             @Valid @RequestBody UpdateEmployeeStatusRequest request,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String userRole = userRoleHdr != null ? userRoleHdr : SecurityUtils.currentRole();
+        if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -131,8 +135,9 @@ public class EmployeeController {
     public ResponseEntity<Page<EmployeeResponse>> getOrganizationEmployees(
             @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
+        String userRole = userRoleHdr != null ? userRoleHdr : SecurityUtils.currentRole();
         if (userRole == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }

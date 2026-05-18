@@ -8,12 +8,15 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -24,6 +27,8 @@ public class ShipmentRequestController {
 
     private final ShipmentRequestService service;
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     @Operation(summary = "Создать заявку на отгрузку")
     @PostMapping
     public ResponseEntity<ShipmentRequestResponse> create(
@@ -33,11 +38,17 @@ public class ShipmentRequestController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request, userId, organizationId));
     }
 
-    @Operation(summary = "Список заявок")
+    @Operation(summary = "Список заявок (пагинация)")
     @GetMapping
-    public ResponseEntity<List<ShipmentRequestResponse>> getAll(
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
-        return ResponseEntity.ok(service.getAll(organizationId));
+    public ResponseEntity<Page<ShipmentRequestResponse>> getAll(
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(service.getAll(organizationId, capSize(pageable)));
+    }
+
+    private static Pageable capSize(Pageable pageable) {
+        if (pageable.getPageSize() <= MAX_PAGE_SIZE) return pageable;
+        return PageRequest.of(pageable.getPageNumber(), MAX_PAGE_SIZE, pageable.getSort());
     }
 
     @Operation(summary = "Получить заявку по ID")
@@ -67,15 +78,14 @@ public class ShipmentRequestController {
     }
 
     @Operation(summary = "Завершить заявку",
-            description = "Закрывает заявку и инициирует генерацию выбранных документов: отпускной ордер, ТТН, ТН, инвойс, CMR, счет-фактура")
+            description = "Закрывает заявку и генерирует пакет документов по выбранному типу отгрузки: "
+                    + "DOMESTIC → ТН/ТТН по выбранному kind+layout; EXPORT → пакет {ТН + CMR + invoice}")
     @PostMapping("/{requestId}/complete")
     public ResponseEntity<ShipmentRequestResponse> complete(
             @PathVariable UUID requestId,
-            @RequestBody Map<String, Object> body,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId,
             @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
-        @SuppressWarnings("unchecked")
-        List<String> documentTypes = (List<String>) body.getOrDefault("documentTypes", List.of());
-        return ResponseEntity.ok(service.complete(requestId, documentTypes, organizationId));
+        return ResponseEntity.ok(service.complete(requestId, userId, organizationId));
     }
 
     @Operation(summary = "Отменить заявку")

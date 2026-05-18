@@ -263,7 +263,7 @@ class InvitationServiceTest {
         List<InvitationResponse> all = service.getOrganizationInvitations(orgId);
 
         assertThat(all).hasSize(2);
-        assertThat(all.get(0).inviteLink()).contains("http://localhost:3000/register?invite=");
+        assertThat(all.get(0).inviteLink()).contains("http://localhost:3000/register/invitation?token=");
     }
 
     private OrganizationReadModel activeOrg() {

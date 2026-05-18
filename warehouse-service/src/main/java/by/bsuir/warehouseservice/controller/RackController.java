@@ -1,5 +1,6 @@
 package by.bsuir.warehouseservice.controller;
 
+import by.bsuir.warehouseservice.config.SecurityUtils;
 import by.bsuir.warehouseservice.dto.request.CreateCellRequest;
 import by.bsuir.warehouseservice.dto.request.CreateFridgeRequest;
 import by.bsuir.warehouseservice.dto.request.CreatePalletRequest;
@@ -17,6 +18,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -55,9 +61,10 @@ public class RackController {
     @PostMapping
     public ResponseEntity<RackResponse> createRack(
             @Valid @RequestBody CreateRackRequest request,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || (!"DIRECTOR".equals(userRole))) {
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
+        if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -79,9 +86,10 @@ public class RackController {
     public ResponseEntity<Map<String, String>> createShelf(
             @Parameter(description = "ID стеллажа", required = true) @PathVariable UUID rackId,
             @Valid @RequestBody CreateShelfRequest request,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
+        if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -112,9 +120,10 @@ public class RackController {
     public ResponseEntity<Map<String, String>> createCell(
             @Parameter(description = "ID стеллажа", required = true) @PathVariable UUID rackId,
             @Valid @RequestBody CreateCellRequest request,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
+        if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -145,9 +154,10 @@ public class RackController {
     public ResponseEntity<Map<String, String>> createFridge(
             @Parameter(description = "ID стеллажа", required = true) @PathVariable UUID rackId,
             @Valid @RequestBody CreateFridgeRequest request,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
+        if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -179,9 +189,10 @@ public class RackController {
     public ResponseEntity<Map<String, String>> createPallet(
             @Parameter(description = "ID стеллажа", required = true) @PathVariable UUID rackId,
             @Valid @RequestBody CreatePalletRequest request,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole))) {
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
+        if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -197,16 +208,23 @@ public class RackController {
                 .body(Map.of("message", "Паллет успешно создан"));
     }
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     @Operation(
-            summary = "Получить стеллажи склада",
-            description = "Возвращает список всех стеллажей для указанного склада"
+            summary = "Получить стеллажи склада (пагинация)",
+            description = "Возвращает страницу стеллажей для указанного склада"
     )
     @ApiResponse(responseCode = "200", description = "Список стеллажей получен")
     @GetMapping("/warehouse/{warehouseId}")
-    public ResponseEntity<List<RackResponse>> getRacksByWarehouse(
-            @Parameter(description = "ID склада", required = true) @PathVariable UUID warehouseId) {
-        List<RackResponse> response = rackService.getRacksByWarehouse(warehouseId);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Page<RackResponse>> getRacksByWarehouse(
+            @Parameter(description = "ID склада", required = true) @PathVariable UUID warehouseId,
+            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
+        return ResponseEntity.ok(rackService.getRacksByWarehouse(warehouseId, capSize(pageable)));
+    }
+
+    private static Pageable capSize(Pageable pageable) {
+        if (pageable.getPageSize() <= MAX_PAGE_SIZE) return pageable;
+        return PageRequest.of(pageable.getPageNumber(), MAX_PAGE_SIZE, pageable.getSort());
     }
 
     @Operation(
@@ -276,9 +294,10 @@ public class RackController {
     @DeleteMapping("/{rackId}")
     public ResponseEntity<Map<String, String>> deleteRack(
             @Parameter(description = "ID стеллажа", required = true) @PathVariable UUID rackId,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
 
-        if (userRole == null || !"DIRECTOR".equals(userRole)) {
+        String userRole = SecurityUtils.resolveRole(userRoleHdr);
+        if (!"DIRECTOR".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 

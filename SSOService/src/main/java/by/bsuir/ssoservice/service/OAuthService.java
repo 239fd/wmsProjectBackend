@@ -59,6 +59,9 @@ public class OAuthService {
     @Value("${oauth.google.redirect-uri}")
     private String googleRedirectUri;
 
+    @Value("${app.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
+
     public String getAuthorizationUrl(String provider, String type) {
         String state = UUID.randomUUID().toString();
         redisTemplate.opsForValue().set(STATE_PREFIX + state, type == null ? "login" : type, STATE_TTL);
@@ -192,7 +195,7 @@ public class OAuthService {
                 .fullName(userInfo.name())
                 .provider(provider)
                 .requiresRoleSelection(true)
-                .redirectUrl("http://localhost:3000/role")
+                .redirectUrl(frontendUrl + "/role")
                 .build();
     }
 

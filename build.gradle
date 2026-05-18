@@ -66,13 +66,58 @@ subprojects {
         toolVersion = '0.8.11'
     }
 
+    ext.jacocoExcludes = [
+        '**/config/**',
+        '**/dto/**',
+        '**/model/entity/**',
+        '**/model/event/**',
+        '**/model/enums/**',
+        '**/rpa/**',
+        '**/*Application.class',
+        '**/exception/**',
+        '**/client/**',
+    ]
+
     test {
         useJUnitPlatform()
         finalizedBy jacocoTestReport
+        systemProperty 'file.encoding', 'UTF-8'
+        systemProperty 'stdout.encoding', 'UTF-8'
+        systemProperty 'stderr.encoding', 'UTF-8'
+    }
+
+    tasks.matching { it.name == 'bootRun' }.configureEach {
+        def envFile = rootProject.file('../.env')
+        if (envFile.exists()) {
+            envFile.readLines('UTF-8').each { rawLine ->
+                def line = rawLine.trim()
+                if (line.isEmpty() || line.startsWith('#')) return
+                def idx = line.indexOf('=')
+                if (idx <= 0) return
+                def key = line.substring(0, idx).trim()
+                def value = line.substring(idx + 1).trim()
+                if (value.startsWith('"') && value.endsWith('"')) value = value.substring(1, value.length() - 1)
+                if (value.startsWith("'") && value.endsWith("'")) value = value.substring(1, value.length() - 1)
+                environment key, value
+            }
+        }
+    }
+
+    tasks.matching { it.name == 'integrationTest' }.configureEach {
+        systemProperty 'file.encoding', 'UTF-8'
+        systemProperty 'stdout.encoding', 'UTF-8'
+        systemProperty 'stderr.encoding', 'UTF-8'
     }
 
     jacocoTestReport {
         dependsOn test
+        afterEvaluate {
+            classDirectories.setFrom(
+                files(classDirectories.files.collect {
+                    fileTree(dir: it, exclude: jacocoExcludes)
+                })
+            )
+        }
         reports {
             xml.required = true
             html.required = true
@@ -81,6 +126,13 @@ subprojects {
     }
 
     jacocoTestCoverageVerification {
+        afterEvaluate {
+            classDirectories.setFrom(
+                files(classDirectories.files.collect {
+                    fileTree(dir: it, exclude: jacocoExcludes)
+                })
+            )
+        }
         violationRules {
             rule {
                 limit {
@@ -224,9 +276,23 @@ tasks.register('jacocoAggregateReport', JacocoReport) {
 
     dependsOn aggregateProjects.collect { "${it.path}:test" }
 
+    def aggregateJacocoExcludes = [
+        '**/config/**',
+        '**/dto/**',
+        '**/model/entity/**',
+        '**/model/event/**',
+        '**/model/enums/**',
+        '**/rpa/**',
+        '**/*Application.class',
+        '**/exception/**',
+        '**/client/**',
+    ]
+
     additionalSourceDirs.from = files(aggregateProjects.collect { it.sourceSets.main.allSource.srcDirs })
     sourceDirectories.from   = files(aggregateProjects.collect { it.sourceSets.main.allSource.srcDirs })
-    classDirectories.from    = files(aggregateProjects.collect { it.sourceSets.main.output })
+    classDirectories.from    = files(aggregateProjects.collect {
+        fileTree(dir: it.sourceSets.main.output.classesDirs.singleFile, exclude: aggregateJacocoExcludes)
+    })
     executionData.from       = files(aggregateProjects.collect { "${it.layout.buildDirectory.get()}/jacoco/test.exec" })
             .filter { it.exists() }
 

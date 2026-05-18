@@ -91,35 +91,61 @@ public class PdfDocumentService {
         ));
     }
 
+    @SuppressWarnings("unchecked")
     public byte[] generatePickingListPdf(Map<String, Object> data) {
-        return buildPdf("СБОРОЧНЫЙ ЛИСТ (ЛИСТ ПОДБОРА)", List.of(
-                row("Дата", getStr(data, "date", today())),
-                row("Заказ / Отгрузка", getStr(data, "shipmentId", "—")),
-                row("Склад", getStr(data, "warehouseName", "—")),
-                row("Исполнитель", getStr(data, "assignedTo", "—")),
-                row("Товар", getStr(data, "productName", "—")),
-                row("Ячейка", getStr(data, "cellAddress", "—")),
-                row("Количество к подбору", getStr(data, "quantityToPick", "0")),
-                row("Партия (срок годности)", getStr(data, "batchExpiry", "—")),
-                row("Примечание", getStr(data, "notes", ""))
-        ));
+        String shipmentNumber = getStr(data, "shipmentNumber", "—");
+        List<Map<String, Object>> items = data.get("items") instanceof List<?> raw
+                ? (List<Map<String, Object>>) raw
+                : List.of();
+
+        String[] headers = {"Товар", "SKU", "Поставка", "Место", "Кол-во", "Ед."};
+        float[] colWidths = {140f, 80f, 80f, 100f, 50f, 40f};
+
+        List<String[]> rows = new java.util.ArrayList<>(items.size());
+        for (Map<String, Object> item : items) {
+            rows.add(new String[]{
+                    getStr(item, "productName", "—"),
+                    getStr(item, "sku", "—"),
+                    getStr(item, "batchNumber", "—"),
+                    getStr(item, "location", "—"),
+                    getStr(item, "quantity", "0"),
+                    getStr(item, "unit", "шт")
+            });
+        }
+        return buildTablePdf(
+                "Лист подбора № " + shipmentNumber,
+                "Дата: " + today(),
+                headers, colWidths, rows);
     }
 
-    public byte[] generateReleaseOrderPdf(Map<String, Object> data) {
-        return buildPdf("ОТПУСКНОЙ ОРДЕР", List.of(
-                row("Номер", getStr(data, "documentNumber", "—")),
-                row("Дата", getStr(data, "date", today())),
-                row("Получатель", getStr(data, "recipientName", "—")),
-                row("Склад", getStr(data, "warehouseName", "—")),
-                row("Заявка", getStr(data, "shipmentRequestId", "—")),
-                row("Товар", getStr(data, "productName", "—")),
-                row("Партия", getStr(data, "batchNumber", "—")),
-                row("Количество", getStr(data, "quantity", "0")),
-                row("Цена", getStr(data, "unitPrice", "0.00")),
-                row("Сумма", getStr(data, "totalAmount", "0.00")),
-                row("Кладовщик", getStr(data, "releasedBy", "—")),
-                row("Примечание", getStr(data, "notes", ""))
-        ));
+    @SuppressWarnings("unchecked")
+    public byte[] generatePlacementListPdf(Map<String, Object> data) {
+        String documentNumber = getStr(data, "documentNumber", "—");
+        String warehouseName = getStr(data, "warehouseName", "—");
+        List<Map<String, Object>> items = data.get("items") instanceof List<?> raw
+                ? (List<Map<String, Object>>) raw
+                : List.of();
+
+        String[] headers = {"Товар", "SKU", "Партия", "Стеллаж", "Ячейка", "Кол-во", "Ед.", "Условия"};
+        float[] colWidths = {110f, 60f, 70f, 70f, 60f, 50f, 35f, 65f};
+
+        List<String[]> rows = new java.util.ArrayList<>(items.size());
+        for (Map<String, Object> item : items) {
+            rows.add(new String[]{
+                    getStr(item, "productName", "—"),
+                    getStr(item, "sku", "—"),
+                    getStr(item, "batchNumber", "—"),
+                    getStr(item, "rackName", "—"),
+                    getStr(item, "cellCode", "—"),
+                    getStr(item, "quantity", "0"),
+                    getStr(item, "unit", "шт"),
+                    getStr(item, "storageConditions", "—")
+            });
+        }
+        return buildTablePdf(
+                "Лист размещения № " + documentNumber,
+                "Склад: " + warehouseName + " · Дата: " + today(),
+                headers, colWidths, rows);
     }
 
     public byte[] generateReceiptActPdf(Map<String, Object> data) {
@@ -139,25 +165,6 @@ public class PdfDocumentService {
                 row("Председатель комиссии", getStr(data, "chairmanName", "—")),
                 row("Состав комиссии", getStr(data, "commissionMembers", "—")),
                 row("Примечание", getStr(data, "notes", ""))
-        ));
-    }
-
-    public byte[] generateInvoiceFactPdf(Map<String, Object> data) {
-        return buildPdf("СЧЁТ-ФАКТУРА", List.of(
-                row("Номер", getStr(data, "invoiceNumber", "—")),
-                row("Дата", getStr(data, "date", today())),
-                row("Поставщик", getStr(data, "supplierName", "—")),
-                row("УНП поставщика", getStr(data, "supplierInn", "—")),
-                row("Покупатель", getStr(data, "buyerName", "—")),
-                row("УНП покупателя", getStr(data, "buyerInn", "—")),
-                row("Договор", getStr(data, "contractNumber", "—")),
-                row("Товар", getStr(data, "productName", "—")),
-                row("Количество", getStr(data, "quantity", "0")),
-                row("Цена без НДС", getStr(data, "unitPrice", "0.00")),
-                row("Ставка НДС", getStr(data, "vatRate", "20%")),
-                row("Сумма НДС", getStr(data, "vatAmount", "0.00")),
-                row("Итого с НДС", getStr(data, "totalAmount", "0.00")),
-                row("Подписал", getStr(data, "signedBy", "—"))
         ));
     }
 
@@ -218,25 +225,6 @@ public class PdfDocumentService {
         ));
     }
 
-    public byte[] generateDiscrepancyActPdf(Map<String, Object> data) {
-        return buildPdf("АКТ О РАСХОЖДЕНИИ", List.of(
-                row("Номер", getStr(data, "documentNumber", "—")),
-                row("Дата", getStr(data, "date", today())),
-                row("Организация", getStr(data, "organizationName", "—")),
-                row("Склад", getStr(data, "warehouseName", "—")),
-                row("Поставка / Инвентаризация", getStr(data, "sourceReference", "—")),
-                row("Товар", getStr(data, "productName", "—")),
-                row("Партия", getStr(data, "batchNumber", "—")),
-                row("Ожидалось", getStr(data, "expectedQuantity", "0")),
-                row("Фактически", getStr(data, "actualQuantity", "0")),
-                row("Расхождение", getStr(data, "discrepancy", "0")),
-                row("Причина", getStr(data, "reason", "—")),
-                row("Председатель комиссии", getStr(data, "chairmanName", "—")),
-                row("Состав комиссии", getStr(data, "commissionMembers", "—")),
-                row("Решение", getStr(data, "decision", "—"))
-        ));
-    }
-
     private byte[] buildPdf(String title, List<String[]> rows) {
         try (PDDocument doc = new PDDocument()) {
             PDPage page = new PDPage(PDRectangle.A4);
@@ -292,6 +280,107 @@ public class PdfDocumentService {
             log.error("Ошибка генерации PDF: {}", e.getMessage(), e);
             throw new RuntimeException("Не удалось сгенерировать PDF: " + e.getMessage(), e);
         }
+    }
+
+    private byte[] buildTablePdf(
+            String title, String subtitle, String[] headers, float[] colWidths, List<String[]> rows) {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(PDRectangle.A4);
+            doc.addPage(page);
+
+            PDFont fontRegular = loadFont(doc, "fonts/DejaVuSans.ttf");
+            PDFont fontBold = loadFont(doc, "fonts/DejaVuSans-Bold.ttf");
+
+            float y = page.getMediaBox().getHeight() - MARGIN;
+
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                cs.beginText();
+                cs.setFont(fontBold, 14);
+                cs.newLineAtOffset(MARGIN, y);
+                cs.showText(title);
+                cs.endText();
+                y -= LINE_HEIGHT;
+
+                if (subtitle != null && !subtitle.isBlank()) {
+                    cs.beginText();
+                    cs.setFont(fontRegular, 10);
+                    cs.newLineAtOffset(MARGIN, y);
+                    cs.showText(subtitle);
+                    cs.endText();
+                    y -= LINE_HEIGHT;
+                }
+                y -= LINE_HEIGHT / 2;
+
+                drawTableRow(cs, fontBold, 10, MARGIN, y, colWidths, headers);
+                drawTableBorders(cs, MARGIN, y, colWidths);
+                y -= LINE_HEIGHT;
+
+                for (String[] row : rows) {
+                    if (y < MARGIN + LINE_HEIGHT) break;
+                    drawTableRow(cs, fontRegular, 9, MARGIN, y, colWidths, row);
+                    drawTableBorders(cs, MARGIN, y, colWidths);
+                    y -= LINE_HEIGHT;
+                }
+
+                cs.beginText();
+                cs.setFont(fontRegular, 9);
+                cs.newLineAtOffset(MARGIN, y - LINE_HEIGHT);
+                cs.showText("Документ сформирован системой WMS  " + today());
+                cs.endText();
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            log.error("Ошибка генерации табличного PDF: {}", e.getMessage(), e);
+            throw new RuntimeException("Не удалось сгенерировать PDF: " + e.getMessage(), e);
+        }
+    }
+
+    private void drawTableRow(
+            PDPageContentStream cs, PDFont font, int fontSize,
+            float startX, float y, float[] colWidths, String[] cells) throws java.io.IOException {
+        float x = startX;
+        for (int i = 0; i < cells.length && i < colWidths.length; i++) {
+            cs.beginText();
+            cs.setFont(font, fontSize);
+            cs.newLineAtOffset(x + 2, y - LINE_HEIGHT + 4);
+            String text = cells[i] != null ? cells[i] : "";
+            float maxChars = colWidths[i] / (fontSize * 0.5f);
+            if (text.length() > maxChars) {
+                text = text.substring(0, (int) maxChars - 1) + "…";
+            }
+            cs.showText(text);
+            cs.endText();
+            x += colWidths[i];
+        }
+    }
+
+    private void drawTableBorders(
+            PDPageContentStream cs, float startX, float y, float[] colWidths) throws java.io.IOException {
+        float x = startX;
+        cs.moveTo(startX, y);
+        cs.lineTo(startX + sum(colWidths), y);
+        cs.stroke();
+        cs.moveTo(startX, y - LINE_HEIGHT);
+        cs.lineTo(startX + sum(colWidths), y - LINE_HEIGHT);
+        cs.stroke();
+        for (float w : colWidths) {
+            cs.moveTo(x, y);
+            cs.lineTo(x, y - LINE_HEIGHT);
+            cs.stroke();
+            x += w;
+        }
+        cs.moveTo(x, y);
+        cs.lineTo(x, y - LINE_HEIGHT);
+        cs.stroke();
+    }
+
+    private float sum(float[] arr) {
+        float s = 0f;
+        for (float v : arr) s += v;
+        return s;
     }
 
     private PDFont loadFont(PDDocument doc, String classpath) throws java.io.IOException {

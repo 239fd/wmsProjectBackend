@@ -1,2 +1,0 @@
-ALTER TABLE shipment_request
-    ADD COLUMN IF NOT EXISTS strategy VARCHAR(16) NOT NULL DEFAULT 'AUTO';

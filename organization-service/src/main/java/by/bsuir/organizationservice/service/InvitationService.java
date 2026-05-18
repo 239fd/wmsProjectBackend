@@ -11,6 +11,7 @@ import by.bsuir.organizationservice.repository.OrganizationReadModelRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
@@ -58,6 +59,8 @@ public class InvitationService {
 
         invitationRepository.save(invitation);
 
+        boolean emailSent = false;
+        String emailError = null;
         try {
             emailService.sendInvitation(
                     request.email(),
@@ -65,12 +68,15 @@ public class InvitationService {
                     request.role(),
                     invitation.getInvitationToken().toString()
             );
+            emailSent = true;
         } catch (Exception e) {
-            log.error("Failed to send invitation email, but invitation created: {}", invitation.getInvitationId());
+            emailError = e.getMessage();
+            log.error("Failed to send invitation email, but invitation created: {} (reason: {})",
+                    invitation.getInvitationId(), emailError);
         }
 
-        log.info("Invitation created successfully: {}", invitation.getInvitationId());
-        return mapToResponse(invitation);
+        log.info("Invitation created successfully: {} (emailSent={})", invitation.getInvitationId(), emailSent);
+        return mapToResponse(invitation, emailSent, emailError);
     }
 
     @Transactional(readOnly = true)
@@ -126,10 +132,11 @@ public class InvitationService {
     @Transactional(readOnly = true)
     public List<InvitationResponse> getOrganizationInvitations(UUID orgId) {
         return invitationRepository.findByOrgIdOrderByCreatedAtDesc(orgId).stream()
-                .map(this::mapToResponse)
+                .map(inv -> mapToResponse(inv, null, null))
                 .collect(Collectors.toList());
     }
 
+    @Scheduled(cron = "0 0 * * * *")
     @Transactional
     public void cleanupExpiredInvitations() {
         invitationRepository.deleteExpiredInvitations(LocalDateTime.now());
@@ -140,8 +147,8 @@ public class InvitationService {
         return "WORKER".equals(role) || "ACCOUNTANT".equals(role) || "DIRECTOR".equals(role);
     }
 
-    private InvitationResponse mapToResponse(Invitation invitation) {
-        String inviteLink = frontendUrl + "/register?invite=" + invitation.getInvitationToken();
+    private InvitationResponse mapToResponse(Invitation invitation, Boolean emailSent, String emailError) {
+        String inviteLink = frontendUrl + "/register/invitation?token=" + invitation.getInvitationToken();
         return new InvitationResponse(
                 invitation.getInvitationId(),
                 invitation.getInvitationToken(),
@@ -151,7 +158,9 @@ public class InvitationService {
                 inviteLink,
                 invitation.getCreatedAt(),
                 invitation.getExpiresAt(),
-                invitation.getUsed()
+                invitation.getUsed(),
+                emailSent,
+                emailError
         );
     }
 }

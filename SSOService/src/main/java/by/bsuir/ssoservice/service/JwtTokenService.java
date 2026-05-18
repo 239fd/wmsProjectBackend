@@ -24,14 +24,17 @@ public class JwtTokenService {
     private final KeyPair keyPair;
     private final long accessTokenValidity;
     private final long refreshTokenValidity;
+    private final String issuer;
 
     public JwtTokenService(
             KeyPair keyPair,
             @Value("${app.security.jwt.access-ttl-seconds:14400}") long accessTokenValidity,
-            @Value("${app.security.jwt.refresh-ttl-seconds:2592000}") long refreshTokenValidity) {
+            @Value("${app.security.jwt.refresh-ttl-seconds:2592000}") long refreshTokenValidity,
+            @Value("${app.security.jwt.issuer:wms-sso}") String issuer) {
         this.keyPair = keyPair;
         this.accessTokenValidity = accessTokenValidity;
         this.refreshTokenValidity = refreshTokenValidity;
+        this.issuer = issuer;
     }
 
     public String generateAccessToken(UUID userId, String email, UserRole role, UUID organizationId, UUID warehouseId) {
@@ -42,7 +45,7 @@ public class JwtTokenService {
                     .subject(userId.toString())
                     .claim("email", email)
                     .claim("role", role.name())
-                    .issuer("http://localhost:7777")
+                    .issuer(issuer)
                     .issueTime(Date.from(now))
                     .expirationTime(Date.from(now.plusSeconds(accessTokenValidity)))
                     .jwtID(UUID.randomUUID().toString());

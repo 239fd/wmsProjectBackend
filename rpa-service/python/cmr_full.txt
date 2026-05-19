@@ -1,0 +1,217 @@
+Table: 52x14
+
+  [ 1, 1] LBL : 1 |
+  [ 1, 2] LBL : Отправитель (наименование, адрес, страна) |  Absender (Name, Anschrift, Land) |
+  [ 1, 3] DATA: |
+  [ 2, 1] DATA: |
+  [ 2, 2] DATA: |
+  [ 3, 1] DATA: |
+  [ 3, 2] DATA: |
+  [ 4, 1] DATA: |
+  [ 4, 2] DATA: |
+  [ 5, 1] DATA: |
+  [ 5, 2] DATA: |
+  [ 6, 1] DATA: |
+  [ 6, 2] DATA: |
+  [ 7, 1] LBL : 2 |
+  [ 7, 2] LBL : Получатель (наименование, адрес, страна) | Empfänger (Name, Anschrift, Land) |
+  [ 7, 3] LBL : 16 |
+  [ 7, 4] LBL : Перевозчик (наименование, адрес, страна) | Frachtführer (Name, Anschrift, Land) …
+  [ 8, 1] DATA: |
+  [ 8, 2] DATA: |
+  [ 9, 1] DATA: |
+  [ 9, 2] DATA: |
+  [10, 1] DATA: |
+  [10, 2] DATA: |
+  [11, 1] DATA: |
+  [11, 2] DATA: |
+  [12, 1] DATA: |
+  [12, 2] DATA: |
+  [13, 1] LBL : 3 |
+  [13, 2] LBL : Место разгрузки груза | Auslieferungsort des Gutes |
+  [13, 3] LBL : 17 |
+  [13, 4] LBL : Последующий перевозчик (наименование, адрес, страна) | Nachfolgende Frachtführer…
+  [14, 1] LBL : Место/Ort |
+  [14, 2] DATA: |
+  [14, 3] DATA: |
+  [15, 1] LBL : Страна/Land |
+  [15, 2] DATA: |
+  [15, 3] DATA: |
+  [16, 1] DATA: |
+  [16, 2] DATA: |
+  [17, 1] LBL : 4 |
+  [17, 2] LBL : Место и дата погрузки груза | Ort und Tag Übernahme des Gutes |
+  [17, 3] DATA: |
+  [18, 1] LBL : Место/Ort |
+  [18, 2] DATA: |
+  [18, 3] DATA: |
+  [19, 1] LBL : Страна/Land |
+  [19, 2] DATA: |
+  [19, 3] LBL : 18 |
+  [19, 4] LBL : Оговорки и замечания перевозчика | Vorbehalte und Bemerkungen der Frachtführer |
+  [20, 1] LBL : Дата/Datum |
+  [20, 2] DATA: |
+  [20, 3] DATA: |
+  [21, 1] LBL : 5 |
+  [21, 2] LBL : Прилагаемые документы | Beigefügte Dokumente |
+  [21, 3] DATA: |
+  [22, 1] DATA: |
+  [22, 2] DATA: |
+  [23, 1] DATA: |
+  [23, 2] DATA: |
+  [24, 1] LBL : 6 |
+  [24, 2] LBL : Знаки и номера | Kennzeichen und Nummern |
+  [24, 3] LBL : 7 |
+  [24, 4] LBL : Количество мест | Anzahl der Packstücke |
+  [24, 5] LBL : 8 |
+  [24, 6] LBL : Род упаковки | Art der Verpackung |
+  [24, 7] LBL : 9 |
+  [24, 8] LBL : Наименование груза | Bezeichnung des Gutes |
+  [24, 9] LBL : 10 |
+  [24,10] LBL : Статист № | Statistik-Nr. |
+  [24,11] LBL : 11 |
+  [24,12] LBL : Вес брутто, кг | Bruttogew., kg |
+  [24,13] LBL : 12 |
+  [24,14] LBL : Объём, м³ | Umfang m³ |
+  [25, 1] DATA: |
+  [25, 2] DATA: |
+  [25, 3] DATA: |
+  [25, 4] DATA: |
+  [26, 1] DATA: |
+  [26, 2] DATA: |
+  [26, 3] DATA: |
+  [26, 4] DATA: |
+  [27, 1] DATA: |
+  [27, 2] DATA: |
+  [27, 3] DATA: |
+  [27, 4] DATA: |
+  [28, 1] DATA: |
+  [28, 2] DATA: |
+  [28, 3] DATA: |
+  [28, 4] DATA: |
+  [29, 1] DATA: |
+  [29, 2] DATA: |
+  [29, 3] DATA: |
+  [29, 4] DATA: |
+  [30, 1] DATA: |
+  [30, 2] DATA: |
+  [30, 3] DATA: |
+  [30, 4] DATA: |
+  [31, 1] DATA: |
+  [31, 2] DATA: |
+  [31, 3] DATA: |
+  [31, 4] DATA: |
+  [32, 1] LBL : Класс | Klasse |
+  [32, 2] LBL : Цифра | Ziffer |
+  [32, 3] LBL : Буква | Buchstabe |
+  [32, 4] LBL : ДОПОГ | ADR |
+  [32, 5] DATA: |
+  [32, 6] DATA: |
+  [32, 7] DATA: |
+  [33, 1] LBL : 13 |
+  [33, 2] LBL : Указания отправителя (таможенная и прочая обработка) | Anweisungen des Absenders…
+  [33, 3] LBL : 19 |
+  [33, 4] LBL : Подлежит оплате | Zu zahlen vom: |
+  [33, 5] LBL : Отправитель | Absender  |
+  [33, 6] LBL : Валюта | Währung |
+  [33, 7] LBL : Получатель | Empfänger |
+  [34, 1] DATA: |
+  [34, 2] LBL : Ставка | Fracht |
+  [34, 3] DATA: |
+  [34, 4] DATA: |
+  [34, 5] DATA: |
+  [34, 6] DATA: |
+  [34, 7] DATA: |
+  [34, 8] DATA: |
+  [35, 1] DATA: |
+  [35, 2] LBL : Скидки | Ermäßigungen                        |
+  [35, 3] DATA: |
+  [35, 4] DATA: |
+  [35, 5] DATA: |
+  [35, 6] DATA: |
+  [35, 7] DATA: |
+  [35, 8] DATA: |
+  [36, 1] DATA: |
+  [36, 2] LBL : Разность | Zwischensumme |
+  [36, 3] DATA: |
+  [36, 4] DATA: |
+  [36, 5] DATA: |
+  [36, 6] DATA: |
+  [36, 7] DATA: |
+  [36, 8] DATA: |
+  [37, 1] DATA: |
+  [37, 2] LBL : Надбавки | Zuschläge |
+  [37, 3] DATA: |
+  [37, 4] DATA: |
+  [37, 5] DATA: |
+  [37, 6] DATA: |
+  [37, 7] DATA: |
+  [37, 8] DATA: |
+  [38, 1] DATA: |
+  [38, 2] LBL : Дополнительные сборы | Nebengebühren |
+  [38, 3] DATA: |
+  [38, 4] DATA: |
+  [38, 5] DATA: |
+  [38, 6] DATA: |
+  [38, 7] DATA: |
+  [38, 8] DATA: |
+  [39, 1] DATA: |
+  [39, 2] LBL : Прочие | Sonstiges |
+  [39, 3] DATA: |
+  [39, 4] DATA: |
+  [39, 5] DATA: |
+  [39, 6] DATA: |
+  [39, 7] DATA: |
+  [39, 8] DATA: |
+  [40, 1] DATA: |
+  [40, 2] LBL : Итого к оплате | Zu zahlende Ges.-Summe |
+  [40, 3] DATA: |
+  [40, 4] DATA: |
+  [40, 5] DATA: |
+  [40, 6] DATA: |
+  [40, 7] DATA: |
+  [40, 8] DATA: |
+  [41, 1] LBL : 14 |
+  [41, 2] LBL : Возврат | Rückerstattung |
+  [41, 3] DATA: |
+  [41, 4] DATA: |
+  [41, 5] DATA: |
+  [42, 1] LBL : 15 |
+  [42, 2] LBL : Условия оплаты | Frachtzahlungsanweisungen     |
+  [42, 3] LBL : 20 |
+  [42, 4] LBL : Особые согласованные условия | Besondere Vereinbarungen |
+  [43, 1] LBL : Франко |  Frei |
+  [43, 2] DATA: |
+  [43, 3] DATA: |
+  [44, 1] LBL : Нефранко |  Unfrei |
+  [44, 2] DATA: |
+  [44, 3] DATA: |
+  [45, 1] LBL : 21 |
+  [45, 2] LBL : Составлен в | Ausgefertigt in |
+  [45, 3] DATA: |
+  [45, 4] LBL : Дата | am |
+  [45, 5] DATA: |
+  [45, 6] DATA: |
+  [45, 7] LBL : 24 |
+  [45, 8] LBL : Груз получен                        Дата | Gut empfangen                     Dat…
+  [46, 1] LBL : 22 |
+  [46, 2] LBL : 23  |
+  [46, 3] LBL : |                                   Am „ _____ “ ______________20 |
+  [47, 1] LBL : |   Прибытие под погрузку                    час                  мин. |   Ankun…
+  [47, 2] DATA: |
+  [47, 3] LBL : Прибытие под погрузку                    час                  мин. |   Ankunft f…
+  [48, 2] DATA: |
+  [48, 3] LBL : Убытие                         час                  мин. |                      …
+  [49, 2] DATA: |
+  [49, 3] DATA: |
+  [50, 1] LBL : Подпись и штамп отправителя |  Unterschrift und Stempel des Absenders |
+  [50, 2] LBL : Подпись и штамп перевозчика |  Unterschrift und Stempel des Frachtführers |
+  [50, 3] LBL : Подпись и штамп получателя |  Unterschrift und Stempel des Empfängers |
+  [51, 1] LBL : 25 |
+  [51, 2] LBL : Регистрац. номер/ Amtliches Kennzeichen | Тягач/Kfz           Полуприцеп/Anhänge…
+  [51, 3] LBL : 26 |
+  [51, 4] LBL : Марка/Typ | Тягач/Kfz           Полуприцеп/Anhänger |
+  [51, 5] DATA: |
+  [52, 1] DATA: |
+  [52, 2] DATA: |
+  [52, 3] DATA: |

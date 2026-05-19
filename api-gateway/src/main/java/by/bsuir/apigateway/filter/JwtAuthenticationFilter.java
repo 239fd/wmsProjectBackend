@@ -9,14 +9,19 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
+
+import java.nio.charset.StandardCharsets;
 
 import java.security.KeyFactory;
 import java.security.interfaces.RSAPublicKey;
@@ -77,7 +82,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             log.warn("Missing or invalid Authorization header for path: {}", path);
-            return unauthorized(exchange);
+            return unauthorized(exchange, "Требуется авторизация. Войдите в систему повторно.");
         }
 
         String token = authHeader.substring(7);
@@ -87,7 +92,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 .flatMap(modifiedRequest -> chain.filter(exchange.mutate().request(modifiedRequest).build()))
                 .onErrorResume(e -> {
                     log.error("JWT validation error for path {}: {}", path, e.getMessage(), e);
-                    return unauthorized(exchange);
+                    String reason = e.getMessage() != null && e.getMessage().contains("Expired")
+                            ? "Сессия истекла. Войдите заново."
+                            : "Не удалось проверить токен авторизации. Войдите заново.";
+                    return unauthorized(exchange, reason);
                 });
     }
 
@@ -130,9 +138,14 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         return requestBuilder.build();
     }
 
-    private Mono<Void> unauthorized(ServerWebExchange exchange) {
-        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-        return exchange.getResponse().setComplete();
+    private Mono<Void> unauthorized(ServerWebExchange exchange, String message) {
+        ServerHttpResponse response = exchange.getResponse();
+        response.setStatusCode(HttpStatus.UNAUTHORIZED);
+        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        String body = "{\"status\":401,\"error\":\"Требуется авторизация\",\"message\":\""
+                + message.replace("\"", "\\\"") + "\"}";
+        DataBuffer buf = response.bufferFactory().wrap(body.getBytes(StandardCharsets.UTF_8));
+        return response.writeWith(Mono.just(buf));
     }
 
     private boolean isExcludedPath(String path) {

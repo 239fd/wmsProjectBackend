@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -107,6 +108,37 @@ public class ProductAnalyticsController {
 
         Map<String, Object> comparison = analyticsService.getInventoryComparison(startDate, endDate);
         return ResponseEntity.ok(comparison);
+    }
+
+    @Operation(summary = "ABC-распределение товаров",
+            description = "Возвращает количество позиций и суммарный остаток по категориям A/B/C. "
+                    + "Категории обновляются ночным cron (ABC-анализ за 90 дней). Доступно DIRECTOR/ACCOUNTANT.")
+    @GetMapping("/abc-distribution")
+    public ResponseEntity<Map<String, Object>> getAbcDistribution(
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+
+        String role = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(role) && !"ACCOUNTANT".equals(role)) {
+            return ResponseEntity.status(403).build();
+        }
+        return ResponseEntity.ok(analyticsService.getAbcDistribution());
+    }
+
+    @Operation(summary = "Товары с истекающим сроком годности",
+            description = "Список партий, у которых expiry_date ≤ today+withinDays. "
+                    + "Возвращает productName, batchNumber, expiryDate, daysLeft, quantity, urgency. "
+                    + "Доступно DIRECTOR/ACCOUNTANT.")
+    @GetMapping("/expiring-products")
+    public ResponseEntity<List<Map<String, Object>>> getExpiringProducts(
+            @Parameter(description = "Окно в днях вперёд", required = false) @RequestParam(defaultValue = "30") int withinDays,
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+
+        String role = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(role) && !"ACCOUNTANT".equals(role)) {
+            return ResponseEntity.status(403).build();
+        }
+        int safe = Math.max(0, Math.min(withinDays, 3650));
+        return ResponseEntity.ok(analyticsService.getExpiringProducts(safe));
     }
 }
 

@@ -64,7 +64,7 @@ public class ErpExtractorJob {
         PlannedDeliveryExtractor extractor;
         if ("onec".equalsIgnoreCase(mode)) {
             if (oneCExtractor == null) {
-                log.warn("1C extractor выключен (rpa.onec.enabled=false), fallback на rpaExtractor");
+                log.warn("Python RPA extractor выключен (rpa.python.enabled=false), fallback на rpaExtractor");
                 extractor = rpaExtractor;
             } else {
                 extractor = oneCExtractor;

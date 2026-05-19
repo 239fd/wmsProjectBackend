@@ -48,6 +48,7 @@ class ShipmentRequestServiceTest {
         return new CreateShipmentRequestRequest(
                 warehouseId, "Recipient", "Address", "987654321",
                 null, "test", AllocationStrategy.AUTO,
+                null, null, null, null, null, null,
                 List.of(new CreateShipmentRequestRequest.Item(productId, null, new BigDecimal("5")))
         );
     }
@@ -89,6 +90,7 @@ class ShipmentRequestServiceTest {
         UUID warehouseId = UUID.randomUUID();
         var req = new CreateShipmentRequestRequest(
                 warehouseId, null, null, null, null, null, null,
+                null, null, null, null, null, null,
                 List.of(new CreateShipmentRequestRequest.Item(UUID.randomUUID(), null, BigDecimal.ONE))
         );
         when(itemRepository.findByRequestId(any())).thenReturn(List.of());

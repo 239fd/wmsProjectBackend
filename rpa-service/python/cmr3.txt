@@ -1,0 +1,47 @@
+20:11:31 INFO  [app] Filter: --doc ['CMR', 'CMR-EN', 'CMR-RU']
+20:11:31 INFO  [app] === MOCK MODE: sizes=[1, 5, 10, 50] ===
+20:11:31 INFO  [app] === Module 2: filling Office templates ===
+20:11:31 INFO  [rpa.office_filler] Output directory for this run: C:\Users\pavel\IdeaProjects\RPA\output\2026-05-18_201131
+20:11:31 INFO  [rpa.office_filler] === Order №MOCK-001 — 0 Excel + 3 Word templates ===
+20:11:31 INFO  [rpa.word_filler] Word [CMR] ← CMR Международная товарно-транспортная накладная.doc
+20:11:35 INFO  [rpa.word_filler]   saving → Заказ-MOCK-001_CMR.docx
+20:11:36 INFO  [rpa.word_filler] Word [CMR-EN] ← CMR_EN.doc
+20:11:40 INFO  [rpa.word_filler]   saving → Заказ-MOCK-001_CMR-EN.docx
+20:11:40 INFO  [rpa.word_filler] Word [CMR-RU] ← CMR_RU.doc
+20:11:45 INFO  [rpa.word_filler]   saving → Заказ-MOCK-001_CMR-RU.docx
+20:11:45 INFO  [rpa.office_filler] === Order №MOCK-005 — 0 Excel + 3 Word templates ===
+20:11:45 INFO  [rpa.word_filler] Word [CMR] ← CMR Международная товарно-транспортная накладная.doc
+20:11:51 INFO  [rpa.word_filler]   saving → Заказ-MOCK-005_CMR.docx
+20:11:52 INFO  [rpa.word_filler] Word [CMR-EN] ← CMR_EN.doc
+20:11:57 INFO  [rpa.word_filler]   saving → Заказ-MOCK-005_CMR-EN.docx
+20:11:59 INFO  [rpa.word_filler] Word [CMR-RU] ← CMR_RU.doc
+20:12:04 INFO  [rpa.word_filler]   saving → Заказ-MOCK-005_CMR-RU.docx
+20:12:05 INFO  [rpa.office_filler] === Order №MOCK-010 — 0 Excel + 3 Word templates ===
+20:12:05 INFO  [rpa.word_filler] Word [CMR] ← CMR Международная товарно-транспортная накладная.doc
+20:12:08 INFO  [rpa.word_filler]   items_table: inserting 3 extra Word row(s) after row 31
+20:12:08 INFO  [rpa.word_filler]   items_table: Rows.Add failed ((-2147352567, 'Ошибка.', (0, 'Microsoft Word', 'Отсутствует доступ к отдельным строкам, поскольку таблица имеет ячейки, объединенные по вертикали.', 'wdmain11.chm', 25471, -2146822297), None)); falling back to InsertRowsBelow
+20:12:13 INFO  [rpa.word_filler]   saving → Заказ-MOCK-010_CMR.docx
+20:12:13 INFO  [rpa.word_filler] Word [CMR-EN] ← CMR_EN.doc
+20:12:17 INFO  [rpa.word_filler]   items_table: inserting 3 extra Word row(s) after row 31
+20:12:17 INFO  [rpa.word_filler]   items_table: Rows.Add failed ((-2147352567, 'Ошибка.', (0, 'Microsoft Word', 'Отсутствует доступ к отдельным строкам, поскольку таблица имеет ячейки, объединенные по вертикали.', 'wdmain11.chm', 25471, -2146822297), None)); falling back to InsertRowsBelow
+20:12:21 INFO  [rpa.word_filler]   saving → Заказ-MOCK-010_CMR-EN.docx
+20:12:22 INFO  [rpa.word_filler] Word [CMR-RU] ← CMR_RU.doc
+20:12:26 INFO  [rpa.word_filler]   items_table: inserting 3 extra Word row(s) after row 31
+20:12:26 INFO  [rpa.word_filler]   items_table: Rows.Add failed ((-2147352567, 'Ошибка.', (0, 'Microsoft Word', 'Отсутствует доступ к отдельным строкам, поскольку таблица имеет ячейки, объединенные по вертикали.', 'wdmain11.chm', 25471, -2146822297), None)); falling back to InsertRowsBelow
+20:12:31 INFO  [rpa.word_filler]   saving → Заказ-MOCK-010_CMR-RU.docx
+20:12:31 INFO  [rpa.office_filler] === Order №MOCK-050 — 0 Excel + 3 Word templates ===
+20:12:31 INFO  [rpa.word_filler] Word [CMR] ← CMR Международная товарно-транспортная накладная.doc
+20:12:35 INFO  [rpa.word_filler]   items_table: inserting 43 extra Word row(s) after row 31
+20:12:35 INFO  [rpa.word_filler]   items_table: Rows.Add failed ((-2147352567, 'Ошибка.', (0, 'Microsoft Word', 'Отсутствует доступ к отдельным строкам, поскольку таблица имеет ячейки, объединенные по вертикали.', 'wdmain11.chm', 25471, -2146822297), None)); falling back to InsertRowsBelow
+20:12:53 INFO  [rpa.word_filler]   saving → Заказ-MOCK-050_CMR.docx
+20:12:53 INFO  [rpa.word_filler] Word [CMR-EN] ← CMR_EN.doc
+20:12:57 INFO  [rpa.word_filler]   items_table: inserting 43 extra Word row(s) after row 31
+20:12:57 INFO  [rpa.word_filler]   items_table: Rows.Add failed ((-2147352567, 'Ошибка.', (0, 'Microsoft Word', 'Отсутствует доступ к отдельным строкам, поскольку таблица имеет ячейки, объединенные по вертикали.', 'wdmain11.chm', 25471, -2146822297), None)); falling back to InsertRowsBelow
+20:13:15 INFO  [rpa.word_filler]   saving → Заказ-MOCK-050_CMR-EN.docx
+20:13:16 INFO  [rpa.word_filler] Word [CMR-RU] ← CMR_RU.doc
+20:13:19 INFO  [rpa.word_filler]   items_table: inserting 43 extra Word row(s) after row 31
+20:13:20 INFO  [rpa.word_filler]   items_table: Rows.Add failed ((-2147352567, 'Ошибка.', (0, 'Microsoft Word', 'Отсутствует доступ к отдельным строкам, поскольку таблица имеет ячейки, объединенные по вертикали.', 'wdmain11.chm', 25471, -2146822297), None)); falling back to InsertRowsBelow
+20:13:37 INFO  [rpa.word_filler]   saving → Заказ-MOCK-050_CMR-RU.docx
+20:13:38 INFO  [rpa.office_filler] Done. 12 file(s) created, 0 error(s). Output: C:\Users\pavel\IdeaProjects\RPA\output\2026-05-18_201131
+20:13:38 INFO  [rpa.supply_exporter] Wrote supplies JSON: C:\Users\pavel\IdeaProjects\RPA\output\2026-05-18_201131\supplies.json  (4 supply(es))
+20:13:38 INFO  [app] All done. 12 file(s), 0 error(s). JSON: C:\Users\pavel\IdeaProjects\RPA\output\2026-05-18_201131\supplies.json

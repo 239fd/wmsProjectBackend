@@ -1,6 +1,9 @@
 package by.bsuir.productservice.dto.request;
 
 import by.bsuir.productservice.model.enums.AllocationStrategy;
+import by.bsuir.productservice.model.enums.DocumentLayout;
+import by.bsuir.productservice.model.enums.DomesticDocumentKind;
+import by.bsuir.productservice.model.enums.ShipmentType;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -21,6 +24,13 @@ public record CreateShipmentRequestRequest(
         String comment,
 
         AllocationStrategy strategy,
+
+        ShipmentType shipmentType,
+        String currency,
+        DocumentLayout documentLayout,
+        DomesticDocumentKind domesticDocumentKind,
+        String recipientCountry,
+        String recipientGln,
 
         @NotEmpty(message = "Хотя бы одна позиция обязательна")
         List<Item> items

@@ -122,7 +122,7 @@ class SagaOrchestratorTest {
                 .reservedQuantity(BigDecimal.ZERO).build();
         ProductBatch batch = ProductBatch.builder().batchId(batchId).build();
         when(operationRepository.findById(opId)).thenReturn(Optional.of(op));
-        when(inventoryRepository.findById(invId)).thenReturn(Optional.of(inv));
+        when(inventoryRepository.findByIdForUpdate(invId)).thenReturn(Optional.of(inv));
         when(batchRepository.findById(batchId)).thenReturn(Optional.of(batch));
 
         orchestrator.markStepFailed(sagaId, "OPERATION_RECORD", "оператор отменил");
@@ -148,7 +148,7 @@ class SagaOrchestratorTest {
         orchestrator.markStepCompleted(sagaId, "INVENTORY_UPDATE", Map.of("inventoryId", invId));
 
         Inventory inv = Inventory.builder().inventoryId(invId).quantity(BigDecimal.valueOf(10)).build();
-        when(inventoryRepository.findById(invId)).thenReturn(Optional.of(inv));
+        when(inventoryRepository.findByIdForUpdate(invId)).thenReturn(Optional.of(inv));
 
         orchestrator.markStepFailed(sagaId, "INVENTORY_UPDATE", "fail");
 
@@ -257,8 +257,8 @@ class SagaOrchestratorTest {
                 .quantity(BigDecimal.valueOf(20)).reservedQuantity(BigDecimal.valueOf(5)).build();
         when(operationRepository.findById(opId)).thenReturn(Optional.of(op));
         when(operationRepository.findById(stagingId)).thenReturn(Optional.of(staging));
-        when(inventoryRepository.findById(invId)).thenReturn(Optional.of(inv));
-        when(inventoryRepository.findById(resId)).thenReturn(Optional.of(reserved));
+        when(inventoryRepository.findByIdForUpdate(invId)).thenReturn(Optional.of(inv));
+        when(inventoryRepository.findByIdForUpdate(resId)).thenReturn(Optional.of(reserved));
 
         orchestrator.markShipStepFailed(sagaId, "OPERATION_RECORD", "fail");
 
@@ -284,7 +284,7 @@ class SagaOrchestratorTest {
 
         Inventory inv = Inventory.builder().inventoryId(resId)
                 .quantity(BigDecimal.TEN).reservedQuantity(BigDecimal.valueOf(3)).build();
-        when(inventoryRepository.findById(resId)).thenReturn(Optional.of(inv));
+        when(inventoryRepository.findByIdForUpdate(resId)).thenReturn(Optional.of(inv));
 
         orchestrator.markShipStepFailed(sagaId, "STOCK_RESERVATION", "race");
 

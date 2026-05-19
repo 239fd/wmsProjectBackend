@@ -31,7 +31,7 @@ class JwtTokenServiceTest {
         KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
         gen.initialize(2048);
         keyPair = gen.generateKeyPair();
-        service = new JwtTokenService(keyPair, 14400L, 2592000L);
+        service = new JwtTokenService(keyPair, 14400L, 2592000L, "wms-sso");
     }
 
     @Test
@@ -103,7 +103,7 @@ class JwtTokenServiceTest {
     void validateAccessToken_GivenForeignSignature_ShouldReturnFalse() throws Exception {
         KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
         gen.initialize(2048);
-        JwtTokenService foreign = new JwtTokenService(gen.generateKeyPair(), 14400L, 2592000L);
+        JwtTokenService foreign = new JwtTokenService(gen.generateKeyPair(), 14400L, 2592000L, "wms-sso");
         String foreignToken = foreign.generateAccessToken(UUID.randomUUID(), "x@y.z", UserRole.WORKER, null, null);
 
         assertThat(service.validateAccessToken(foreignToken)).isFalse();
@@ -112,7 +112,7 @@ class JwtTokenServiceTest {
     @Test
     @DisplayName("validateAccessToken: токен истёк → false")
     void validateAccessToken_GivenExpired_ShouldReturnFalse() {
-        JwtTokenService shortLived = new JwtTokenService(keyPair, -1L, 2592000L);
+        JwtTokenService shortLived = new JwtTokenService(keyPair, -1L, 2592000L, "wms-sso");
         String expired = shortLived.generateAccessToken(UUID.randomUUID(), "x@y.z", UserRole.WORKER, null, null);
 
         assertThat(service.validateAccessToken(expired)).isFalse();

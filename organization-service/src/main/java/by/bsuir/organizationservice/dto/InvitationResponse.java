@@ -12,6 +12,8 @@ public record InvitationResponse(
         String inviteLink,
         LocalDateTime createdAt,
         LocalDateTime expiresAt,
-        Boolean used
+        Boolean used,
+        Boolean emailSent,
+        String emailError
 ) {
 }

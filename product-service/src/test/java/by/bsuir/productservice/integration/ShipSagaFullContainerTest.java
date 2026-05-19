@@ -86,6 +86,7 @@ class ShipSagaFullContainerTest extends TestcontainersIntegrationBase {
         CreateShipmentRequestRequest createReq = new CreateShipmentRequestRequest(
                 warehouseId, "ООО «Покупатель»", "Минск, ул. Тест 1", "987654321",
                 null, "проверка цикла", AllocationStrategy.AUTO,
+                null, null, null, null, null, null,
                 List.of(new CreateShipmentRequestRequest.Item(
                         product.getProductId(), null, new BigDecimal("10")))
         );
@@ -149,6 +150,7 @@ class ShipSagaFullContainerTest extends TestcontainersIntegrationBase {
 
         CreateShipmentRequestRequest createReq = new CreateShipmentRequestRequest(
                 warehouseId, null, null, null, null, null, AllocationStrategy.AUTO,
+                null, null, null, null, null, null,
                 List.of(new CreateShipmentRequestRequest.Item(productId, null, new BigDecimal("1")))
         );
         String createBody = mockMvc.perform(post("/api/operations/ship-requests")

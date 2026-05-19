@@ -11,21 +11,13 @@ import org.springframework.context.annotation.Configuration;
 @Setter
 public class RpaProperties {
 
-    private final Onec onec = new Onec();
+    private final Python python = new Python();
 
     @Getter
     @Setter
-    public static class Onec {
-        private boolean enabled;
-        private String driverUrl = "http://127.0.0.1:4723";
-        private String executable = "C:\\Program Files\\1cv8\\common\\1cestart.exe";
-        private String basePath = "";
-        private String username = "";
-        private String password = "";
-        private String sectionName = "Закупки";
-        private String journalName = "Заказы поставщикам";
-        private int waitSeconds = 30;
-        private String windowTitlePattern = "1С";
-        private boolean attachMode = true;
+    public static class Python {
+        private boolean enabled = false;
+        private String baseUrl = "http://localhost:8060";
+        private int timeoutSeconds = 300;
     }
 }

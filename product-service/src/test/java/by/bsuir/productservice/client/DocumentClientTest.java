@@ -7,8 +7,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
@@ -32,114 +32,106 @@ class DocumentClientTest {
     @InjectMocks private DocumentClient client;
 
     @Test
-    @DisplayName("generateReceiptOrder: успешный ответ → возвращает documentId, шлёт X-Organization-Id")
-    void generateReceiptOrder_GivenSuccess_ShouldReturnDocumentId() {
-        UUID expectedId = UUID.randomUUID();
+    @DisplayName("fetch: успешный ответ → возвращает body + X-Organization-Id header")
+    void fetch_GivenSuccess_ShouldReturnBodyAndSendOrgHeader() {
         UUID orgId = UUID.randomUUID();
-        Map<String, Object> body = new HashMap<>();
-        body.put("documentId", expectedId.toString());
+        byte[] pdf = "%PDF-1.4 fake".getBytes();
+        HttpHeaders responseHeaders = new HttpHeaders();
+        responseHeaders.add("X-Generation-Channel", "auto");
 
         when(loadBalancedRestTemplate.exchange(
                 contains("/receipt-order?format=pdf"),
                 eq(HttpMethod.POST),
                 any(HttpEntity.class),
-                any(ParameterizedTypeReference.class))
-        ).thenReturn((ResponseEntity) ResponseEntity.ok(body));
+                eq(byte[].class))
+        ).thenReturn(new ResponseEntity<>(pdf, responseHeaders, org.springframework.http.HttpStatus.OK));
 
-        UUID id = client.generateReceiptOrder(Map.of("foo", "bar"), orgId);
+        DocumentClient.Fetched result = client.fetch("receipt-order", Map.of("foo", "bar"), orgId, "auto");
 
-        assertThat(id).isEqualTo(expectedId);
-        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        assertThat(result.body()).isEqualTo(pdf);
+        assertThat(result.channel()).isEqualTo("auto");
+
+        ArgumentCaptor<HttpEntity<?>> captor = ArgumentCaptor.forClass(HttpEntity.class);
         verify(loadBalancedRestTemplate).exchange(
                 contains("/receipt-order"),
-                eq(HttpMethod.POST), entityCaptor.capture(),
-                any(ParameterizedTypeReference.class));
-        assertThat(entityCaptor.getValue().getHeaders().getFirst("X-Organization-Id"))
+                eq(HttpMethod.POST), captor.capture(), eq(byte[].class));
+        assertThat(captor.getValue().getHeaders().getFirst("X-Organization-Id"))
                 .isEqualTo(orgId.toString());
+        assertThat(captor.getValue().getHeaders().getFirst("X-Generation-Mode"))
+                .isEqualTo("auto");
     }
 
     @Test
-    @DisplayName("generateWriteOffAct: пустое тело ответа → возвращает null (graceful)")
-    void generateWriteOffAct_GivenEmptyBody_ShouldReturnNull() {
+    @DisplayName("fetchPdf: успешный ответ → возвращает только byte[] body")
+    void fetchPdf_GivenSuccess_ShouldReturnBody() {
+        byte[] pdf = "%PDF-1.4 fake".getBytes();
         when(loadBalancedRestTemplate.exchange(
-                contains("/write-off-act"),
-                eq(HttpMethod.POST), any(HttpEntity.class),
-                any(ParameterizedTypeReference.class))
-        ).thenReturn((ResponseEntity) ResponseEntity.ok(null));
+                any(String.class), eq(HttpMethod.POST), any(HttpEntity.class), eq(byte[].class))
+        ).thenReturn(ResponseEntity.ok(pdf));
 
-        UUID id = client.generateWriteOffAct(Map.of(), UUID.randomUUID());
+        byte[] result = client.fetchPdf("write-off-act", Map.of(), UUID.randomUUID());
 
-        assertThat(id).isNull();
+        assertThat(result).isEqualTo(pdf);
     }
 
     @Test
-    @DisplayName("generateRevaluationAct: тело без documentId → null (graceful)")
-    void generateRevaluationAct_GivenBodyWithoutDocumentId_ShouldReturnNull() {
-        Map<String, Object> body = new HashMap<>();
-        body.put("status", "ok");
+    @DisplayName("fetch: document-service недоступен (исключение) → Fetched(null,\"error\") без проброса")
+    void fetch_WhenDocumentServiceDown_ShouldReturnErrorChannelGracefully() {
         when(loadBalancedRestTemplate.exchange(
-                contains("/revaluation-act"),
-                eq(HttpMethod.POST), any(HttpEntity.class),
-                any(ParameterizedTypeReference.class))
-        ).thenReturn((ResponseEntity) ResponseEntity.ok(body));
-
-        UUID id = client.generateRevaluationAct(Map.of(), UUID.randomUUID());
-
-        assertThat(id).isNull();
-    }
-
-    @Test
-    @DisplayName("generate*: document-service недоступен (исключение) → null без проброса исключения")
-    void generate_WhenDocumentServiceDown_ShouldReturnNullGracefully() {
-        when(loadBalancedRestTemplate.exchange(
-                any(String.class),
-                eq(HttpMethod.POST), any(HttpEntity.class),
-                any(ParameterizedTypeReference.class))
+                any(String.class), eq(HttpMethod.POST), any(HttpEntity.class), eq(byte[].class))
         ).thenThrow(new RuntimeException("connection refused"));
 
-        UUID id = client.generateReceiptOrder(Map.of(), UUID.randomUUID());
+        DocumentClient.Fetched result = client.fetch("receipt-order", Map.of(), UUID.randomUUID(), "auto");
 
-        assertThat(id).isNull();
+        assertThat(result.body()).isNull();
+        assertThat(result.channel()).isEqualTo("error");
     }
 
     @Test
-    @DisplayName("generate: organizationId == null → не выставляет X-Organization-Id")
-    void generate_GivenNullOrgId_ShouldOmitHeader() {
-        Map<String, Object> body = new HashMap<>();
-        body.put("documentId", UUID.randomUUID().toString());
+    @DisplayName("fetch: organizationId == null → X-Organization-Id не выставляется")
+    void fetch_GivenNullOrgId_ShouldOmitHeader() {
         when(loadBalancedRestTemplate.exchange(
-                any(String.class),
-                eq(HttpMethod.POST), any(HttpEntity.class),
-                any(ParameterizedTypeReference.class))
-        ).thenReturn((ResponseEntity) ResponseEntity.ok(body));
+                any(String.class), eq(HttpMethod.POST), any(HttpEntity.class), eq(byte[].class))
+        ).thenReturn(ResponseEntity.ok(new byte[]{}));
 
-        client.generateReceiptOrder(Map.of(), null);
+        client.fetch("receipt-order", Map.of(), null, "auto");
 
-        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        ArgumentCaptor<HttpEntity<?>> captor = ArgumentCaptor.forClass(HttpEntity.class);
         verify(loadBalancedRestTemplate).exchange(
-                any(String.class), eq(HttpMethod.POST), entityCaptor.capture(),
-                any(ParameterizedTypeReference.class));
-        assertThat(entityCaptor.getValue().getHeaders().getFirst("X-Organization-Id")).isNull();
+                any(String.class), eq(HttpMethod.POST), captor.capture(), eq(byte[].class));
+        assertThat(captor.getValue().getHeaders().getFirst("X-Organization-Id")).isNull();
     }
 
     @Test
-    @DisplayName("generate: payload пробрасывается в HttpEntity body")
-    void generate_ShouldPassPayloadInRequestBody() {
-        Map<String, Object> body = new HashMap<>();
-        body.put("documentId", UUID.randomUUID().toString());
+    @DisplayName("fetch: mode==null → дефолтный X-Generation-Mode = auto")
+    void fetch_GivenNullMode_ShouldDefaultToAuto() {
         when(loadBalancedRestTemplate.exchange(
-                any(String.class),
-                eq(HttpMethod.POST), any(HttpEntity.class),
-                any(ParameterizedTypeReference.class))
-        ).thenReturn((ResponseEntity) ResponseEntity.ok(body));
+                any(String.class), eq(HttpMethod.POST), any(HttpEntity.class), eq(byte[].class))
+        ).thenReturn(ResponseEntity.ok(new byte[]{}));
 
-        Map<String, Object> payload = Map.of("operationId", UUID.randomUUID().toString(), "qty", 5);
-        client.generateReceiptOrder(payload, UUID.randomUUID());
+        client.fetch("receipt-order", Map.of(), UUID.randomUUID(), null);
 
-        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        ArgumentCaptor<HttpEntity<?>> captor = ArgumentCaptor.forClass(HttpEntity.class);
         verify(loadBalancedRestTemplate).exchange(
-                any(String.class), eq(HttpMethod.POST), entityCaptor.capture(),
-                any(ParameterizedTypeReference.class));
-        assertThat(entityCaptor.getValue().getBody()).isEqualTo(payload);
+                any(String.class), eq(HttpMethod.POST), captor.capture(), eq(byte[].class));
+        assertThat(captor.getValue().getHeaders().getFirst("X-Generation-Mode")).isEqualTo("auto");
+    }
+
+    @Test
+    @DisplayName("fetch: payload пробрасывается в HttpEntity body")
+    void fetch_ShouldPassPayloadInRequestBody() {
+        when(loadBalancedRestTemplate.exchange(
+                any(String.class), eq(HttpMethod.POST), any(HttpEntity.class), eq(byte[].class))
+        ).thenReturn(ResponseEntity.ok(new byte[]{}));
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("operationId", UUID.randomUUID().toString());
+        payload.put("qty", 5);
+        client.fetch("receipt-order", payload, UUID.randomUUID(), "auto");
+
+        ArgumentCaptor<HttpEntity<?>> captor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(loadBalancedRestTemplate).exchange(
+                any(String.class), eq(HttpMethod.POST), captor.capture(), eq(byte[].class));
+        assertThat(captor.getValue().getBody()).isEqualTo(payload);
     }
 }

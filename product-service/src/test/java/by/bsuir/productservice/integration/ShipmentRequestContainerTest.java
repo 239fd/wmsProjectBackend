@@ -53,6 +53,7 @@ class ShipmentRequestContainerTest extends TestcontainersIntegrationBase {
                 "ООО «Покупатель»", "Минск, ул. Получателей 5", "987654321",
                 LocalDate.now().plusDays(3), "тестовая заявка",
                 AllocationStrategy.AUTO,
+                null, null, null, null, null, null,
                 List.of(
                         new CreateShipmentRequestRequest.Item(productA, null, new BigDecimal("10")),
                         new CreateShipmentRequestRequest.Item(productB, null, new BigDecimal("5"))
@@ -119,6 +120,7 @@ class ShipmentRequestContainerTest extends TestcontainersIntegrationBase {
         CreateShipmentRequestRequest req = new CreateShipmentRequestRequest(
                 UUID.randomUUID(), null, null, null, null, null,
                 AllocationStrategy.AUTO,
+                null, null, null, null, null, null,
                 List.of(new CreateShipmentRequestRequest.Item(
                         UUID.randomUUID(), null, new BigDecimal("1")))
         );

@@ -9,6 +9,8 @@ import java.util.UUID;
 public record InventoryResponse(
         UUID inventoryId,
         UUID productId,
+        String productName,
+        String productSku,
         UUID batchId,
         UUID organizationId,
         UUID warehouseId,

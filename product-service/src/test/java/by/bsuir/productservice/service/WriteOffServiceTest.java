@@ -52,7 +52,7 @@ class WriteOffServiceTest {
                 .warehouseId(warehouseId).organizationId(orgId)
                 .quantity(BigDecimal.valueOf(10)).reservedQuantity(BigDecimal.valueOf(2))
                 .build();
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, warehouseId))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, warehouseId))
                 .thenReturn(Optional.of(inv));
 
         WriteOffRequest req = new WriteOffRequest(
@@ -84,7 +84,7 @@ class WriteOffServiceTest {
     void writeOff_GivenMissingInventory_ShouldThrowNotFound() {
         UUID productId = UUID.randomUUID();
         UUID warehouseId = UUID.randomUUID();
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, warehouseId))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, warehouseId))
                 .thenReturn(Optional.empty());
 
         WriteOffRequest req = new WriteOffRequest(productId, warehouseId, null, null,
@@ -107,7 +107,7 @@ class WriteOffServiceTest {
                 .warehouseId(warehouseId).organizationId(otherOrg)
                 .quantity(BigDecimal.TEN).reservedQuantity(BigDecimal.ZERO)
                 .build();
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, warehouseId))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, warehouseId))
                 .thenReturn(Optional.of(inv));
 
         WriteOffRequest req = new WriteOffRequest(productId, warehouseId, null, null,
@@ -128,7 +128,7 @@ class WriteOffServiceTest {
                 .warehouseId(warehouseId)
                 .quantity(BigDecimal.valueOf(10)).reservedQuantity(BigDecimal.valueOf(8))
                 .build();
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, warehouseId))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, warehouseId))
                 .thenReturn(Optional.of(inv));
 
         WriteOffRequest req = new WriteOffRequest(productId, warehouseId, null, null,

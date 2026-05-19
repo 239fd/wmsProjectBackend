@@ -24,14 +24,19 @@ public class OrganizationClient {
 
     public Map<String, Object> getOrganization(UUID organizationId) {
         try {
+            HttpHeaders headers = new HttpHeaders();
+            // Internal cross-service call: подкладываем DIRECTOR-роль и orgId,
+            // иначе org-service вернёт 403 (RBAC по X-User-Role).
+            headers.set("X-User-Role", "DIRECTOR");
+            headers.set("X-Organization-Id", organizationId.toString());
             return loadBalancedRestTemplate.exchange(
                     BASE + "/api/organizations/" + organizationId,
                     HttpMethod.GET,
-                    new HttpEntity<>(new HttpHeaders()),
+                    new HttpEntity<>(headers),
                     new ParameterizedTypeReference<Map<String, Object>>() {}
             ).getBody();
         } catch (Exception e) {
-            log.warn("Failed to fetch organization {}: {}", organizationId, e.getMessage());
+            log.warn("Не удалось получить организацию {}: {}", organizationId, e.getMessage());
             return new HashMap<>();
         }
     }

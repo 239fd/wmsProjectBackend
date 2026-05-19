@@ -62,7 +62,7 @@ class ProductOperationServiceTest {
         when(productRepository.findById(productId)).thenReturn(Optional.of(
                 ProductReadModel.builder().productId(productId).organizationId(orgId).build()));
         when(inventoryRepository.findByCellId(cellId)).thenReturn(Optional.empty());
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, warehouseId))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, warehouseId))
                 .thenReturn(Optional.empty());
 
         UUID operationId = service.receiveProduct(req, orgId);
@@ -100,7 +100,7 @@ class ProductOperationServiceTest {
         when(productRepository.findById(productId)).thenReturn(Optional.of(
                 ProductReadModel.builder().productId(productId).organizationId(orgId).build()));
         when(inventoryRepository.findByCellId(cellId)).thenReturn(Optional.empty());
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, warehouseId))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, warehouseId))
                 .thenReturn(Optional.of(existing));
 
         service.receiveProduct(req, orgId);
@@ -173,7 +173,7 @@ class ProductOperationServiceTest {
         when(inventoryRepository.findByWarehouseId(warehouseId)).thenReturn(List.of());
         when(warehouseClient.getCellsByRack(eq(rackId), anyString())).thenReturn(List.of(
                 new CellInfoDto(freeCellId, rackId, BigDecimal.TEN, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE)));
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, warehouseId))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, warehouseId))
                 .thenReturn(Optional.empty());
 
         service.receiveProduct(req);
@@ -200,9 +200,9 @@ class ProductOperationServiceTest {
 
         when(productRepository.findById(productId)).thenReturn(Optional.of(
                 ProductReadModel.builder().productId(productId).organizationId(orgId).build()));
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, fromWh))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, fromWh))
                 .thenReturn(Optional.of(source));
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, toWh))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, toWh))
                 .thenReturn(Optional.empty());
 
         service.transferProduct(req, orgId);
@@ -238,7 +238,7 @@ class ProductOperationServiceTest {
 
         when(productRepository.findById(productId)).thenReturn(Optional.of(
                 ProductReadModel.builder().productId(productId).organizationId(myOrg).build()));
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, fromWh))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, fromWh))
                 .thenReturn(Optional.of(source));
 
         AppException ex = catchApp(() -> service.transferProduct(req, myOrg));
@@ -261,7 +261,7 @@ class ProductOperationServiceTest {
 
         when(productRepository.findById(productId)).thenReturn(Optional.of(
                 ProductReadModel.builder().productId(productId).build()));
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, fromWh))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, fromWh))
                 .thenReturn(Optional.of(source));
 
         AppException ex = catchApp(() -> service.transferProduct(req, null));
@@ -280,7 +280,7 @@ class ProductOperationServiceTest {
 
         when(productRepository.findById(productId)).thenReturn(Optional.of(
                 ProductReadModel.builder().productId(productId).build()));
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, fromWh))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, fromWh))
                 .thenReturn(Optional.empty());
 
         AppException ex = catchApp(() -> service.transferProduct(req, null));
@@ -308,7 +308,7 @@ class ProductOperationServiceTest {
 
         when(productRepository.findById(productId)).thenReturn(Optional.of(
                 ProductReadModel.builder().productId(productId).build()));
-        when(inventoryRepository.findByProductIdAndWarehouseId(productId, fromWh))
+        when(inventoryRepository.findByProductIdAndWarehouseIdForUpdate(productId, fromWh))
                 .thenReturn(Optional.of(source));
         when(inventoryRepository.findByCellId(toCell)).thenReturn(Optional.of(destExisting));
 

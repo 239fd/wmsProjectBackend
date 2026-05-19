@@ -96,13 +96,18 @@ class WarehouseControllerTest {
                 new WarehouseResponse(UUID.randomUUID(), orgId, "WH1", "Addr1", null, true, LocalDateTime.now(), LocalDateTime.now())
         );
 
-        when(warehouseService.getWarehousesByOrganization(orgId)).thenReturn(expectedList);
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+        org.springframework.data.domain.Page<WarehouseResponse> page =
+                new org.springframework.data.domain.PageImpl<>(expectedList, pageable, 1);
+        when(warehouseService.getWarehousesByOrganization(org.mockito.ArgumentMatchers.eq(orgId), org.mockito.ArgumentMatchers.any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(page);
 
-        ResponseEntity<List<WarehouseResponse>> response = warehouseController.getWarehousesByOrganization(orgId, false);
+        ResponseEntity<org.springframework.data.domain.Page<WarehouseResponse>> response =
+                warehouseController.getWarehousesByOrganization(orgId, false, pageable);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).hasSize(1);
-        verify(warehouseService).getWarehousesByOrganization(orgId);
+        assertThat(response.getBody().getContent()).hasSize(1);
+        verify(warehouseService).getWarehousesByOrganization(org.mockito.ArgumentMatchers.eq(orgId), org.mockito.ArgumentMatchers.any(org.springframework.data.domain.Pageable.class));
     }
 
     @Test

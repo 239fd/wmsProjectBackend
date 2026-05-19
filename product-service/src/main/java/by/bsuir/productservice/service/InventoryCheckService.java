@@ -37,6 +37,7 @@ public class InventoryCheckService {
     private final ProductReadModelRepository productReadModelRepository;
     private final ObjectMapper objectMapper;
     private final InventoryEventService inventoryEventService;
+    private final DocumentRegistryService documentRegistryService;
 
     @Transactional
     public UUID startInventory(UUID warehouseId, UUID userId, String notes) {
@@ -180,14 +181,19 @@ public class InventoryCheckService {
         log.info("Found {} discrepancies", discrepancies.size());
 
         for (InventoryCount count : discrepancies) {
-            if (count.getActualQuantity() != null) {
+            if (count.getActualQuantity() == null) continue;
+            int sign = count.getDiscrepancy().compareTo(BigDecimal.ZERO);
+            if (sign < 0) {
+                // Недостача — НЕ трогаем учётное количество (quantity).
+                // Помечаем для списания: бухгалтер списывает через WriteoffPage,
+                // тогда и quantity уменьшится на величину недостачи.
+                count.setMarkedForWriteoff(true);
+                countRepository.save(count);
+                log.info("Marked count {} for writeoff (недостача {}), inventory.quantity не меняем",
+                        count.getCountId(), count.getDiscrepancy());
+            } else if (sign > 0) {
+                // Излишек — обновляем учётное количество вверх (приходуем).
                 adjustInventory(count, userId);
-                if (count.getDiscrepancy().compareTo(BigDecimal.ZERO) < 0) {
-                    count.setMarkedForWriteoff(true);
-                    countRepository.save(count);
-                    log.info("Marked count {} for writeoff (discrepancy {})",
-                            count.getCountId(), count.getDiscrepancy());
-                }
             }
         }
 
@@ -195,12 +201,7 @@ public class InventoryCheckService {
         session.setCompletedAt(LocalDateTime.now());
         sessionRepository.save(session);
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("sessionId", sessionId.toString());
-        result.put("warehouseId", session.getWarehouseId().toString());
-        result.put("totalRecords", counts.size());
-        result.put("discrepanciesCount", discrepancies.size());
-        result.put("discrepancies", discrepancies.stream().map(d -> {
+        List<Map<String, Object>> discrepancyRows = discrepancies.stream().map(d -> {
             Map<String, Object> row = new HashMap<>();
             row.put("productId", d.getProductId() != null ? d.getProductId().toString() : null);
             row.put("cellId", d.getCellId() != null ? d.getCellId().toString() : "N/A");
@@ -208,10 +209,72 @@ public class InventoryCheckService {
             row.put("actual", d.getActualQuantity() != null ? d.getActualQuantity().toString() : null);
             row.put("discrepancy", d.getDiscrepancy() != null ? d.getDiscrepancy().toString() : null);
             return row;
-        }).collect(Collectors.toList()));
+        }).collect(Collectors.toList());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("sessionId", sessionId.toString());
+        result.put("warehouseId", session.getWarehouseId().toString());
+        result.put("totalRecords", counts.size());
+        result.put("discrepanciesCount", discrepancies.size());
+        result.put("discrepancies", discrepancyRows);
+
+        // Генерируем инвентаризационную опись (документ типа inventory-report).
+        // Любая ошибка логируется и НЕ ломает завершение инвентаризации.
+        if (session.getOrganizationId() != null) {
+            try {
+                Map<String, Object> payload = buildInventoryReportPayload(session, counts, discrepancyRows);
+                var doc = documentRegistryService.register(
+                        null, // inventory-check не привязан к ProductOperation напрямую
+                        "inventory-report",
+                        payload,
+                        session.getOrganizationId(),
+                        userId);
+                result.put("documentId", doc.getId().toString());
+                result.put("documentNumber", doc.getDocumentNumber());
+                log.info("Inventory report {} registered for session {}", doc.getDocumentNumber(), sessionId);
+            } catch (Exception e) {
+                log.error("Не удалось сгенерировать инвентаризационную опись для сессии {}: {}",
+                        sessionId, e.getMessage(), e);
+                result.put("documentError", "Не удалось сгенерировать опись: " + e.getMessage());
+            }
+        } else {
+            log.warn("Сессия {} без organizationId — пропускаем генерацию описи", sessionId);
+        }
 
         log.info("Inventory session completed: {}", sessionId);
         return result;
+    }
+
+    private Map<String, Object> buildInventoryReportPayload(
+            InventorySession session,
+            List<InventoryCount> counts,
+            List<Map<String, Object>> discrepancyRows) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("documentDate", LocalDateTime.now().toLocalDate().toString());
+        payload.put("inventoryDate", session.getStartedAt() != null
+                ? session.getStartedAt().toLocalDate().toString()
+                : LocalDateTime.now().toLocalDate().toString());
+        payload.put("organizationId", session.getOrganizationId() != null ? session.getOrganizationId().toString() : null);
+        payload.put("warehouseId", session.getWarehouseId().toString());
+        payload.put("reason", session.getReason() != null ? session.getReason() : "Плановая инвентаризация");
+        payload.put("totalRecords", counts.size());
+        payload.put("discrepanciesCount", discrepancyRows.size());
+        // items для шаблона — нумерация позиций для опции, потом enrichmentService догрузит названия
+        List<Map<String, Object>> items = new ArrayList<>();
+        int idx = 1;
+        for (InventoryCount c : counts) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("rowNumber", idx++);
+            item.put("productId", c.getProductId() != null ? c.getProductId().toString() : null);
+            item.put("cellId", c.getCellId() != null ? c.getCellId().toString() : null);
+            item.put("expectedQuantity", c.getExpectedQuantity() != null ? c.getExpectedQuantity().toString() : "0");
+            item.put("actualQuantity", c.getActualQuantity() != null ? c.getActualQuantity().toString() : "0");
+            item.put("discrepancy", c.getDiscrepancy() != null ? c.getDiscrepancy().toString() : "0");
+            items.add(item);
+        }
+        payload.put("items", items);
+        payload.put("discrepancies", discrepancyRows);
+        return payload;
     }
 
     private void adjustInventory(InventoryCount count, UUID userId) {

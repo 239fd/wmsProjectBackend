@@ -29,7 +29,7 @@ public class DocumentClient {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setAccept(java.util.List.of(MediaType.APPLICATION_PDF, MediaType.ALL));
+            headers.setAccept(java.util.List.of(MediaType.ALL));
             if (organizationId != null) {
                 headers.set("X-Organization-Id", organizationId.toString());
             }
@@ -42,13 +42,24 @@ public class DocumentClient {
                     new HttpEntity<>(payload, headers),
                     byte[].class);
             String channel = response.getHeaders().getFirst("X-Generation-Channel");
-            return new Fetched(response.getBody(), channel != null ? channel : "programmatic");
+            String contentType = response.getHeaders().getContentType() != null
+                    ? response.getHeaders().getContentType().toString()
+                    : null;
+            String filename = null;
+            if (response.getHeaders().getContentDisposition() != null) {
+                filename = response.getHeaders().getContentDisposition().getFilename();
+            }
+            return new Fetched(
+                    response.getBody(),
+                    channel != null ? channel : "programmatic",
+                    contentType,
+                    filename);
         } catch (Exception e) {
             log.error("Не удалось получить документ {} из document-service (org={}, mode={}): {}",
                     type, organizationId, mode, e.getMessage(), e);
-            return new Fetched(null, "error");
+            return new Fetched(null, "error", null, null);
         }
     }
 
-    public record Fetched(byte[] body, String channel) { }
+    public record Fetched(byte[] body, String channel, String contentType, String filename) { }
 }

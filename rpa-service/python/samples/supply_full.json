@@ -1,0 +1,523 @@
+{
+  "supply": {
+    "supply_id": "8b7c1a90-2f1d-4e9a-b1a5-5c7c8d8e9001",
+    "organization_id": "11111111-1111-1111-1111-111111111111",
+    "supplier_id": "22222222-2222-2222-2222-222222222222",
+    "warehouse_id": "33333333-3333-3333-3333-333333333333",
+    "status": "IN_PROGRESS",
+    "expected_date": "2016-03-16",
+    "actual_date": null,
+    "total_items": 10,
+    "notes": "Поставка холодильников по заказу ТД00-000029",
+    "created_by": "00000000-0000-0000-0000-0000000000aa",
+    "created_at": "2026-05-18T10:00:00",
+    "updated_at": "2026-05-18T10:00:00",
+    "external_id": "ТД00-000029",
+    "external_source": "1C-UT-utdemo",
+    "currency": "USD",
+    "total_amount": "23993.00",
+    "payment_pct": "0",
+    "receipt_pct": "100",
+    "debt_pct": "100",
+    "operation": "Закупка у поставщика",
+    "supplier": {
+      "supplier_id": "22222222-2222-2222-2222-222222222222",
+      "organization_id": "11111111-1111-1111-1111-111111111111",
+      "name": "База \"Электротовары\"",
+      "full_name": "ООО «База Электротовары»",
+      "unp": "100123456",
+      "inn": "100123456",
+      "kpp": "",
+      "contact_person": "Иванов Иван Иванович",
+      "phone": "+375 17 123-45-67",
+      "email": "info@elektrobaza.by",
+      "address": "220123, г. Минск, ул. Кошевая, 12, оф. 9",
+      "is_active": true,
+      "created_at": "2010-06-07T00:00:00",
+      "updated_at": "2026-05-18T10:00:00"
+    },
+    "organization": {
+      "organization_id": "11111111-1111-1111-1111-111111111111",
+      "name": "Торговый дом \"Комплексный\"",
+      "full_name": "ООО «Торговый дом Комплексный»",
+      "unp": "100987654",
+      "inn": "100987654",
+      "kpp": "",
+      "address": "220100, г. Минск, пр. Независимости, 4",
+      "phone": "+375 17 222-33-44",
+      "email": "office@td-complex.by",
+      "director": "Семёнов Семён Семёнович",
+      "chief_accountant": "Петрова Анна Викторовна"
+    },
+    "warehouse": {
+      "warehouse_id": "33333333-3333-3333-3333-333333333333",
+      "name": "Основной склад",
+      "address": "220100, г. Минск, ул. Складская, 7",
+      "okpo": "12345678"
+    },
+    "transport": {
+      "vehicle_make": "MAN TGA 18.480",
+      "vehicle_plate": "AA1234-7",
+      "trailer_make": "Schmitz Cargobull",
+      "trailer_plate": "AB5678-7",
+      "driver_full_name": "Петров Пётр Петрович",
+      "carrier_name": "ООО «АвтоЛогистик»",
+      "carrier_address": "220123, г. Минск, ул. Транспортная, 1",
+      "carrier_unp": "190555777",
+      "waybill_number": "АВЛ-2026-00042",
+      "loading_point_name": "Склад поставщика «База Электротовары»",
+      "loading_point_address": "220123, г. Минск, ул. Кошевая, 12",
+      "unloading_point_name": "Основной склад ТД Комплексный",
+      "unloading_point_address": "220100, г. Минск, ул. Складская, 7",
+      "departure_date": "2026-05-19",
+      "arrival_date": "2026-05-19",
+      "departure_time": "08:30",
+      "arrival_time": "11:45",
+      "distance_km": "42",
+      "transport_cost": "120.00",
+      "seal_number": "SL-77881",
+      "powered_by_doc_number": "5",
+      "powered_by_doc_date": "2026-05-18"
+    },
+    "commission": {
+      "chairman": {
+        "full_name": "Семёнов Семён Семёнович",
+        "position": "Заместитель директора"
+      },
+      "members": [
+        {
+          "full_name": "Петрова Анна Викторовна",
+          "position": "Главный бухгалтер"
+        },
+        {
+          "full_name": "Сидоров Сидор Сидорович",
+          "position": "Начальник склада"
+        },
+        {
+          "full_name": "Кузнецов Алексей Игоревич",
+          "position": "Кладовщик"
+        }
+      ],
+      "responsible_employee": {
+        "user_id": "00000000-0000-0000-0000-0000000000aa",
+        "full_name": "Кузнецов Алексей Игоревич",
+        "position": "Кладовщик"
+      },
+      "shipper_representative": {
+        "full_name": "Петров Пётр Петрович",
+        "position": "Менеджер по логистике",
+        "power_of_attorney": "№ 12 от 15.05.2026"
+      },
+      "receiver_representative": {
+        "full_name": "Сидоров Сидор Сидорович",
+        "position": "Начальник склада"
+      }
+    },
+    "international": {
+      "is_international": false,
+      "country_of_export": "Россия",
+      "country_of_manufacture": "Россия",
+      "country_of_destination": "Беларусь",
+      "incoterms": "FCA",
+      "international_waybill_number": "",
+      "carrier_remarks": ""
+    },
+    "supply_items": [
+      {
+        "item_id": "aaaa1111-0001-0001-0001-000000000001",
+        "supply_id": "8b7c1a90-2f1d-4e9a-b1a5-5c7c8d8e9001",
+        "row_number": 1,
+        "expected_qty": "6",
+        "actual_qty": "6",
+        "unit_price": "126.86",
+        "total_amount": "761.16",
+        "vat_rate": "20",
+        "vat_amount": "126.86",
+        "notes": "",
+        "product": {
+          "product_id": "cccc0001-0001-0001-0001-000000000001",
+          "name": "Холодильник Стинол двухкамерный, авторазморозка",
+          "sku": "X-67898",
+          "barcode": "4607010234567",
+          "category": "Холодильники",
+          "description": "Двухкамерный холодильник с авторазморозкой, объём 320 л, A+",
+          "unit_of_measure": "шт.",
+          "weight_kg": "62.5",
+          "volume_m3": "0.85",
+          "price": "126.86",
+          "abc_class": "A",
+          "organization_id": "11111111-1111-1111-1111-111111111111",
+          "manufacturer": "Завод бытовой техники"
+        },
+        "batch": {
+          "batch_id": "bbbb0001-0001-0001-0001-000000000001",
+          "batch_number": "B-2026-05-001",
+          "manufacture_date": "2026-04-10",
+          "expiry_date": null,
+          "purchase_price": "126.86",
+          "storage_conditions": "ROOM_TEMP"
+        }
+      },
+      {
+        "item_id": "aaaa1111-0001-0001-0001-000000000002",
+        "supply_id": "8b7c1a90-2f1d-4e9a-b1a5-5c7c8d8e9001",
+        "row_number": 2,
+        "expected_qty": "22",
+        "actual_qty": "22",
+        "unit_price": "48.46",
+        "total_amount": "1066.12",
+        "vat_rate": "20",
+        "vat_amount": "177.69",
+        "notes": "",
+        "product": {
+          "product_id": "cccc0001-0001-0001-0001-000000000002",
+          "name": "Холодильник Атлант однокамерный, авторазморозка",
+          "sku": "X-78668",
+          "barcode": "4607010234574",
+          "category": "Холодильники",
+          "description": "Однокамерный холодильник, объём 180 л",
+          "unit_of_measure": "шт.",
+          "weight_kg": "38.0",
+          "volume_m3": "0.50",
+          "price": "48.46",
+          "abc_class": "B",
+          "organization_id": "11111111-1111-1111-1111-111111111111",
+          "manufacturer": "Холодильный комбинат"
+        },
+        "batch": {
+          "batch_id": "bbbb0001-0001-0001-0001-000000000002",
+          "batch_number": "B-2026-05-002",
+          "manufacture_date": "2026-04-12",
+          "expiry_date": null,
+          "purchase_price": "48.46",
+          "storage_conditions": "ROOM_TEMP"
+        }
+      },
+      {
+        "item_id": "aaaa1111-0001-0001-0001-000000000003",
+        "row_number": 3,
+        "expected_qty": "22",
+        "actual_qty": "22",
+        "unit_price": "135.42",
+        "total_amount": "2979.24",
+        "vat_rate": "20",
+        "vat_amount": "496.54",
+        "product": {
+          "product_id": "cccc0001-0001-0001-0001-000000000003",
+          "name": "Холодильник Минск однокамерный, авторазморозка",
+          "sku": "M-678",
+          "barcode": "4607010234581",
+          "category": "Холодильники",
+          "unit_of_measure": "шт.",
+          "weight_kg": "40.0",
+          "volume_m3": "0.55",
+          "price": "135.42",
+          "abc_class": "A",
+          "manufacturer": "Холодильный комбинат"
+        },
+        "batch": {
+          "batch_number": "B-2026-05-003",
+          "manufacture_date": "2026-04-15",
+          "purchase_price": "135.42",
+          "storage_conditions": "ROOM_TEMP"
+        }
+      },
+      {
+        "item_id": "aaaa1111-0001-0001-0001-000000000004",
+        "row_number": 4,
+        "expected_qty": "22",
+        "actual_qty": "22",
+        "unit_price": "113.75",
+        "total_amount": "2502.50",
+        "vat_rate": "20",
+        "vat_amount": "417.08",
+        "product": {
+          "product_id": "cccc0001-0001-0001-0001-000000000004",
+          "name": "Холодильник Самсунг двухкамерный, авторазморозка",
+          "sku": "X-67892",
+          "barcode": "4607010234598",
+          "category": "Холодильники",
+          "unit_of_measure": "шт.",
+          "weight_kg": "65.0",
+          "volume_m3": "0.90",
+          "price": "113.75",
+          "abc_class": "A",
+          "manufacturer": "Завод бытовой техники"
+        }
+      },
+      {
+        "item_id": "aaaa1111-0001-0001-0001-000000000005",
+        "row_number": 5,
+        "expected_qty": "22",
+        "actual_qty": "22",
+        "unit_price": "142.54",
+        "total_amount": "3135.88",
+        "vat_rate": "20",
+        "vat_amount": "522.65",
+        "product": {
+          "product_id": "cccc0001-0001-0001-0001-000000000005",
+          "name": "Холодильник Атлант двухкамерный, авторазморозка",
+          "sku": "X-8000",
+          "barcode": "4607010234604",
+          "category": "Холодильники",
+          "unit_of_measure": "шт.",
+          "weight_kg": "60.0",
+          "volume_m3": "0.80",
+          "price": "142.54",
+          "abc_class": "A",
+          "manufacturer": "Холодильный комбинат"
+        }
+      },
+      {
+        "item_id": "aaaa1111-0001-0001-0001-000000000006",
+        "row_number": 6,
+        "expected_qty": "22",
+        "actual_qty": "22",
+        "unit_price": "104.30",
+        "total_amount": "2294.60",
+        "vat_rate": "20",
+        "vat_amount": "382.43",
+        "product": {
+          "product_id": "cccc0001-0001-0001-0001-000000000006",
+          "name": "Холодильник Самсунг-Х двухкамерный, авторазморозка",
+          "sku": "X-890",
+          "barcode": "4607010234611",
+          "category": "Холодильники",
+          "unit_of_measure": "шт.",
+          "weight_kg": "68.0",
+          "volume_m3": "0.95",
+          "price": "104.30",
+          "abc_class": "B",
+          "manufacturer": "Холодильный комбинат"
+        }
+      },
+      {
+        "item_id": "aaaa1111-0001-0001-0001-000000000007",
+        "row_number": 7,
+        "expected_qty": "22",
+        "actual_qty": "22",
+        "unit_price": "115.46",
+        "total_amount": "2540.12",
+        "vat_rate": "20",
+        "vat_amount": "423.35",
+        "product": {
+          "product_id": "cccc0001-0001-0001-0001-000000000007",
+          "name": "Холодильник Сименс двухкамерный, авторазморозка",
+          "sku": "X-890-S",
+          "barcode": "4607010234628",
+          "category": "Холодильники",
+          "unit_of_measure": "шт.",
+          "weight_kg": "70.0",
+          "volume_m3": "0.95",
+          "price": "115.46",
+          "abc_class": "A",
+          "manufacturer": "Завод бытовой техники"
+        }
+      },
+      {
+        "item_id": "aaaa1111-0001-0001-0001-000000000008",
+        "row_number": 8,
+        "expected_qty": "22",
+        "actual_qty": "22",
+        "unit_price": "101.21",
+        "total_amount": "2226.62",
+        "vat_rate": "20",
+        "vat_amount": "371.10",
+        "product": {
+          "product_id": "cccc0001-0001-0001-0001-000000000008",
+          "name": "Холодильник BOSCH SH-10 двухкамерный, авторазморозка",
+          "sku": "SH-10",
+          "barcode": "4607010234635",
+          "category": "Холодильники",
+          "unit_of_measure": "шт.",
+          "weight_kg": "67.0",
+          "volume_m3": "0.92",
+          "price": "101.21",
+          "abc_class": "A",
+          "manufacturer": "Завод бытовой техники"
+        }
+      },
+      {
+        "item_id": "aaaa1111-0001-0001-0001-000000000009",
+        "row_number": 9,
+        "expected_qty": "19",
+        "actual_qty": "17",
+        "unit_price": "133.55",
+        "total_amount": "2271.35",
+        "vat_rate": "20",
+        "vat_amount": "378.56",
+        "notes": "2 шт. — расхождение, недостача",
+        "product": {
+          "product_id": "cccc0001-0001-0001-0001-000000000009",
+          "name": "Холодильник Стинол ограниченно годен",
+          "sku": "X-67890",
+          "barcode": "4607010234642",
+          "category": "Холодильники",
+          "unit_of_measure": "шт.",
+          "weight_kg": "62.5",
+          "volume_m3": "0.85",
+          "price": "133.55",
+          "abc_class": "C",
+          "manufacturer": "Завод бытовой техники"
+        }
+      },
+      {
+        "item_id": "aaaa1111-0001-0001-0001-000000000010",
+        "row_number": 10,
+        "expected_qty": "24",
+        "actual_qty": "0",
+        "unit_price": "175.99",
+        "total_amount": "4223.76",
+        "vat_rate": "20",
+        "vat_amount": "703.96",
+        "notes": "Не годен — брак при погрузке, к списанию",
+        "marked_for_writeoff": true,
+        "product": {
+          "product_id": "cccc0001-0001-0001-0001-000000000010",
+          "name": "Холодильник BOSCH SH-10, не годен",
+          "sku": "SH-10-NG",
+          "barcode": "4607010234659",
+          "category": "Холодильники",
+          "unit_of_measure": "шт.",
+          "weight_kg": "67.0",
+          "volume_m3": "0.92",
+          "price": "175.99",
+          "abc_class": "C",
+          "manufacturer": "Завод бытовой техники"
+        }
+      }
+    ],
+    "receipt_session": {
+      "session_id": "44444444-4444-4444-4444-444444444444",
+      "organization_id": "11111111-1111-1111-1111-111111111111",
+      "warehouse_id": "33333333-3333-3333-3333-333333333333",
+      "supplier_id": "22222222-2222-2222-2222-222222222222",
+      "supply_id": "8b7c1a90-2f1d-4e9a-b1a5-5c7c8d8e9001",
+      "status": "IN_PROGRESS",
+      "receipt_order_doc_id": "55555555-5555-5555-5555-555555555501",
+      "receipt_act_doc_id": "55555555-5555-5555-5555-555555555502",
+      "placement_list_doc_id": "55555555-5555-5555-5555-555555555503",
+      "general_notes": "Поступление от поставщика «База Электротовары» согласно заказу ТД00-000029",
+      "created_by": "00000000-0000-0000-0000-0000000000aa",
+      "created_at": "2026-05-19T11:45:00",
+      "completed_at": null
+    },
+    "inventory_session": {
+      "session_id": "66666666-6666-6666-6666-666666666666",
+      "organization_id": "11111111-1111-1111-1111-111111111111",
+      "warehouse_id": "33333333-3333-3333-3333-333333333333",
+      "started_by": "00000000-0000-0000-0000-0000000000aa",
+      "responsible_user_id": "00000000-0000-0000-0000-0000000000bb",
+      "reason": "Плановая инвентаризация после поступления от «База Электротовары»",
+      "commission_members": [
+        "Семёнов Семён Семёнович — Председатель",
+        "Петрова Анна Викторовна — Главный бухгалтер",
+        "Сидоров Сидор Сидорович — Начальник склада"
+      ],
+      "started_at": "2026-05-20T09:00:00",
+      "completed_at": "2026-05-20T17:00:00",
+      "status": "COMPLETED",
+      "notes": "По 1 позиции расхождение -2 шт., по 1 позиции отметка к списанию"
+    },
+    "discrepancies": [
+      {
+        "row_number": 1,
+        "item_id": "aaaa1111-0001-0001-0001-000000000009",
+        "product_name": "Холодильник Стинол ограниченно годен",
+        "sku": "X-67890",
+        "unit": "шт.",
+        "qty_expected": "19",
+        "qty_actual": "17",
+        "excess": "0",
+        "shortage": "2",
+        "notes": "Недостача"
+      },
+      {
+        "row_number": 2,
+        "item_id": "aaaa1111-0001-0001-0001-000000000010",
+        "product_name": "Холодильник BOSCH SH-10, не годен",
+        "sku": "SH-10-NG",
+        "unit": "шт.",
+        "qty_expected": "24",
+        "qty_actual": "0",
+        "excess": "0",
+        "shortage": "24",
+        "notes": "Брак при погрузке"
+      }
+    ],
+    "writeoff": {
+      "act_number": "СПИС-2026-007",
+      "act_date": "2026-05-20",
+      "reason": "Брак, обнаруженный при приёмке",
+      "responsible_position": "Кладовщик",
+      "responsible_name": "Кузнецов Алексей Игоревич",
+      "items": [
+        {
+          "row_number": 1,
+          "product_name": "Холодильник BOSCH SH-10, не годен",
+          "unit": "шт.",
+          "quantity": "24",
+          "unit_price": "175.99",
+          "total_amount": "4223.76"
+        }
+      ]
+    },
+    "revaluation": {
+      "act_number": "ПЕРЕОЦ-2026-003",
+      "act_date": "2026-05-21",
+      "as_of_date": "2026-01-01",
+      "order_doc_number": "12",
+      "order_doc_date": "2026-05-20",
+      "initial_cost": "1500000.00",
+      "replacement_cost": "1450000.00",
+      "residual_cost_before": "1100000.00",
+      "residual_cost_after": "1080000.00",
+      "attached_documents": [
+        "Приказ № 12 от 20.05.2026",
+        "Заключение оценщика № 04/2026"
+      ]
+    },
+    "generated_documents": [
+      {
+        "id": "77777777-7777-7777-7777-777777777701",
+        "document_type": "RECEIPT_ORDER",
+        "document_number": "ПО-2026-00042",
+        "minio_object_key": "supplies/8b7c1a90/receipt_order.xlsx",
+        "file_format": "xlsx",
+        "generated_at": "2026-05-19T12:00:00",
+        "generated_by": "00000000-0000-0000-0000-0000000000aa"
+      },
+      {
+        "id": "77777777-7777-7777-7777-777777777702",
+        "document_type": "TTN_VERTICAL",
+        "document_number": "ТТН-2026-00042",
+        "minio_object_key": "supplies/8b7c1a90/ttn_vertical.xlsx",
+        "file_format": "xlsx",
+        "generated_at": "2026-05-19T12:00:01",
+        "generated_by": "00000000-0000-0000-0000-0000000000aa"
+      }
+    ],
+    "extraction_log": {
+      "log_id": 1,
+      "source": "1C-UT-utdemo",
+      "extracted_at": "2026-05-18T01:10:43",
+      "records_found": 4,
+      "records_new": 1,
+      "success": true,
+      "error_message": null
+    },
+    "erp_connection": {
+      "connection_id": "88888888-8888-8888-8888-888888888888",
+      "organization_id": "11111111-1111-1111-1111-111111111111",
+      "aggregator": "1C",
+      "name": "1С:УТ 11.2 (utdemo)",
+      "username": "Федоров Борис Михайлович",
+      "base_path": "D:\\1C\\8.3.27.1688\\bin\\1cv8st.exe",
+      "section_name": "Закупки",
+      "journal_name": "Заказы поставщикам",
+      "driver_url": null,
+      "is_default": true,
+      "created_at": "2026-05-17T19:00:00"
+    }
+  }
+}

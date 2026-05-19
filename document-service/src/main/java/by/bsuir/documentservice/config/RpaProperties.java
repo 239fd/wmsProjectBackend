@@ -11,20 +11,8 @@ import org.springframework.context.annotation.Configuration;
 @Setter
 public class RpaProperties {
 
-    private final Office office = new Office();
     private final Templates templates = new Templates();
-    private final Onec onec = new Onec();
-
-    @Getter
-    @Setter
-    public static class Office {
-        private boolean enabled;
-        private String driverUrl = "http://127.0.0.1:4723";
-        private String excelExe = "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE";
-        private String wordExe = "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE";
-        private String downloadsDir = "logs/rpa-office";
-        private int waitSeconds = 20;
-    }
+    private final Python python = new Python();
 
     @Getter
     @Setter
@@ -47,12 +35,9 @@ public class RpaProperties {
 
     @Getter
     @Setter
-    public static class Onec {
-        private boolean enabled;
-        private String executable = "C:\\Program Files\\1cv8\\common\\1cestart.exe";
-        private String baseConnection = "";
-        private String username = "";
-        private String password = "";
-        private String journalName = "Поступление товаров и услуг";
+    public static class Python {
+        private boolean enabled = false;
+        private String baseUrl = "http://localhost:8060";
+        private int timeoutSeconds = 120;
     }
 }

@@ -98,16 +98,16 @@ class ProductServiceTest {
         when(productRepository.existsByBarcode("1234567890")).thenReturn(false);
         when(objectMapper.valueToTree(any())).thenReturn(null);
         when(eventRepository.save(any(ProductEvent.class))).thenReturn(null);
-        when(productRepository.save(any(ProductReadModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(productRepository.saveAndFlush(any(ProductReadModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ProductResponse response = productService.createProduct(createRequest);
+        ProductResponse response = productService.createProduct(createRequest, UUID.randomUUID());
 
         assertThat(response).isNotNull();
         assertThat(response.name()).isEqualTo("Test Product");
         assertThat(response.sku()).isEqualTo("SKU-001");
         verify(productRepository, times(1)).existsBySku("SKU-001");
         verify(productRepository, times(1)).existsByBarcode("1234567890");
-        verify(productRepository, times(1)).save(any(ProductReadModel.class));
+        verify(productRepository, times(1)).saveAndFlush(any(ProductReadModel.class));
         verify(eventRepository, times(1)).save(any(ProductEvent.class));
     }
 

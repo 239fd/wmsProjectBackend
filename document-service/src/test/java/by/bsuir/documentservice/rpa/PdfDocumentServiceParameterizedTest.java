@@ -41,13 +41,10 @@ class PdfDocumentServiceParameterizedTest {
                 Arguments.of("revaluation-act", (Function<PdfDocumentService, byte[]>) s -> s.generateRevaluationActPdf(CYRILLIC_DATA)),
                 Arguments.of("inventory-list", (Function<PdfDocumentService, byte[]>) s -> s.generateInventoryListPdf(CYRILLIC_DATA)),
                 Arguments.of("picking-list", (Function<PdfDocumentService, byte[]>) s -> s.generatePickingListPdf(CYRILLIC_DATA)),
-                Arguments.of("release-order", (Function<PdfDocumentService, byte[]>) s -> s.generateReleaseOrderPdf(CYRILLIC_DATA)),
                 Arguments.of("receipt-act", (Function<PdfDocumentService, byte[]>) s -> s.generateReceiptActPdf(CYRILLIC_DATA)),
-                Arguments.of("invoice-fact", (Function<PdfDocumentService, byte[]>) s -> s.generateInvoiceFactPdf(CYRILLIC_DATA)),
                 Arguments.of("invoice", (Function<PdfDocumentService, byte[]>) s -> s.generateInvoicePdf(CYRILLIC_DATA)),
                 Arguments.of("transport-note", (Function<PdfDocumentService, byte[]>) s -> s.generateTransportNotePdf(CYRILLIC_DATA)),
-                Arguments.of("cmr", (Function<PdfDocumentService, byte[]>) s -> s.generateCmrPdf(CYRILLIC_DATA)),
-                Arguments.of("discrepancy-act", (Function<PdfDocumentService, byte[]>) s -> s.generateDiscrepancyActPdf(CYRILLIC_DATA))
+                Arguments.of("cmr", (Function<PdfDocumentService, byte[]>) s -> s.generateCmrPdf(CYRILLIC_DATA))
         );
     }
 

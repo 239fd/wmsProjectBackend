@@ -42,6 +42,7 @@ class OAuthControllerTest {
 
     @BeforeEach
     void setUp() {
+        org.springframework.test.util.ReflectionTestUtils.setField(oauthController, "frontendUrl", "http://localhost:3000");
         authResponse = AuthResponse.of("access-token", "refresh-token", 3600L);
         registrationResponse = OAuthRegistrationResponse.builder()
                 .temporaryToken("temp-token")

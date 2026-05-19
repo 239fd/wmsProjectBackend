@@ -1,0 +1,23 @@
+19:52:23 INFO  [app] Filter: --doc ['CMR']
+19:52:23 INFO  [app] === MOCK MODE: sizes=[1, 5, 10, 50] ===
+19:52:23 INFO  [app] === Module 2: filling Office templates ===
+19:52:23 INFO  [rpa.office_filler] Output directory for this run: C:\Users\pavel\IdeaProjects\RPA\output\2026-05-18_195223
+19:52:23 INFO  [rpa.office_filler] === Order №MOCK-001 — 0 Excel + 1 Word templates ===
+19:52:23 INFO  [rpa.word_filler] Word [CMR] ← CMR Международная товарно-транспортная накладная.doc
+19:52:27 INFO  [rpa.word_filler]   saving → Заказ-MOCK-001_CMR.docx
+19:52:28 INFO  [rpa.office_filler] === Order №MOCK-005 — 0 Excel + 1 Word templates ===
+19:52:28 INFO  [rpa.word_filler] Word [CMR] ← CMR Международная товарно-транспортная накладная.doc
+19:52:34 INFO  [rpa.word_filler]   saving → Заказ-MOCK-005_CMR.docx
+19:52:34 INFO  [rpa.office_filler] === Order №MOCK-010 — 0 Excel + 1 Word templates ===
+19:52:34 INFO  [rpa.word_filler] Word [CMR] ← CMR Международная товарно-транспортная накладная.doc
+19:52:38 INFO  [rpa.word_filler]   items_table: inserting 3 extra Word row(s) after row 31
+19:52:38 INFO  [rpa.word_filler]   items_table: Rows.Add failed ((-2147352567, 'Ошибка.', (0, 'Microsoft Word', 'Отсутствует доступ к отдельным строкам, поскольку таблица имеет ячейки, объединенные по вертикали.', 'wdmain11.chm', 25471, -2146822297), None)); falling back to InsertRowsBelow
+19:52:42 INFO  [rpa.word_filler]   saving → Заказ-MOCK-010_CMR.docx
+19:52:43 INFO  [rpa.office_filler] === Order №MOCK-050 — 0 Excel + 1 Word templates ===
+19:52:43 INFO  [rpa.word_filler] Word [CMR] ← CMR Международная товарно-транспортная накладная.doc
+19:52:47 INFO  [rpa.word_filler]   items_table: inserting 43 extra Word row(s) after row 31
+19:52:47 INFO  [rpa.word_filler]   items_table: Rows.Add failed ((-2147352567, 'Ошибка.', (0, 'Microsoft Word', 'Отсутствует доступ к отдельным строкам, поскольку таблица имеет ячейки, объединенные по вертикали.', 'wdmain11.chm', 25471, -2146822297), None)); falling back to InsertRowsBelow
+19:53:15 INFO  [rpa.word_filler]   saving → Заказ-MOCK-050_CMR.docx
+19:53:15 INFO  [rpa.office_filler] Done. 4 file(s) created, 0 error(s). Output: C:\Users\pavel\IdeaProjects\RPA\output\2026-05-18_195223
+19:53:15 INFO  [rpa.supply_exporter] Wrote supplies JSON: C:\Users\pavel\IdeaProjects\RPA\output\2026-05-18_195223\supplies.json  (4 supply(es))
+19:53:15 INFO  [app] All done. 4 file(s), 0 error(s). JSON: C:\Users\pavel\IdeaProjects\RPA\output\2026-05-18_195223\supplies.json

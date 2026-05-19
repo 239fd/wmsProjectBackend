@@ -8,4 +8,8 @@ public interface PlannedDeliveryExtractor {
     String getSourceName();
 
     List<Map<String, Object>> extractDeliveries();
+
+    default List<Map<String, Object>> extractDeliveries(ErpConnectionParams params) {
+        return extractDeliveries();
+    }
 }

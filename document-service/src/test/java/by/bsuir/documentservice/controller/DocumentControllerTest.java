@@ -1,25 +1,18 @@
 package by.bsuir.documentservice.controller;
 
-import by.bsuir.documentservice.config.RpaProperties;
-import by.bsuir.documentservice.dto.OfficeFillRequest;
-import by.bsuir.documentservice.rpa.OfficeDocumentBot;
 import by.bsuir.documentservice.service.DocumentService;
 import by.bsuir.documentservice.service.DocumentService.GenerationResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
 
@@ -36,12 +29,6 @@ class DocumentControllerTest {
     @Mock
     private DocumentService documentService;
 
-    @Mock
-    private ObjectProvider<OfficeDocumentBot> officeBotProvider;
-
-    @Mock
-    private RpaProperties rpaProperties;
-
     @InjectMocks
     private DocumentController controller;
 
@@ -49,7 +36,6 @@ class DocumentControllerTest {
 
     @BeforeEach
     void setUpServiceStub() {
-        // each generate-*** delegates to documentService.generate; use lenient default for all types
         org.mockito.Mockito.lenient().when(documentService.generate(any(), any(), any(), any(), any()))
                 .thenReturn(new GenerationResult(new byte[]{9, 9}, "programmatic", "pdf"));
     }
@@ -67,56 +53,56 @@ class DocumentControllerTest {
     }
 
     @Test
-    @DisplayName("generateInventoryReport: 200 OK")
+    @DisplayName("generateInventoryReport: делегирует с правильным type")
     void generateInventoryReport_whenCalled_thenDelegates() {
         controller.generateInventoryReport(Map.of(), "pdf", "auto", orgId);
         verify(documentService).generate(eq("inventory-report"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    @DisplayName("generateRevaluationAct: 200 OK")
+    @DisplayName("generateRevaluationAct: делегирует с правильным type")
     void generateRevaluationAct_whenCalled_thenDelegates() {
         controller.generateRevaluationAct(Map.of(), "pdf", "auto", orgId);
         verify(documentService).generate(eq("revaluation-act"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    @DisplayName("generateWriteOffAct: 200 OK")
+    @DisplayName("generateWriteOffAct: делегирует с правильным type")
     void generateWriteOffAct_whenCalled_thenDelegates() {
         controller.generateWriteOffAct(Map.of(), "pdf", "auto", orgId);
         verify(documentService).generate(eq("write-off-act"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    @DisplayName("generateWaybill: 200 OK")
+    @DisplayName("generateWaybill: делегирует с правильным type")
     void generateWaybill_whenCalled_thenDelegates() {
         controller.generateWaybill(Map.of(), "pdf", "auto", orgId);
         verify(documentService).generate(eq("waybill"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    @DisplayName("generatePickingList: 200 OK")
+    @DisplayName("generatePickingList: делегирует с правильным type")
     void generatePickingList_whenCalled_thenDelegates() {
         controller.generatePickingList(Map.of(), "pdf", "auto", orgId);
         verify(documentService).generate(eq("picking-list"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    @DisplayName("generatePlacementList: 200 OK")
+    @DisplayName("generatePlacementList: делегирует с правильным type")
     void generatePlacementList_whenCalled_thenDelegates() {
         controller.generatePlacementList(Map.of(), "pdf", "auto", orgId);
         verify(documentService).generate(eq("placement-list"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    @DisplayName("generateReceiptAct: 200 OK")
+    @DisplayName("generateReceiptAct: делегирует с правильным type")
     void generateReceiptAct_whenCalled_thenDelegates() {
         controller.generateReceiptAct(Map.of(), "pdf", "auto", orgId);
         verify(documentService).generate(eq("receipt-act"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    @DisplayName("generateInvoice: 200 OK")
+    @DisplayName("generateInvoice: делегирует с правильным type")
     void generateInvoice_whenCalled_thenDelegates() {
         controller.generateInvoice(Map.of(), "pdf", "auto", orgId);
         verify(documentService).generate(eq("invoice"), any(), eq(orgId), eq("pdf"), eq("auto"));
@@ -133,116 +119,22 @@ class DocumentControllerTest {
     }
 
     @Test
-    @DisplayName("generateCmr: 200 OK")
+    @DisplayName("generateCmr: делегирует с правильным type")
     void generateCmr_whenCalled_thenDelegates() {
         controller.generateCmr(Map.of(), "pdf", "auto", orgId);
         verify(documentService).generate(eq("cmr"), any(), eq(orgId), eq("pdf"), eq("auto"));
     }
 
     @Test
-    @DisplayName("officeHealth: bot available → enabled=true")
-    void officeHealth_givenBotAvailable_whenCalled_thenReturnsEnabledTrue() {
-        when(officeBotProvider.getIfAvailable()).thenReturn(org.mockito.Mockito.mock(OfficeDocumentBot.class));
+    @DisplayName("generateInvoice(mode=rpa): прокидывает mode в DocumentService")
+    void generateInvoice_givenRpaMode_whenCalled_thenPassesMode() {
+        when(documentService.generate(any(), any(), any(), any(), eq("rpa")))
+                .thenReturn(new GenerationResult(new byte[]{1, 2, 3}, "rpa", "docx"));
 
-        ResponseEntity<Map<String, Object>> response = controller.officeHealth();
+        ResponseEntity<byte[]> response = controller.generateInvoice(Map.of(), "pdf", "rpa", orgId);
 
-        assertThat(response.getBody()).containsEntry("enabled", true);
-    }
-
-    @Test
-    @DisplayName("officeHealth: bot not available → enabled=false с reason")
-    void officeHealth_givenBotUnavailable_whenCalled_thenReturnsEnabledFalse() {
-        when(officeBotProvider.getIfAvailable()).thenReturn(null);
-
-        ResponseEntity<Map<String, Object>> response = controller.officeHealth();
-
-        assertThat(response.getBody()).containsEntry("enabled", false);
-        assertThat(response.getBody().get("reason").toString()).contains("not wired");
-    }
-
-    @Test
-    @DisplayName("fillOfficeTemplate: bot disabled → 503 SERVICE_UNAVAILABLE")
-    void fillOfficeTemplate_givenBotDisabled_whenCalled_thenReturns503() {
-        OfficeFillRequest req = new OfficeFillRequest("any.xlsx", null, Map.of(), Map.of());
-        when(officeBotProvider.getIfAvailable()).thenReturn(null);
-
-        ResponseEntity<byte[]> response = controller.fillOfficeTemplate(req);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-    }
-
-    @Test
-    @DisplayName("fillOfficeTemplate: bot available но template не существует → 404 NOT_FOUND")
-    void fillOfficeTemplate_givenMissingTemplate_whenCalled_thenReturns404() {
-        OfficeFillRequest req = new OfficeFillRequest("nonexistent.xlsx", null, Map.of(), Map.of());
-        OfficeDocumentBot bot = org.mockito.Mockito.mock(OfficeDocumentBot.class);
-        when(officeBotProvider.getIfAvailable()).thenReturn(bot);
-        RpaProperties.Templates templates = new RpaProperties.Templates();
-        templates.setDir("nonexistent-dir/");
-        when(rpaProperties.getTemplates()).thenReturn(templates);
-
-        ResponseEntity<byte[]> response = controller.fillOfficeTemplate(req);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    @DisplayName("fillOfficeTemplate: bot available + xlsx template → Excel-вариант, 200 OK")
-    void fillOfficeTemplate_givenExcelTemplate_whenCalled_thenUsesExcelBranch(@TempDir Path tmp) throws Exception {
-        Path template = tmp.resolve("t.xlsx");
-        Files.writeString(template, "x");
-        Path output = tmp.resolve("out.xlsx");
-        Files.writeString(output, "result");
-        OfficeFillRequest req = new OfficeFillRequest("t.xlsx", null, Map.of("A1", "v"), null);
-        OfficeDocumentBot bot = org.mockito.Mockito.mock(OfficeDocumentBot.class);
-        when(officeBotProvider.getIfAvailable()).thenReturn(bot);
-        RpaProperties.Templates templates = new RpaProperties.Templates();
-        templates.setDir(tmp.toString() + java.io.File.separator);
-        when(rpaProperties.getTemplates()).thenReturn(templates);
-        when(bot.fillExcelTemplate(any(), any(), any())).thenReturn(output);
-
-        ResponseEntity<byte[]> response = controller.fillOfficeTemplate(req);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getHeaders().getFirst("X-Generation-Channel")).isEqualTo("rpa");
-    }
-
-    @Test
-    @DisplayName("fillOfficeTemplate: bot available + docx template → Word-вариант, 200 OK")
-    void fillOfficeTemplate_givenWordTemplate_whenCalled_thenUsesWordBranch(@TempDir Path tmp) throws Exception {
-        Path template = tmp.resolve("t.docx");
-        Files.writeString(template, "x");
-        Path output = tmp.resolve("out.docx");
-        Files.writeString(output, "result");
-        OfficeFillRequest req = new OfficeFillRequest("t.docx", "custom-name", null, Map.of("k", "v"));
-        OfficeDocumentBot bot = org.mockito.Mockito.mock(OfficeDocumentBot.class);
-        when(officeBotProvider.getIfAvailable()).thenReturn(bot);
-        RpaProperties.Templates templates = new RpaProperties.Templates();
-        templates.setDir(tmp.toString() + java.io.File.separator);
-        when(rpaProperties.getTemplates()).thenReturn(templates);
-        when(bot.fillWordTemplate(any(), any(), any())).thenReturn(output);
-
-        ResponseEntity<byte[]> response = controller.fillOfficeTemplate(req);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    }
-
-    @Test
-    @DisplayName("fillOfficeTemplate: bot бросает исключение → 500 INTERNAL_SERVER_ERROR")
-    void fillOfficeTemplate_givenBotThrows_whenCalled_thenReturns500(@TempDir Path tmp) throws Exception {
-        Path template = tmp.resolve("t.xlsx");
-        Files.writeString(template, "x");
-        OfficeFillRequest req = new OfficeFillRequest("t.xlsx", null, Map.of(), null);
-        OfficeDocumentBot bot = org.mockito.Mockito.mock(OfficeDocumentBot.class);
-        when(officeBotProvider.getIfAvailable()).thenReturn(bot);
-        RpaProperties.Templates templates = new RpaProperties.Templates();
-        templates.setDir(tmp.toString() + java.io.File.separator);
-        when(rpaProperties.getTemplates()).thenReturn(templates);
-        when(bot.fillExcelTemplate(any(), any(), any())).thenThrow(new RuntimeException("bot crash"));
-
-        ResponseEntity<byte[]> response = controller.fillOfficeTemplate(req);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        verify(documentService).generate(eq("invoice"), any(), eq(orgId), eq("pdf"), eq("rpa"));
     }
 
     @Test

@@ -9,14 +9,9 @@ import by.bsuir.documentservice.dto.ReceiptOrderData;
 import by.bsuir.documentservice.dto.RevaluationActData;
 import by.bsuir.documentservice.dto.ShippingInvoiceData;
 import by.bsuir.documentservice.dto.WriteOffActData;
-import by.bsuir.documentservice.config.RpaProperties;
 import by.bsuir.documentservice.rpa.DocumentRpaService;
-import by.bsuir.documentservice.rpa.OfficeDocumentBot;
 import by.bsuir.documentservice.rpa.PdfDocumentService;
-import by.bsuir.documentservice.rpa.RpaTemplateBinding;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import by.bsuir.documentservice.rpa.PythonRpaClient;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -25,7 +20,6 @@ import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -38,9 +32,7 @@ public class DocumentService {
     private final DocumentRpaService rpaService;
     private final PdfDocumentService pdfService;
     private final DataEnrichmentService enrichmentService;
-    private final RpaTemplateBinding rpaTemplateBinding;
-    private final ObjectProvider<OfficeDocumentBot> officeBotProvider;
-    private final RpaProperties rpaProperties;
+    private final PythonRpaClient pythonRpaClient;
 
     public byte[] generate(String type, Map<String, Object> data, UUID organizationId, String format) {
         return generate(type, data, organizationId, format, "auto").body();
@@ -52,66 +44,32 @@ public class DocumentService {
         Map<String, Object> enriched = enrichmentService.enrich(data, organizationId);
 
         if ("rpa".equalsIgnoreCase(mode)) {
-            OfficeDocumentBot bot = officeBotProvider.getIfAvailable();
-            RpaTemplateBinding.Binding binding = rpaTemplateBinding.bind(type, enriched);
-            if (bot != null && binding != null) {
-                String outputName = enriched.get("documentNumber") != null
-                        ? enriched.get("documentNumber").toString()
-                        : type;
-                try {
-                    return generateViaOfficeBot(bot, binding, outputName);
-                } catch (Exception e) {
-                    log.warn("RPA bot failed for {} ({}), fallback to programmatic", type, e.getMessage());
-                    return new GenerationResult(
-                            generateProgrammatically(type, enriched, effectiveFormat),
-                            "rpa-fallback-error", effectiveFormat);
-                }
+            try {
+                PythonRpaClient.FillResponse rpa = pythonRpaClient.fill(type, enriched);
+                String fmt = extOf(rpa.filename(), effectiveFormat);
+                log.info("RPA (Python): {} bytes for type={}, format={}",
+                        rpa.body() != null ? rpa.body().length : 0, type, fmt);
+                return new GenerationResult(rpa.body(), "rpa", fmt);
+            } catch (Exception e) {
+                log.warn("Python RPA failed for {} ({}), fallback to PDF", type, e.getMessage());
+                // Программный fallback всегда отдаёт PDF — это самый стабильный канал.
+                // Apache POI .xls/.doc/.RTF исторически давал битые файлы (HWPF/HSSF баги),
+                // поэтому для надёжности возвращаемся в PDFBox независимо от запрошенного формата.
+                return new GenerationResult(
+                        generateViaPdf(type, enriched),
+                        "rpa-fallback-error", "pdf");
             }
-            String reason = bot == null ? "rpa-fallback-disabled" : "rpa-fallback-unsupported-type";
-            log.info("RPA mode requested for {} but {}, falling back to programmatic", type, reason);
-            return new GenerationResult(
-                    generateProgrammatically(type, enriched, effectiveFormat),
-                    reason, effectiveFormat);
         }
 
+        // Программный канал: всегда PDF (PDFBox + DejaVuSans с кириллицей).
+        // ?format=xlsx / ?format=docx больше не вызывают POI HWPF/HSSF (битые .doc/.RTF).
         return new GenerationResult(
-                generateProgrammatically(type, enriched, effectiveFormat),
-                "programmatic", effectiveFormat);
-    }
-
-    private byte[] generateProgrammatically(String type, Map<String, Object> data, String format) {
-        if ("rpa-xls".equals(format) || "rpa-docx".equals(format)) {
-            return generateViaRpa(type, data);
-        }
-        return generateViaPdf(type, data);
-    }
-
-    private GenerationResult generateViaOfficeBot(
-            OfficeDocumentBot bot, RpaTemplateBinding.Binding binding, String outputName)
-            throws Exception {
-        Path templatePath = resolveTemplate(binding.templateName());
-        if (!Files.exists(templatePath)) {
-            throw new IllegalStateException("Template not found: " + binding.templateName());
-        }
-        Path output;
-        if (binding.isWord()) {
-            output = bot.fillWordTemplate(templatePath, binding.placeholders(), outputName);
-        } else {
-            output = bot.fillExcelTemplate(templatePath, binding.cells(), outputName);
-        }
-        byte[] body = Files.readAllBytes(output);
-        String fmt = extOf(output.getFileName().toString(), "bin");
-        log.info("RPA bot: produced {} bytes via {} → {}", body.length, binding.templateName(), output);
-        return new GenerationResult(body, "rpa", fmt);
-    }
-
-    private Path resolveTemplate(String name) {
-        Path direct = Paths.get(rpaProperties.getTemplates().getDir() + name).toAbsolutePath();
-        if (Files.exists(direct)) return direct;
-        return Paths.get("documents template/" + name).toAbsolutePath();
+                generateViaPdf(type, enriched),
+                "programmatic", "pdf");
     }
 
     private String extOf(String name, String fallback) {
+        if (name == null) return fallback;
         int idx = name.lastIndexOf('.');
         return idx > 0 ? name.substring(idx + 1).toLowerCase() : fallback;
     }

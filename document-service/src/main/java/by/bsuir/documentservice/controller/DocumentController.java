@@ -1,25 +1,16 @@
 package by.bsuir.documentservice.controller;
 
-import by.bsuir.documentservice.config.RpaProperties;
-import by.bsuir.documentservice.dto.OfficeFillRequest;
-import by.bsuir.documentservice.rpa.OfficeDocumentBot;
+import by.bsuir.documentservice.rpa.PythonRpaClient;
 import by.bsuir.documentservice.service.DocumentService;
 import by.bsuir.documentservice.service.DocumentService.GenerationResult;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,15 +28,14 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Документы",
         description = "Stateless генератор: POST <type> возвращает PDF/XLS/DOCX bytes напрямую. "
                 + "Хранением занимается product-service (DocumentRegistryService + MinIO). "
-                + "Канал генерации выбирается через header X-Generation-Mode: auto (default) | rpa.")
+                + "Канал генерации выбирается через header X-Generation-Mode: auto (POI/PDFBox) | rpa (Python).")
 public class DocumentController {
 
     private static final String MODE_HEADER = "X-Generation-Mode";
     private static final String CHANNEL_HEADER = "X-Generation-Channel";
 
     private final DocumentService documentService;
-    private final ObjectProvider<OfficeDocumentBot> officeBotProvider;
-    private final RpaProperties rpaProperties;
+    private final PythonRpaClient pythonRpaClient;
 
     @PostMapping("/receipt-order")
     @Operation(summary = "Сгенерировать приходный ордер (bytes)")
@@ -160,63 +150,17 @@ public class DocumentController {
         return wrap(documentService.generate("cmr", data, organizationId, format, mode));
     }
 
-    @GetMapping("/office/health")
-    @Operation(summary = "Готовность RPA-канала (OfficeDocumentBot)")
-    public ResponseEntity<Map<String, Object>> officeHealth() {
-        boolean enabled = officeBotProvider.getIfAvailable() != null;
+    @GetMapping("/rpa/health")
+    @Operation(summary = "Здоровье Python rpa-service (для UI индикатора)",
+            description = "Проксирует к Python /health. enabled=true если rpa.python.enabled=true и сервис отвечает.")
+    public ResponseEntity<Map<String, Object>> getRpaHealth() {
+        boolean available = pythonRpaClient.isAvailable();
         Map<String, Object> body = new HashMap<>();
-        body.put("enabled", enabled);
-        body.put("reason", enabled ? "ok" : "rpa.office.enabled=false or bot not wired");
+        body.put("enabled", available);
+        body.put("channel", "python");
+        body.put("reason", available ? null
+                : "Python rpa-service недоступен. Проверьте, что rpa-service запущен на хосте Windows и доступен по rpa.python.base-url.");
         return ResponseEntity.ok(body);
-    }
-
-    @PostMapping("/office/fill")
-    @Operation(summary = "RPA-2: заполнить локальный шаблон MS Office (Excel/Word) через WinAppDriver",
-            description = "Прямой эндпоинт RPA-бота (без бизнес-маппинга). Принимает templateName + cells/placeholders, "
-                    + "возвращает заполненный файл. Включается через rpa.office.enabled=true.")
-    public ResponseEntity<byte[]> fillOfficeTemplate(@Valid @RequestBody OfficeFillRequest request) {
-        OfficeDocumentBot bot = officeBotProvider.getIfAvailable();
-        if (bot == null) {
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(("OfficeDocumentBot не включён: установите rpa.office.enabled=true "
-                            + "и запустите WinAppDriver").getBytes());
-        }
-
-        Path templatePath = resolveTemplate(request.templateName());
-        if (!Files.exists(templatePath)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(("Шаблон не найден: " + request.templateName()).getBytes());
-        }
-
-        try {
-            Path output;
-            String lower = request.templateName().toLowerCase();
-            boolean isWord = lower.endsWith(".doc") || lower.endsWith(".docx")
-                    || lower.endsWith(".rtf");
-            String outputName = request.outputName() != null && !request.outputName().isBlank()
-                    ? request.outputName()
-                    : request.templateName().replaceFirst("\\.[^.]+$", "");
-            if (isWord) {
-                output = bot.fillWordTemplate(templatePath,
-                        request.placeholders() != null ? request.placeholders() : Map.of(),
-                        outputName);
-            } else {
-                output = bot.fillExcelTemplate(templatePath,
-                        request.cells() != null ? request.cells() : Map.of(),
-                        outputName);
-            }
-
-            byte[] body = Files.readAllBytes(output);
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(contentTypeForFile(output.getFileName().toString()));
-            headers.setContentDispositionFormData("attachment", output.getFileName().toString());
-            headers.set(CHANNEL_HEADER, "rpa");
-            return ResponseEntity.ok().headers(headers).body(body);
-        } catch (Exception e) {
-            log.error("RPA-2: ошибка при заполнении шаблона {}: {}", request.templateName(), e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(("Office bot failed: " + e.getMessage()).getBytes());
-        }
     }
 
     @GetMapping("/stub-info")
@@ -224,22 +168,17 @@ public class DocumentController {
         Map<String, Object> info = new HashMap<>();
         info.put("service", "Document Service");
         info.put("status", "active");
-        info.put("version", "0.4.0-SNAPSHOT");
+        info.put("version", "0.5.0-SNAPSHOT");
         info.put("mode", "stateless-bytes");
         info.put("documentTypes", new String[] {
                 "receipt-order", "inventory-report",
                 "revaluation-act", "write-off-act", "waybill", "picking-list",
                 "receipt-act", "invoice", "transport-note", "cmr"
         });
-        info.put("generationModes", new String[] {"auto (POI/PDFBox)", "rpa (WinAppDriver)"});
-        info.put("rpaTemplatesBound", new String[] {
-                "receipt-order", "revaluation-act", "inventory-report",
-                "write-off-act", "waybill", "receipt-act (with discrepancies only)",
-                "invoice", "transport-note", "cmr"
-        });
-        info.put("formats", new String[] {"pdf (default)", "rpa-xls", "rpa-docx"});
+        info.put("generationModes", new String[] {"auto (POI/PDFBox)", "rpa (Python service)"});
+        info.put("formats", new String[] {"pdf (default)", "xlsx", "docx"});
         info.put("hint", "POST <type> возвращает bytes напрямую. Mode через header X-Generation-Mode. "
-                + "Хранение — product-service /api/document-registry");
+                + "RPA-канал требует rpa.python.enabled=true и работающий rpa-service на Windows-хосте.");
         return ResponseEntity.ok(info);
     }
 
@@ -250,23 +189,12 @@ public class DocumentController {
         return ResponseEntity.ok().headers(headers).body(result.body());
     }
 
-    private Path resolveTemplate(String name) {
-        Path direct = Paths.get(rpaProperties.getTemplates().getDir() + name).toAbsolutePath();
-        if (Files.exists(direct)) return direct;
-        return Paths.get("documents template/" + name).toAbsolutePath();
-    }
-
-    private MediaType contentTypeForFile(String filename) throws IOException {
-        String probed = Files.probeContentType(Path.of(filename));
-        return probed != null ? MediaType.parseMediaType(probed) : MediaType.APPLICATION_OCTET_STREAM;
-    }
-
     private MediaType contentTypeFor(String format) {
         return switch (format) {
-            case "rpa-xls", "xls" -> MediaType.parseMediaType("application/vnd.ms-excel");
+            case "xls" -> MediaType.parseMediaType("application/vnd.ms-excel");
             case "xlsx" -> MediaType.parseMediaType(
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-            case "rpa-docx", "docx" -> MediaType.parseMediaType(
+            case "docx" -> MediaType.parseMediaType(
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
             case "doc" -> MediaType.parseMediaType("application/msword");
             case "rtf" -> MediaType.parseMediaType("application/rtf");

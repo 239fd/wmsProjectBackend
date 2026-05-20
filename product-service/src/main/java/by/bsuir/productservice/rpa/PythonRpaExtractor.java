@@ -15,18 +15,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-/**
- * Извлекает плановые поставки из 1С через Python rpa-service (HTTP).
- * Заменяет удалённый WAD-extractor {@code OneCWinAppExtractorImpl} —
- * сохранён тот же qualifier name ("oneCExtractor"), чтобы
- * {@code ErpExtractorJob} подтянул бин без правок.
- *
- * <p>Python отдаёт иерархический {@code supplies.json}; здесь он
- * flatten-ится в плоский список со схемой
- * {@code {externalId, supplierName, productName, expectedQuantity, expectedDate}}
- * — одна строка на товар (не на заказ), как ожидает
- * {@link ErpExtractorJob#run}.
- */
 @Slf4j
 @Component("oneCExtractor")
 @ConditionalOnProperty(prefix = "rpa.python", name = "enabled", havingValue = "true")

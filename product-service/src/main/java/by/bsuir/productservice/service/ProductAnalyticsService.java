@@ -137,7 +137,6 @@ public class ProductAnalyticsService {
         long totalAtStart = totalNow - delta;
         long availableAtStart = availableNow - delta;
 
-        // reserved тренд: считаем изменение reservedQuantity по операциям RESERVE/RELEASE
         long reserveDelta = opsInPeriod.stream()
                 .filter(op -> "RESERVE".equals(op.getOperationType().name()))
                 .mapToLong(op -> op.getQuantity() != null ? op.getQuantity().longValue() : 0L)
@@ -192,10 +191,6 @@ public class ProductAnalyticsService {
         return ((double) delta / base) * 100.0;
     }
 
-    /**
-     * ABC-распределение товаров. Для каждой категории A/B/C возвращает количество позиций
-     * и суммарный остаток на всех складах.
-     */
     @Cacheable(value = "abcDistribution")
     public Map<String, Object> getAbcDistribution() {
         log.info("Calculating ABC distribution");
@@ -237,10 +232,6 @@ public class ProductAnalyticsService {
         return result;
     }
 
-    /**
-     * Товары с истекающим сроком годности в течение withinDays дней.
-     * Возвращает плоский список с productId/batchId/expiryDate/daysLeft/quantity.
-     */
     public List<Map<String, Object>> getExpiringProducts(int withinDays) {
         log.info("Listing products expiring within {} days", withinDays);
 

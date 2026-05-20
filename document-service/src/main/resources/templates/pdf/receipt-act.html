@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<title>Акт приёмки</title>
+<style th:utext="${cssBase}"></style>
+<style>
+.items th { background: #e8e8e8; }
+.diff-positive { color: #006400; }
+.diff-negative { color: #8b0000; }
+</style>
+</head>
+<body>
+
+<div class="text-right small mb-2">
+  Утверждаю:
+  <div class="mt-12">
+    <span class="signature-line">&#160;</span>
+    <span th:text="${approvedBy} ?: ''">—</span>
+  </div>
+  <div th:text="${documentDate} ?: ''"></div>
+</div>
+
+<h1>АКТ ПРИЁМКИ ТОВАРА</h1>
+<div class="text-center mb-4">
+  № <span th:text="${documentNumber} ?: '—'">—</span>
+  от <span th:text="${documentDate} ?: '—'">—</span>
+</div>
+
+<table class="bordered mb-4">
+  <tr>
+    <td style="width: 25%;" class="small muted">Организация-получатель</td>
+    <td th:text="${organizationName} ?: '—'">—</td>
+    <td style="width: 12%;" class="small muted">УНП</td>
+    <td th:text="${inn != null ? inn : (unp != null ? unp : '—')}">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Склад приёмки</td>
+    <td colspan="3" th:text="${warehouseName} ?: '—'">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Поставщик</td>
+    <td th:text="${supplierName} ?: '—'">—</td>
+    <td class="small muted">УНП поставщика</td>
+    <td th:text="${supplierInn} ?: '—'">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Договор поставки</td>
+    <td>
+      № <span th:text="${contractNumber} ?: '—'">—</span>
+      от <span th:text="${contractDate} ?: '—'">—</span>
+    </td>
+    <td class="small muted">ТТН / накладная</td>
+    <td>
+      № <span th:text="${waybillNumber} ?: '—'">—</span>
+      от <span th:text="${waybillDate} ?: '—'">—</span>
+    </td>
+  </tr>
+</table>
+
+<p class="mb-4 small">
+  Настоящий акт составлен комиссией о приёмке товаров от поставщика. По итогам приёмки выявлены
+  следующие позиции (включая расхождения, если они есть):
+</p>
+
+<table class="grid items mb-4">
+  <thead>
+    <tr>
+      <th style="width: 4%;">№</th>
+      <th style="width: 30%;">Наименование товара</th>
+      <th style="width: 10%;">Артикул</th>
+      <th style="width: 5%;">Ед.</th>
+      <th style="width: 10%;">По документу</th>
+      <th style="width: 10%;">Фактически</th>
+      <th style="width: 10%;">Расхождение</th>
+      <th style="width: 21%;">Вид расхождения / дефекта</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="item, it : ${discrepancies}" th:if="${discrepancies != null and !#lists.isEmpty(discrepancies)}">
+      <td class="text-center" th:text="${item.rowNumber != null ? item.rowNumber : it.count}">1</td>
+      <td th:text="${item.productName} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.sku} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.unit} ?: 'шт'">шт</td>
+      <td class="text-right" th:text="${item.expectedQty} ?: '0'">0</td>
+      <td class="text-right" th:text="${item.actualQty} ?: '0'">0</td>
+      <td class="text-right"
+          th:classappend="${item.differenceQty != null and #strings.startsWith(item.differenceQty + '', '-')} ? 'diff-negative' : 'diff-positive'"
+          th:text="${item.differenceQty} ?: '0'">0</td>
+      <td>
+        <div th:if="${item.discrepancyType}" class="bold" th:text="${item.discrepancyType}">—</div>
+        <div class="small" th:text="${item.defectDescription} ?: ''"></div>
+      </td>
+    </tr>
+    <tr th:if="${discrepancies == null or #lists.isEmpty(discrepancies)}">
+      <td class="text-center">1</td>
+      <td th:text="${productName} ?: '—'">—</td>
+      <td class="text-center" th:text="${sku} ?: '—'">—</td>
+      <td class="text-center" th:text="${unit} ?: 'шт'">шт</td>
+      <td class="text-right" th:text="${expectedQty} ?: '0'">0</td>
+      <td class="text-right" th:text="${actualQty} ?: '0'">0</td>
+      <td class="text-right" th:text="${discrepancy} ?: '0'">0</td>
+      <td>—</td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="bordered mb-4">
+  <tr>
+    <td style="width: 25%;" class="small muted">Условия хранения</td>
+    <td th:text="${storageConditions} ?: '—'">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Партия</td>
+    <td th:text="${batchNumber} ?: '—'">—</td>
+  </tr>
+  <tr th:if="${generalNotes}">
+    <td class="small muted">Общие примечания</td>
+    <td th:text="${generalNotes}">—</td>
+  </tr>
+</table>
+
+<table class="no-border signature-block mt-12">
+  <tr>
+    <td style="width: 50%;">
+      <div class="small muted">Председатель комиссии:</div>
+      <div class="mt-12"><span class="signature-line">&#160;</span></div>
+      <div class="small" th:text="${chairmanName} ?: ''">—</div>
+    </td>
+    <td style="width: 50%;">
+      <div class="small muted">Товар принял:</div>
+      <div class="mt-12"><span class="signature-line">&#160;</span></div>
+      <div class="small" th:text="${acceptedBy != null ? acceptedBy : (receivedBy != null ? receivedBy : '')}">—</div>
+    </td>
+  </tr>
+  <tr th:if="${commissionMembers != null and !#lists.isEmpty(commissionMembers)}">
+    <td colspan="2" class="small mt-4">
+      Члены комиссии:
+      <span th:text="${#strings.listJoin(commissionMembers, '; ')}">—</span>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

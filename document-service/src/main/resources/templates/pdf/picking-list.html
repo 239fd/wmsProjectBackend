@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<title>Лист подбора</title>
+<style th:utext="${cssBase}"></style>
+<style>
+.items th { background: #e8e8e8; }
+.items td.location { font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>ЛИСТ ПОДБОРА № <span th:text="${shipmentNumber != null ? shipmentNumber : (documentNumber != null ? documentNumber : '—')}">—</span></h1>
+<div class="text-center mb-4">
+  Дата: <span th:text="${documentDate != null ? documentDate : (date != null ? date : '—')}">—</span>
+</div>
+
+<table class="bordered mb-4">
+  <tr>
+    <td style="width: 25%;" class="small muted">Склад</td>
+    <td th:text="${warehouseName} ?: '—'">—</td>
+    <td style="width: 20%;" class="small muted">Получатель</td>
+    <td th:text="${recipientName} ?: '—'">—</td>
+  </tr>
+  <tr th:if="${shipperName}">
+    <td class="small muted">Отгружает</td>
+    <td colspan="3" th:text="${shipperName}">—</td>
+  </tr>
+  <tr th:if="${plannedDate}">
+    <td class="small muted">Плановая дата</td>
+    <td colspan="3" th:text="${plannedDate}">—</td>
+  </tr>
+</table>
+
+<table class="grid items mb-4">
+  <thead>
+    <tr>
+      <th style="width: 4%;">№</th>
+      <th style="width: 32%;">Товар</th>
+      <th style="width: 12%;">SKU</th>
+      <th style="width: 12%;">Поставка / партия</th>
+      <th style="width: 18%;">Место (стеллаж / ячейка)</th>
+      <th style="width: 10%;">Кол-во</th>
+      <th style="width: 6%;">Ед.</th>
+      <th style="width: 6%;">✓</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="item, it : ${items}" th:if="${items != null and !#lists.isEmpty(items)}">
+      <td class="text-center" th:text="${it.count}">1</td>
+      <td th:text="${item.productName} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.sku} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.batchNumber} ?: '—'">—</td>
+      <td class="location" th:text="${item.location} ?: (${item.rackName} ?: '—') + ' / ' + (${item.cellCode} ?: '—')">—</td>
+      <td class="text-right" th:text="${item.quantity} ?: '0'">0</td>
+      <td class="text-center" th:text="${item.unit} ?: 'шт'">шт</td>
+      <td></td>
+    </tr>
+    <tr th:if="${items == null or #lists.isEmpty(items)}">
+      <td colspan="8" class="text-center muted italic">Позиции не указаны</td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="no-border signature-block mt-12">
+  <tr>
+    <td style="width: 50%;">
+      <div class="small muted">Подобрал:</div>
+      <div class="mt-12"><span class="signature-line">&#160;</span></div>
+    </td>
+    <td style="width: 50%;">
+      <div class="small muted">Проверил:</div>
+      <div class="mt-12"><span class="signature-line">&#160;</span></div>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

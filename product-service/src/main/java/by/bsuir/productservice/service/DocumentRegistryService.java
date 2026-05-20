@@ -79,10 +79,6 @@ public class DocumentRegistryService {
                     "document-service не вернул контент для типа " + documentType);
         }
         String channel = fetched.channel();
-        // fileFormat определяем по фактическому Content-Type / filename из ответа,
-        // а не по каналу — Python для разных типов отдаёт .xlsx ИЛИ .docx (например
-        // write-off-act = docx, revaluation-act = xlsx). Раньше fileFormat был
-        // привязан к channel="rpa" → "xlsx" — это давало битые .xlsx когда внутри docx.
         String fileFormat = detectFileFormat(fetched);
 
         String objectKey = buildObjectKey(organizationId, documentType, documentNumber, fileFormat);
@@ -177,13 +173,10 @@ public class DocumentRegistryService {
             if (lower.endsWith(".docx") || lower.endsWith(".doc")) return "docx";
             if (lower.endsWith(".pdf")) return "pdf";
         }
-        // Magic-bytes как последний шанс: PDF начинается с "%PDF", OOXML — с "PK\x03\x04".
         byte[] body = fetched.body();
         if (body != null && body.length >= 4) {
             if (body[0] == '%' && body[1] == 'P' && body[2] == 'D' && body[3] == 'F') return "pdf";
             if (body[0] == 0x50 && body[1] == 0x4B && body[2] == 0x03 && body[3] == 0x04) {
-                // Это OOXML (xlsx/docx/pptx). Без content-type разобрать тип невозможно —
-                // считаем xlsx по умолчанию (для большинства наших шаблонов).
                 return "xlsx";
             }
         }

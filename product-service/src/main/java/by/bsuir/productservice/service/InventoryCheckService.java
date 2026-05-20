@@ -184,15 +184,11 @@ public class InventoryCheckService {
             if (count.getActualQuantity() == null) continue;
             int sign = count.getDiscrepancy().compareTo(BigDecimal.ZERO);
             if (sign < 0) {
-                // Недостача — НЕ трогаем учётное количество (quantity).
-                // Помечаем для списания: бухгалтер списывает через WriteoffPage,
-                // тогда и quantity уменьшится на величину недостачи.
                 count.setMarkedForWriteoff(true);
                 countRepository.save(count);
-                log.info("Marked count {} for writeoff (недостача {}), inventory.quantity не меняем",
+                log.info("Marked count {} for writeoff (недостача {})",
                         count.getCountId(), count.getDiscrepancy());
             } else if (sign > 0) {
-                // Излишек — обновляем учётное количество вверх (приходуем).
                 adjustInventory(count, userId);
             }
         }
@@ -218,13 +214,11 @@ public class InventoryCheckService {
         result.put("discrepanciesCount", discrepancies.size());
         result.put("discrepancies", discrepancyRows);
 
-        // Генерируем инвентаризационную опись (документ типа inventory-report).
-        // Любая ошибка логируется и НЕ ломает завершение инвентаризации.
         if (session.getOrganizationId() != null) {
             try {
                 Map<String, Object> payload = buildInventoryReportPayload(session, counts, discrepancyRows);
                 var doc = documentRegistryService.register(
-                        null, // inventory-check не привязан к ProductOperation напрямую
+                        null,
                         "inventory-report",
                         payload,
                         session.getOrganizationId(),
@@ -259,7 +253,6 @@ public class InventoryCheckService {
         payload.put("reason", session.getReason() != null ? session.getReason() : "Плановая инвентаризация");
         payload.put("totalRecords", counts.size());
         payload.put("discrepanciesCount", discrepancyRows.size());
-        // items для шаблона — нумерация позиций для опции, потом enrichmentService догрузит названия
         List<Map<String, Object>> items = new ArrayList<>();
         int idx = 1;
         for (InventoryCount c : counts) {

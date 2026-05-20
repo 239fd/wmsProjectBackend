@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="${documentNumber} ?: 'INVOICE'">INVOICE</title>
+<style th:utext="${cssBase}"></style>
+<style>
+.invoice-header { margin-bottom: 10pt; }
+.invoice-no { font-size: 12pt; font-weight: bold; }
+.party-block { width: 50%; }
+.party-block td { padding: 1pt 2pt; }
+.items th { background: #e8e8e8; }
+.totals td { padding: 3pt 4pt; }
+.totals .label { text-align: right; font-weight: bold; }
+.totals .value { text-align: right; min-width: 80pt; }
+</style>
+</head>
+<body>
+
+<table class="no-border invoice-header">
+  <tr>
+    <td class="text-left" style="width: 60%;">
+      <h1 style="text-align: left; margin: 0;">ИНВОЙС / INVOICE</h1>
+      <div class="invoice-no">
+        № <span th:text="${documentNumber} ?: '—'">—</span>
+        от <span th:text="${documentDate} ?: '—'">—</span>
+      </div>
+    </td>
+    <td class="text-right small" style="width: 40%; vertical-align: bottom;">
+      <div>Валюта / Currency: <span class="bold" th:text="${currency} ?: 'BYN'">BYN</span></div>
+      <div th:if="${contractNumber}">
+        Договор № <span th:text="${contractNumber}">—</span>
+        <span th:if="${contractDate}"> от <span th:text="${contractDate}">—</span></span>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<table class="bordered mb-8">
+  <tr>
+    <td class="party-block">
+      <div class="bold mb-2">Продавец / Seller</div>
+      <table class="no-border">
+        <tr><td class="muted small" style="width: 40pt;">Наименование:</td><td th:text="${sellerName} ?: '—'">—</td></tr>
+        <tr><td class="muted small">УНП / ИНН:</td><td th:text="${sellerInn} ?: '—'">—</td></tr>
+        <tr><td class="muted small">Адрес:</td><td th:text="${sellerAddress} ?: '—'">—</td></tr>
+      </table>
+    </td>
+    <td class="party-block">
+      <div class="bold mb-2">Покупатель / Buyer</div>
+      <table class="no-border">
+        <tr><td class="muted small" style="width: 40pt;">Наименование:</td><td th:text="${buyerName} ?: '—'">—</td></tr>
+        <tr><td class="muted small">УНП / ИНН:</td><td th:text="${buyerInn} ?: '—'">—</td></tr>
+        <tr><td class="muted small">Адрес:</td><td th:text="${buyerAddress} ?: '—'">—</td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<table class="grid items mb-4">
+  <thead>
+    <tr>
+      <th style="width: 4%;">№</th>
+      <th style="width: 38%;">Наименование товара / Description</th>
+      <th style="width: 12%;">Артикул / SKU</th>
+      <th style="width: 7%;">Ед.</th>
+      <th style="width: 10%;">Кол-во</th>
+      <th style="width: 14%;">Цена / Unit price</th>
+      <th style="width: 15%;">Сумма / Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="item, it : ${items}" th:if="${items != null and !#lists.isEmpty(items)}">
+      <td class="text-center" th:text="${it.count}">1</td>
+      <td th:text="${item.productName} ?: '—'">—</td>
+      <td th:text="${item.sku} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.unit} ?: 'шт'">шт</td>
+      <td class="text-right" th:text="${item.quantity}">0</td>
+      <td class="text-right" th:text="${item.unitPrice}">0.00</td>
+      <td class="text-right" th:text="${item.totalPrice}">0.00</td>
+    </tr>
+    <tr th:if="${items == null or #lists.isEmpty(items)}">
+      <td colspan="7" class="text-center muted italic">Позиции не указаны</td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="no-border totals">
+  <tr>
+    <td style="width: 65%;"></td>
+    <td class="label">Итого без НДС / Subtotal:</td>
+    <td class="value bordered" th:text="${totalAmount} ?: '0.00'">0.00</td>
+  </tr>
+  <tr th:if="${vatAmount != null and vatAmount != 0}">
+    <td></td>
+    <td class="label">НДС (<span th:text="${vatRate} ?: '20'">20</span>%):</td>
+    <td class="value bordered" th:text="${vatAmount}">0.00</td>
+  </tr>
+  <tr>
+    <td></td>
+    <td class="label">Всего к оплате / Total due:</td>
+    <td class="value bordered bold" th:text="${totalAmount} ?: '0.00'">0.00</td>
+  </tr>
+</table>
+
+<div th:if="${totalAmountInWords}" class="mt-8 small">
+  Сумма прописью: <span class="italic" th:text="${totalAmountInWords}">—</span>
+</div>
+
+<div th:if="${notes}" class="mt-8 small">
+  <span class="bold">Примечания:</span> <span th:text="${notes}">—</span>
+</div>
+
+<table class="no-border signature-block mt-16">
+  <tr>
+    <td style="width: 50%;">
+      <div class="small muted">Отпустил / Released by:</div>
+      <div class="mt-12">
+        <span class="signature-line">&#160;</span>
+        <span class="small muted">подпись</span>
+      </div>
+      <div class="small mt-4" th:text="${responsiblePerson} ?: ''"></div>
+    </td>
+    <td style="width: 50%;">
+      <div class="small muted">Получил / Received by:</div>
+      <div class="mt-12">
+        <span class="signature-line">&#160;</span>
+        <span class="small muted">подпись</span>
+      </div>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

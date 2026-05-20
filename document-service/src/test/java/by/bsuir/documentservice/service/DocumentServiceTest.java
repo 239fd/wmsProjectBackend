@@ -75,18 +75,6 @@ class DocumentServiceTest {
     }
 
     @Test
-    @DisplayName("generate(format=xlsx): использует Apache POI generator")
-    void generate_givenXlsxFormat_whenCalled_thenUsesPoi() {
-        when(rpaService.generateReceiptOrder(any())).thenReturn(new byte[]{5, 5});
-
-        GenerationResult result = service.generate("receipt-order", Map.of(), orgId, "xlsx", "auto");
-
-        assertThat(result.body()).containsExactly(5, 5);
-        assertThat(result.format()).isEqualTo("xlsx");
-        assertThat(result.channel()).isEqualTo("programmatic");
-    }
-
-    @Test
     @DisplayName("generate(mode=rpa): Python отвечает → channel=rpa, body из Python")
     void generate_givenRpaModeSuccess_whenCalled_thenChannelIsRpa() {
         byte[] pythonBytes = new byte[]{0x50, 0x4B, 0x03, 0x04};  // docx magic
@@ -126,14 +114,6 @@ class DocumentServiceTest {
     }
 
     @Test
-    @DisplayName("generate(xlsx для unknown): RPA generation failed")
-    void generate_givenUnknownTypeXlsxFormat_whenCalled_thenThrows() {
-        assertThatThrownBy(() ->
-                service.generate("totally-unknown", Map.of(), orgId, "xlsx", "auto"))
-                .isInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
     @DisplayName("generate: каждый из 11 типов делегирует в pdfService")
     void generate_givenAllTypes_whenCalled_thenDelegatesToPdfService() {
         when(pdfService.generateReceiptOrderPdf(any())).thenReturn(new byte[]{1});
@@ -168,71 +148,14 @@ class DocumentServiceTest {
     }
 
     @Test
-    @DisplayName("generate(xlsx для 9 Apache POI мапперов): все mapToXxxData проходят")
-    void generate_givenXlsxForEachType_whenCalled_thenInvokesMapper() {
-        when(rpaService.generateReceiptOrder(any())).thenReturn(new byte[]{1});
-        when(rpaService.generateRevaluationAct(any())).thenReturn(new byte[]{1});
-        when(rpaService.generateInventoryList(any())).thenReturn(new byte[]{1});
-        when(rpaService.generateWriteOffAct(any())).thenReturn(new byte[]{1});
-        when(rpaService.generateShippingInvoice(any())).thenReturn(new byte[]{1});
-        when(rpaService.generateReceiptAct(any())).thenReturn(new byte[]{1});
-        when(rpaService.generateInvoice(any())).thenReturn(new byte[]{1});
-        when(rpaService.generateTransportNote(any())).thenReturn(new byte[]{1});
-        when(rpaService.generateCmr(any())).thenReturn(new byte[]{1});
+    @DisplayName("generate(format=xlsx/docx → workaround D-3): программный канал всегда PDF")
+    void generate_givenXlsxFormat_whenCalled_thenFallsBackToPdf() {
+        when(pdfService.generateReceiptOrderPdf(any())).thenReturn(new byte[]{3, 3});
 
-        Map<String, Object> rich = new java.util.HashMap<>();
-        rich.put("documentNumber", "TEST-001");
-        rich.put("documentDate", "2026-05-15");
-        rich.put("organizationName", "ООО ВМС");
-        rich.put("supplierName", "ОАО Молоко");
-        rich.put("warehouseName", "Склад №1");
-        java.util.Map<String, Object> itemMap = new java.util.HashMap<>();
-        itemMap.put("productName", "p");
-        itemMap.put("quantity", 5);
-        itemMap.put("price", "10.50");
-        itemMap.put("amount", "52.50");
-        itemMap.put("batchNumber", "B-1");
-        itemMap.put("expectedQuantity", "10");
-        itemMap.put("actualQuantity", "8");
-        itemMap.put("discrepancy", "-2");
-        itemMap.put("rowNumber", 1);
-        itemMap.put("unitPrice", "10");
-        itemMap.put("vatRate", "20");
-        itemMap.put("vatAmount", "10.5");
-        itemMap.put("totalWithVat", "63");
-        itemMap.put("unit", "шт");
-        rich.put("items", java.util.List.of(itemMap));
-        rich.put("commission", java.util.List.of("Иванов И.И.", "Петров П.П."));
+        GenerationResult result = service.generate("receipt-order", Map.of(), orgId, "xlsx", "auto");
 
-        for (String type : new String[]{
-                "receipt-order", "revaluation-act", "inventory-report",
-                "write-off-act", "waybill", "receipt-act",
-                "invoice", "transport-note", "cmr"}) {
-            GenerationResult result = service.generate(type, rich, orgId, "xlsx", "auto");
-            assertThat(result.body()).isNotEmpty();
-        }
-    }
-
-    @Test
-    @DisplayName("generate(xlsx): rpaService бросает → IllegalStateException")
-    void generate_givenRpaFailure_whenCalled_thenWraps() {
-        when(rpaService.generateReceiptOrder(any())).thenThrow(new RuntimeException("POI fail"));
-
-        assertThatThrownBy(() ->
-                service.generate("receipt-order", Map.of(), orgId, "xlsx", "auto"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("RPA generation failed");
-    }
-
-    @Test
-    @DisplayName("generate(docx как format): то же что xlsx — идёт в Apache POI")
-    void generate_givenDocxFormat_whenCalled_thenUsesPoi() {
-        when(rpaService.generateWriteOffAct(any())).thenReturn(new byte[]{1, 2});
-
-        GenerationResult result = service.generate("write-off-act", Map.of(), orgId, "docx", "auto");
-
-        assertThat(result.format()).isEqualTo("docx");
-        assertThat(result.body()).hasSize(2);
+        assertThat(result.format()).isEqualTo("pdf");
         assertThat(result.channel()).isEqualTo("programmatic");
+        assertThat(result.body()).containsExactly(3, 3);
     }
 }

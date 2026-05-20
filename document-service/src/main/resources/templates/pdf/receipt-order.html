@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<title>Приходный ордер</title>
+<style th:utext="${cssBase}"></style>
+<style>
+.code-cell { width: 60pt; text-align: center; }
+.items th { background: #e8e8e8; font-size: 8pt; }
+.items td { font-size: 8pt; }
+</style>
+</head>
+<body>
+
+<table class="no-border mb-4">
+  <tr>
+    <td class="text-right small" style="width: 100%;">
+      Типовая форма № М-4<br/>
+      Утверждена постановлением Минфина РБ
+    </td>
+  </tr>
+</table>
+
+<h1>ПРИХОДНЫЙ ОРДЕР № <span th:text="${documentNumber} ?: '—'">—</span></h1>
+<div class="text-center mb-8">от <span th:text="${documentDate} ?: '—'">—</span></div>
+
+<table class="bordered mb-4">
+  <tr>
+    <td class="small muted" style="width: 25%;">Организация</td>
+    <td th:text="${organizationName} ?: '—'">—</td>
+    <td class="small muted" style="width: 15%;">УНП</td>
+    <td th:text="${inn != null ? inn : (unp != null ? unp : '—')}">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Структурное подразделение</td>
+    <td th:text="${warehouseName} ?: '—'" colspan="3">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Поставщик</td>
+    <td colspan="3" th:text="${supplierName} ?: '—'">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Через</td>
+    <td colspan="3" th:text="${responsiblePerson} ?: '—'">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Сопроводительный документ</td>
+    <td th:text="${accompanyingDoc} ?: '—'">—</td>
+    <td class="small muted">Платёжный документ</td>
+    <td th:text="${paymentDoc} ?: '—'">—</td>
+  </tr>
+</table>
+
+<table class="grid items mb-4">
+  <thead>
+    <tr>
+      <th rowspan="2" style="width: 4%;">№<br/>п/п</th>
+      <th rowspan="2" style="width: 32%;">Материальные ценности<br/>(наименование, сорт, размер, марка)</th>
+      <th rowspan="2" style="width: 10%;">Артикул<br/>(SKU)</th>
+      <th colspan="2" style="width: 12%;">Единица измерения</th>
+      <th colspan="2" style="width: 14%;">Количество</th>
+      <th rowspan="2" style="width: 10%;">Цена,<br/>руб.</th>
+      <th rowspan="2" style="width: 12%;">Сумма<br/>без НДС</th>
+      <th rowspan="2" style="width: 6%;">Партия</th>
+    </tr>
+    <tr>
+      <th>код</th>
+      <th>наим.</th>
+      <th>по докум.</th>
+      <th>принято</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="item, it : ${items}" th:if="${items != null and !#lists.isEmpty(items)}">
+      <td class="text-center" th:text="${it.count}">1</td>
+      <td th:text="${item.productName} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.sku} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.unitCode} ?: ''">—</td>
+      <td class="text-center" th:text="${item.unit} ?: 'шт'">шт</td>
+      <td class="text-right" th:text="${item.expectedQty != null ? item.expectedQty : (item.quantity != null ? item.quantity : '0')}">0</td>
+      <td class="text-right" th:text="${item.actualQty != null ? item.actualQty : (item.quantity != null ? item.quantity : '0')}">0</td>
+      <td class="text-right" th:text="${item.unitPrice} ?: '0.00'">0.00</td>
+      <td class="text-right" th:text="${item.totalPrice} ?: '0.00'">0.00</td>
+      <td class="text-center" th:text="${item.batchNumber} ?: '—'">—</td>
+    </tr>
+    <tr th:if="${items == null or #lists.isEmpty(items)}">
+      <td class="text-center">1</td>
+      <td th:text="${productName} ?: '—'">—</td>
+      <td class="text-center" th:text="${sku} ?: '—'">—</td>
+      <td></td>
+      <td class="text-center" th:text="${unit} ?: 'шт'">шт</td>
+      <td class="text-right" th:text="${quantity} ?: '0'">0</td>
+      <td class="text-right" th:text="${quantity} ?: '0'">0</td>
+      <td class="text-right" th:text="${unitPrice} ?: '0.00'">0.00</td>
+      <td class="text-right" th:text="${totalAmount} ?: '0.00'">0.00</td>
+      <td class="text-center" th:text="${batchNumber} ?: '—'">—</td>
+    </tr>
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="6" class="text-right bold">Итого:</td>
+      <td class="text-right bold" th:text="${totalQuantity} ?: ''"></td>
+      <td></td>
+      <td class="text-right bold" th:text="${totalAmount} ?: '0.00'">0.00</td>
+      <td></td>
+    </tr>
+  </tfoot>
+</table>
+
+<div th:if="${notes}" class="mt-4 small">
+  Примечание: <span th:text="${notes}">—</span>
+</div>
+
+<table class="no-border signature-block mt-16">
+  <tr>
+    <td style="width: 50%;">
+      <div class="small muted">Принял (кладовщик):</div>
+      <div class="mt-12">
+        <span class="signature-line">&#160;</span>
+      </div>
+      <div class="small mt-4" th:text="${responsiblePerson} ?: ''"></div>
+    </td>
+    <td style="width: 50%;">
+      <div class="small muted">Сдал (поставщик):</div>
+      <div class="mt-12">
+        <span class="signature-line">&#160;</span>
+      </div>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

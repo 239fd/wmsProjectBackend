@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<title>CMR / Международная транспортная накладная</title>
+<style th:utext="${cssBase}"></style>
+<style>
+@page { size: A4; margin: 7mm 7mm 7mm 7mm; }
+body { font-size: 8pt; }
+.cmr-title {
+  text-align: center;
+  background: #000;
+  color: #fff;
+  padding: 4pt;
+  margin-bottom: 4pt;
+  font-weight: bold;
+}
+.box {
+  border: 0.5pt solid #000;
+  padding: 3pt 4pt;
+  margin-bottom: 2pt;
+  min-height: 32pt;
+}
+.box-label {
+  font-size: 6pt;
+  color: #555;
+  margin-bottom: 1pt;
+}
+.box-data { font-size: 8pt; }
+.cmr-row { display: table; width: 100%; }
+.cmr-cell { display: table-cell; vertical-align: top; }
+.cmr-cell.half { width: 50%; }
+.cmr-cell.third { width: 33%; }
+.bilingual { font-style: italic; color: #555; font-size: 6pt; }
+.items th, .items td { font-size: 6.5pt; padding: 1pt 2pt; }
+</style>
+</head>
+<body>
+
+<div class="cmr-title">CMR — МЕЖДУНАРОДНАЯ ТРАНСПОРТНАЯ НАКЛАДНАЯ / INTERNATIONAL CONSIGNMENT NOTE</div>
+<div class="text-right small mb-2">
+  № <span class="bold" th:text="${documentNumber} ?: '—'">—</span>
+  от <span class="bold" th:text="${documentDate} ?: '—'">—</span>
+</div>
+
+<div class="cmr-row">
+  <div class="cmr-cell half" style="padding-right: 2pt;">
+    <div class="box">
+      <div class="box-label">1. Отправитель / Sender (имя, адрес, страна)</div>
+      <div class="box-data bold" th:text="${shipperName} ?: '—'">—</div>
+      <div class="box-data" th:text="${shipperAddress} ?: '—'">—</div>
+      <div class="box-data small">ИНН/УНП: <span th:text="${shipperInn} ?: '—'">—</span></div>
+      <div class="box-data small" th:text="${shipperCountry} ?: '—'">—</div>
+    </div>
+  </div>
+  <div class="cmr-cell half" style="padding-left: 2pt;">
+    <div class="box">
+      <div class="box-label">16. Перевозчик / Carrier</div>
+      <div class="box-data bold" th:text="${carrierName} ?: '—'">—</div>
+      <div class="box-data" th:text="${carrierAddress} ?: '—'">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="cmr-row">
+  <div class="cmr-cell half" style="padding-right: 2pt;">
+    <div class="box">
+      <div class="box-label">2. Получатель / Consignee (имя, адрес, страна)</div>
+      <div class="box-data bold" th:text="${consigneeName} ?: '—'">—</div>
+      <div class="box-data" th:text="${consigneeAddress} ?: '—'">—</div>
+      <div class="box-data small">ИНН/УНП: <span th:text="${consigneeInn} ?: '—'">—</span></div>
+      <div class="box-data small" th:text="${consigneeCountry} ?: '—'">—</div>
+    </div>
+  </div>
+  <div class="cmr-cell half" style="padding-left: 2pt;">
+    <div class="box">
+      <div class="box-label">17. Последующий перевозчик / Subsequent carrier</div>
+      <div class="box-data" th:text="${nextCarrier} ?: '—'">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="cmr-row">
+  <div class="cmr-cell third" style="padding-right: 2pt;">
+    <div class="box">
+      <div class="box-label">3. Место разгрузки / Place of delivery</div>
+      <div class="box-data" th:text="${placeOfDelivery} ?: '—'">—</div>
+      <div class="box-data small" th:text="${consigneeCountry} ?: ''"></div>
+    </div>
+  </div>
+  <div class="cmr-cell third" style="padding: 0 1pt;">
+    <div class="box">
+      <div class="box-label">4. Место и дата погрузки / Place &amp; date of taking over</div>
+      <div class="box-data" th:text="${placeOfLoading} ?: '—'">—</div>
+      <div class="box-data small">Дата: <span th:text="${loadingDate} ?: '—'">—</span></div>
+    </div>
+  </div>
+  <div class="cmr-cell third" style="padding-left: 2pt;">
+    <div class="box">
+      <div class="box-label">5. Прилагаемые документы / Documents attached</div>
+      <div class="box-data small">
+        Заказ № <span th:text="${documentNumber} ?: '—'">—</span> от <span th:text="${documentDate} ?: '—'">—</span>
+      </div>
+      <div class="box-data small">Счёт-фактура</div>
+    </div>
+  </div>
+</div>
+
+<table class="grid items mb-2">
+  <thead>
+    <tr>
+      <th style="width: 4%;">№</th>
+      <th style="width: 12%;">6. Знаки и номера</th>
+      <th style="width: 10%;">7. Кол-во мест</th>
+      <th style="width: 14%;">8. Род упаковки</th>
+      <th style="width: 26%;">9. Наименование груза</th>
+      <th style="width: 10%;">10. Статист. № (HS)</th>
+      <th style="width: 12%;">11. Вес брутто, кг</th>
+      <th style="width: 12%;">12. Объём, м³</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="item, it : ${items}" th:if="${items != null and !#lists.isEmpty(items)}">
+      <td class="text-center" th:text="${it.count}">1</td>
+      <td th:text="${item.marks} ?: '—'">—</td>
+      <td class="text-right">
+        <span th:text="${item.quantity} ?: '0'">0</span>
+        <span class="small muted" th:text="${item.unit} ?: 'шт'">шт</span>
+      </td>
+      <td th:text="${item.packagingType} ?: '—'">—</td>
+      <td>
+        <div th:text="${item.productName} ?: '—'">—</div>
+        <div class="small muted" th:if="${item.declaredValue}">
+          Стоимость: <span th:text="${item.declaredValue}">—</span>
+        </div>
+      </td>
+      <td class="text-center" th:text="${item.hsCode} ?: '—'">—</td>
+      <td class="text-right" th:text="${item.grossWeightKg} ?: '—'">—</td>
+      <td class="text-right" th:text="${item.volumeM3} ?: '—'">—</td>
+    </tr>
+    <tr th:if="${items == null or #lists.isEmpty(items)}">
+      <td colspan="8" class="text-center muted italic">Позиции не указаны</td>
+    </tr>
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="2" class="text-right bold">Итого:</td>
+      <td class="text-right bold" th:text="${totalQuantity} ?: ''"></td>
+      <td colspan="3" class="text-right bold">Заявленная стоимость:
+        <span th:text="${cargoDeclaredValue} ?: '—'">—</span>
+      </td>
+      <td class="text-right bold" th:text="${totalWeight} ?: ''"></td>
+      <td class="text-right bold" th:text="${totalVolume} ?: ''"></td>
+    </tr>
+  </tfoot>
+</table>
+
+<div class="cmr-row">
+  <div class="cmr-cell half" style="padding-right: 2pt;">
+    <div class="box">
+      <div class="box-label">13. Транспортное средство / Vehicle</div>
+      <div class="box-data">Гос. №: <span class="bold" th:text="${vehicleNumber} ?: '—'">—</span></div>
+      <div class="box-data" th:if="${trailerNumber}">Прицеп: <span th:text="${trailerNumber}">—</span></div>
+    </div>
+  </div>
+  <div class="cmr-cell half" style="padding-left: 2pt;">
+    <div class="box">
+      <div class="box-label">14. Водитель / Driver</div>
+      <div class="box-data bold" th:text="${driverName} ?: '—'">—</div>
+      <div class="box-data small">Паспорт: <span th:text="${driverPassport} ?: '—'">—</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="cmr-row">
+  <div class="cmr-cell half" style="padding-right: 2pt;">
+    <div class="box">
+      <div class="box-label">19. Указания отправителя / Sender's instructions</div>
+      <div class="box-data" th:text="${specialInstructions} ?: '—'">—</div>
+    </div>
+  </div>
+  <div class="cmr-cell half" style="padding-left: 2pt;">
+    <div class="box">
+      <div class="box-label">20. Условия оплаты / Payment</div>
+      <div class="box-data" th:text="${paymentInstructions} ?: '—'">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="cmr-row mt-8">
+  <div class="cmr-cell third" style="padding-right: 2pt;">
+    <div class="box" style="min-height: 50pt;">
+      <div class="box-label">22. Подпись отправителя / Sender signature</div>
+      <div class="mt-12 small" th:text="${shipperSignedBy} ?: ''"></div>
+    </div>
+  </div>
+  <div class="cmr-cell third" style="padding: 0 1pt;">
+    <div class="box" style="min-height: 50pt;">
+      <div class="box-label">23. Подпись перевозчика / Carrier signature</div>
+      <div class="mt-12 small" th:text="${carrierSignedBy} ?: ''"></div>
+    </div>
+  </div>
+  <div class="cmr-cell third" style="padding-left: 2pt;">
+    <div class="box" style="min-height: 50pt;">
+      <div class="box-label">24. Подпись получателя / Consignee signature</div>
+      <div class="mt-12 small" th:text="${consigneeSignedBy} ?: ''"></div>
+      <div class="box-label">Дата прибытия:</div>
+      <div class="small" th:text="${deliveryDate} ?: ''"></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

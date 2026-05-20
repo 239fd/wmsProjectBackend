@@ -14,15 +14,6 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-/**
- * HTTP-клиент к Python rpa-service. Зовётся когда mode=rpa (заменил
- * удалённый OfficeDocumentBot на основе WinAppDriver).
- *
- * <p>Python-side обрабатывает payload как WMS Map&lt;String,Object&gt; и
- * возвращает bytes файла native-формата (.xlsx / .docx). Конверсии в PDF
- * на Python-side нет — клиент при необходимости использует фолбэк на
- * программный PDFBox-канал.
- */
 @Slf4j
 @Component
 public class PythonRpaClient {
@@ -45,7 +36,6 @@ public class PythonRpaClient {
                 .build();
     }
 
-    /** True если канал включён конфигом и health-эндпоинт отвечает. */
     public boolean isAvailable() {
         if (!props.getPython().isEnabled()) {
             return false;
@@ -59,7 +49,6 @@ public class PythonRpaClient {
         }
     }
 
-    /** Сгенерировать документ. Кидает {@link IllegalStateException} при сбое. */
     public FillResponse fill(String docType, Map<String, Object> payload) {
         if (!props.getPython().isEnabled()) {
             throw new IllegalStateException("Python RPA channel disabled (rpa.python.enabled=false)");

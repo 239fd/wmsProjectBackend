@@ -110,9 +110,7 @@ public class ProductAnalyticsController {
         return ResponseEntity.ok(comparison);
     }
 
-    @Operation(summary = "ABC-распределение товаров",
-            description = "Возвращает количество позиций и суммарный остаток по категориям A/B/C. "
-                    + "Категории обновляются ночным cron (ABC-анализ за 90 дней). Доступно DIRECTOR/ACCOUNTANT.")
+    @Operation(summary = "ABC-распределение товаров")
     @GetMapping("/abc-distribution")
     public ResponseEntity<Map<String, Object>> getAbcDistribution(
             @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
@@ -124,10 +122,7 @@ public class ProductAnalyticsController {
         return ResponseEntity.ok(analyticsService.getAbcDistribution());
     }
 
-    @Operation(summary = "Товары с истекающим сроком годности",
-            description = "Список партий, у которых expiry_date ≤ today+withinDays. "
-                    + "Возвращает productName, batchNumber, expiryDate, daysLeft, quantity, urgency. "
-                    + "Доступно DIRECTOR/ACCOUNTANT.")
+    @Operation(summary = "Товары с истекающим сроком годности")
     @GetMapping("/expiring-products")
     public ResponseEntity<List<Map<String, Object>>> getExpiringProducts(
             @Parameter(description = "Окно в днях вперёд", required = false) @RequestParam(defaultValue = "30") int withinDays,

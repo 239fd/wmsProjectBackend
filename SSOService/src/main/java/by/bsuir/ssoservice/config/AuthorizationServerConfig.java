@@ -49,7 +49,7 @@ public class AuthorizationServerConfig {
                         .clientName("Test Client")
                         .clientId("test-client")
                         .clientSecret("{noop}test-client")
-                        .redirectUri("http://127.0.0.1:8080/code")
+                        .redirectUri("http://127.0.0.1:0/code")
                         .scope("read.scope")
                         .scope("write.scope")
                         .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<title>Инвентаризационная опись</title>
+<style th:utext="${cssBase}"></style>
+<style>
+@page { size: A4 landscape; margin: 8mm 8mm 8mm 8mm; }
+body { font-size: 8pt; }
+.form-no { font-size: 7pt; text-align: right; }
+.items th, .items td { font-size: 7pt; padding: 1pt 2pt; }
+.items th { background: #e8e8e8; }
+.diff-positive { color: #006400; }
+.diff-negative { color: #8b0000; }
+</style>
+</head>
+<body>
+
+<div class="form-no mb-2">
+  Типовая форма ИНВ-3<br/>
+  Утверждена постановлением Минфина РБ
+</div>
+
+<h1>ИНВЕНТАРИЗАЦИОННАЯ ОПИСЬ № <span th:text="${documentNumber} ?: '—'">—</span></h1>
+<div class="text-center mb-4">
+  товарно-материальных ценностей по состоянию на
+  <span class="bold" th:text="${inventoryDate != null ? inventoryDate : (documentDate != null ? documentDate : '—')}">—</span>
+</div>
+
+<table class="bordered mb-4">
+  <tr>
+    <td style="width: 25%;" class="small muted">Организация</td>
+    <td th:text="${organizationName} ?: '—'">—</td>
+    <td style="width: 12%;" class="small muted">УНП</td>
+    <td th:text="${inn != null ? inn : (unp != null ? unp : '—')}">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Структурное подразделение / склад</td>
+    <td colspan="3" th:text="${warehouseName} ?: '—'">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Материально ответственное лицо</td>
+    <td th:text="${responsiblePerson} ?: '—'">—</td>
+    <td class="small muted">Председатель комиссии</td>
+    <td th:text="${chairmanName} ?: '—'">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Члены комиссии</td>
+    <td colspan="3">
+      <span th:if="${commissionMembers != null and !#lists.isEmpty(commissionMembers)}"
+            th:text="${#strings.listJoin(commissionMembers, '; ')}">—</span>
+      <span th:if="${commissionMembers == null or #lists.isEmpty(commissionMembers)}">—</span>
+    </td>
+  </tr>
+</table>
+
+<table class="grid items mb-4">
+  <thead>
+    <tr>
+      <th rowspan="2" style="width: 3%;">№</th>
+      <th rowspan="2" style="width: 22%;">Наименование товара</th>
+      <th rowspan="2" style="width: 8%;">Артикул</th>
+      <th rowspan="2" style="width: 8%;">Партия</th>
+      <th rowspan="2" style="width: 4%;">Ед.</th>
+      <th rowspan="2" style="width: 8%;">Цена,<br/>руб.</th>
+      <th colspan="2" style="width: 16%;">По данным учёта</th>
+      <th colspan="2" style="width: 16%;">Фактическое наличие</th>
+      <th colspan="2" style="width: 15%;">Расхождение</th>
+    </tr>
+    <tr>
+      <th>кол-во</th>
+      <th>сумма</th>
+      <th>кол-во</th>
+      <th>сумма</th>
+      <th>излишек</th>
+      <th>недостача</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="item, it : ${items}" th:if="${items != null and !#lists.isEmpty(items)}">
+      <td class="text-center" th:text="${it.count}">1</td>
+      <td th:text="${item.productName} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.sku} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.batchNumber} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.unit} ?: 'шт'">шт</td>
+      <td class="text-right" th:text="${item.unitPrice} ?: '0.00'">0.00</td>
+      <td class="text-right" th:text="${item.expectedQty} ?: '0'">0</td>
+      <td class="text-right" th:text="${item.expectedValue} ?: '0.00'">0.00</td>
+      <td class="text-right" th:text="${item.actualQty} ?: '0'">0</td>
+      <td class="text-right" th:text="${item.actualValue} ?: '0.00'">0.00</td>
+      <td class="text-right diff-positive" th:text="${item.surplus} ?: ''"></td>
+      <td class="text-right diff-negative" th:text="${item.shortage} ?: ''"></td>
+    </tr>
+    <tr th:if="${items == null or #lists.isEmpty(items)}">
+      <td colspan="12" class="text-center muted italic">Позиции не указаны</td>
+    </tr>
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="6" class="text-right bold">Итого:</td>
+      <td class="text-right bold" th:text="${totalExpectedQty} ?: ''"></td>
+      <td class="text-right bold" th:text="${totalBookValue} ?: '0.00'">0.00</td>
+      <td class="text-right bold" th:text="${totalActualQty} ?: ''"></td>
+      <td class="text-right bold" th:text="${totalActualValue} ?: '0.00'">0.00</td>
+      <td class="text-right bold diff-positive" th:text="${totalSurplus} ?: ''"></td>
+      <td class="text-right bold diff-negative" th:text="${totalShortage} ?: ''"></td>
+    </tr>
+  </tfoot>
+</table>
+
+<table class="no-border mt-4 small">
+  <tr>
+    <td style="width: 50%;">
+      Всего позиций: <span class="bold" th:text="${totalItems} ?: '0'">0</span>
+    </td>
+    <td style="width: 50%;">
+      Расхождений: <span class="bold" th:text="${discrepancyCount} ?: '0'">0</span>
+    </td>
+  </tr>
+</table>
+
+<table class="no-border signature-block mt-12">
+  <tr>
+    <td style="width: 50%;">
+      <div class="small muted">Председатель комиссии:</div>
+      <div class="mt-12"><span class="signature-line">&#160;</span></div>
+      <div class="small" th:text="${chairmanName} ?: ''">—</div>
+    </td>
+    <td style="width: 50%;">
+      <div class="small muted">Материально ответственное лицо:</div>
+      <div class="mt-12"><span class="signature-line">&#160;</span></div>
+      <div class="small" th:text="${responsiblePerson} ?: ''">—</div>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

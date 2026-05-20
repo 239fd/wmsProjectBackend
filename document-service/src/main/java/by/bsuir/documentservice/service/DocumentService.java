@@ -52,17 +52,12 @@ public class DocumentService {
                 return new GenerationResult(rpa.body(), "rpa", fmt);
             } catch (Exception e) {
                 log.warn("Python RPA failed for {} ({}), fallback to PDF", type, e.getMessage());
-                // Программный fallback всегда отдаёт PDF — это самый стабильный канал.
-                // Apache POI .xls/.doc/.RTF исторически давал битые файлы (HWPF/HSSF баги),
-                // поэтому для надёжности возвращаемся в PDFBox независимо от запрошенного формата.
                 return new GenerationResult(
                         generateViaPdf(type, enriched),
                         "rpa-fallback-error", "pdf");
             }
         }
 
-        // Программный канал: всегда PDF (PDFBox + DejaVuSans с кириллицей).
-        // ?format=xlsx / ?format=docx больше не вызывают POI HWPF/HSSF (битые .doc/.RTF).
         return new GenerationResult(
                 generateViaPdf(type, enriched),
                 "programmatic", "pdf");

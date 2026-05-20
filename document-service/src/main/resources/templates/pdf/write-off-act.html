@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<title>Акт списания</title>
+<style th:utext="${cssBase}"></style>
+<style>
+.items th { background: #e8e8e8; }
+</style>
+</head>
+<body>
+
+<div class="text-right small mb-2">
+  Утверждаю:
+  <div class="mt-12">
+    <span class="signature-line">&#160;</span>
+    <span th:text="${approvedBy} ?: ''">—</span>
+  </div>
+  <div th:text="${documentDate} ?: ''"></div>
+</div>
+
+<h1>АКТ СПИСАНИЯ ТОВАРНО-МАТЕРИАЛЬНЫХ ЦЕННОСТЕЙ</h1>
+<div class="text-center mb-4">
+  № <span th:text="${documentNumber} ?: '—'">—</span>
+  от <span th:text="${documentDate} ?: '—'">—</span>
+</div>
+
+<table class="bordered mb-4">
+  <tr>
+    <td style="width: 25%;" class="small muted">Организация</td>
+    <td th:text="${organizationName} ?: '—'">—</td>
+    <td style="width: 12%;" class="small muted">УНП</td>
+    <td th:text="${inn != null ? inn : (unp != null ? unp : '—')}">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Склад</td>
+    <td colspan="3" th:text="${warehouseName} ?: '—'">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Причина списания</td>
+    <td colspan="3">
+      <span class="bold" th:text="${reason} ?: '—'">—</span>
+      <span th:if="${reasonDescription}"> — <span th:text="${reasonDescription}">—</span></span>
+    </td>
+  </tr>
+</table>
+
+<p class="mb-4 small">
+  Комиссия установила, что нижеперечисленные товарно-материальные ценности подлежат
+  списанию с баланса в связи с причиной, указанной выше.
+</p>
+
+<table class="grid items mb-4">
+  <thead>
+    <tr>
+      <th style="width: 4%;">№</th>
+      <th style="width: 30%;">Наименование</th>
+      <th style="width: 10%;">Артикул</th>
+      <th style="width: 10%;">Партия</th>
+      <th style="width: 6%;">Ед.</th>
+      <th style="width: 10%;">Кол-во</th>
+      <th style="width: 12%;">Цена, руб.</th>
+      <th style="width: 18%;">Сумма списания</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="item, it : ${items}" th:if="${items != null and !#lists.isEmpty(items)}">
+      <td class="text-center" th:text="${it.count}">1</td>
+      <td th:text="${item.productName} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.sku} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.batchNumber} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.unit} ?: 'шт'">шт</td>
+      <td class="text-right" th:text="${item.quantity} ?: '0'">0</td>
+      <td class="text-right" th:text="${item.unitPrice} ?: '0.00'">0.00</td>
+      <td class="text-right" th:text="${item.totalAmount != null ? item.totalAmount : (item.totalPrice != null ? item.totalPrice : '0.00')}">0.00</td>
+    </tr>
+    <tr th:if="${items == null or #lists.isEmpty(items)}">
+      <td class="text-center">1</td>
+      <td th:text="${productName} ?: '—'">—</td>
+      <td class="text-center" th:text="${sku} ?: '—'">—</td>
+      <td class="text-center" th:text="${batchNumber} ?: '—'">—</td>
+      <td class="text-center" th:text="${unit} ?: 'шт'">шт</td>
+      <td class="text-right" th:text="${quantity} ?: '0'">0</td>
+      <td class="text-right" th:text="${unitPrice} ?: '0.00'">0.00</td>
+      <td class="text-right" th:text="${totalAmount} ?: '0.00'">0.00</td>
+    </tr>
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="7" class="text-right bold">Итого к списанию:</td>
+      <td class="text-right bold" th:text="${totalAmount} ?: '0.00'">0.00</td>
+    </tr>
+  </tfoot>
+</table>
+
+<div th:if="${totalAmountInWords}" class="mb-4 small">
+  Сумма списания прописью: <span class="italic" th:text="${totalAmountInWords}">—</span>
+</div>
+
+<div th:if="${notes}" class="mb-4 small">
+  <span class="bold">Примечание:</span> <span th:text="${notes}">—</span>
+</div>
+
+<table class="no-border signature-block mt-12">
+  <tr>
+    <td style="width: 50%;">
+      <div class="small muted">Председатель комиссии:</div>
+      <div class="mt-12"><span class="signature-line">&#160;</span></div>
+      <div class="small" th:text="${chairmanName} ?: ''">—</div>
+    </td>
+    <td style="width: 50%;">
+      <div class="small muted">Материально ответственное лицо:</div>
+      <div class="mt-12"><span class="signature-line">&#160;</span></div>
+      <div class="small" th:text="${responsiblePerson} ?: ''">—</div>
+    </td>
+  </tr>
+  <tr th:if="${commissionMembers != null and !#lists.isEmpty(commissionMembers)}">
+    <td colspan="2" class="small mt-4">
+      Члены комиссии:
+      <span th:text="${#strings.listJoin(commissionMembers, '; ')}">—</span>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

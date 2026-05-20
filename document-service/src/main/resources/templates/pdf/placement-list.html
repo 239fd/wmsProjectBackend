@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<title>Лист размещения</title>
+<style th:utext="${cssBase}"></style>
+<style>
+.items th { background: #e8e8e8; }
+.items td.location { font-weight: bold; }
+.items td.cond { font-size: 7pt; }
+</style>
+</head>
+<body>
+
+<h1>ЛИСТ РАЗМЕЩЕНИЯ № <span th:text="${documentNumber} ?: '—'">—</span></h1>
+<div class="text-center mb-4">
+  Дата: <span th:text="${documentDate != null ? documentDate : (date != null ? date : '—')}">—</span>
+</div>
+
+<table class="bordered mb-4">
+  <tr>
+    <td style="width: 25%;" class="small muted">Склад</td>
+    <td th:text="${warehouseName} ?: '—'">—</td>
+    <td style="width: 20%;" class="small muted">Приёмка</td>
+    <td th:text="${supplyNumber != null ? supplyNumber : (supplyId != null ? supplyId : '—')}">—</td>
+  </tr>
+  <tr th:if="${supplierName}">
+    <td class="small muted">Поставщик</td>
+    <td colspan="3" th:text="${supplierName}">—</td>
+  </tr>
+</table>
+
+<p class="mb-4 small">
+  Рекомендуемые места размещения товаров на основании FEFO/FIFO и условий хранения:
+</p>
+
+<table class="grid items mb-4">
+  <thead>
+    <tr>
+      <th style="width: 4%;">№</th>
+      <th style="width: 24%;">Товар</th>
+      <th style="width: 10%;">SKU</th>
+      <th style="width: 10%;">Партия</th>
+      <th style="width: 12%;">Стеллаж</th>
+      <th style="width: 10%;">Ячейка</th>
+      <th style="width: 8%;">Кол-во</th>
+      <th style="width: 5%;">Ед.</th>
+      <th style="width: 17%;">Условия</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="item, it : ${items}" th:if="${items != null and !#lists.isEmpty(items)}">
+      <td class="text-center" th:text="${it.count}">1</td>
+      <td th:text="${item.productName} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.sku} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.batchNumber} ?: '—'">—</td>
+      <td class="text-center location" th:text="${item.rackName} ?: '—'">—</td>
+      <td class="text-center location" th:text="${item.cellCode} ?: '—'">—</td>
+      <td class="text-right" th:text="${item.quantity} ?: '0'">0</td>
+      <td class="text-center" th:text="${item.unit} ?: 'шт'">шт</td>
+      <td class="cond" th:text="${item.storageConditions} ?: '—'">—</td>
+    </tr>
+    <tr th:if="${items == null or #lists.isEmpty(items)}">
+      <td colspan="9" class="text-center muted italic">Позиции не указаны</td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="no-border signature-block mt-12">
+  <tr>
+    <td style="width: 50%;">
+      <div class="small muted">Разместил (кладовщик):</div>
+      <div class="mt-12"><span class="signature-line">&#160;</span></div>
+    </td>
+    <td style="width: 50%;">
+      <div class="small muted">Проверил:</div>
+      <div class="mt-12"><span class="signature-line">&#160;</span></div>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

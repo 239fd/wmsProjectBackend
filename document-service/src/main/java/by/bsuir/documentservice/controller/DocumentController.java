@@ -25,10 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
-@Tag(name = "Документы",
-        description = "Stateless генератор: POST <type> возвращает PDF/XLS/DOCX bytes напрямую. "
-                + "Хранением занимается product-service (DocumentRegistryService + MinIO). "
-                + "Канал генерации выбирается через header X-Generation-Mode: auto (POI/PDFBox) | rpa (Python).")
+@Tag(name = "Документы")
 public class DocumentController {
 
     private static final String MODE_HEADER = "X-Generation-Mode";
@@ -151,8 +148,7 @@ public class DocumentController {
     }
 
     @GetMapping("/rpa/health")
-    @Operation(summary = "Здоровье Python rpa-service (для UI индикатора)",
-            description = "Проксирует к Python /health. enabled=true если rpa.python.enabled=true и сервис отвечает.")
+    @Operation(summary = "Здоровье Python rpa-service")
     public ResponseEntity<Map<String, Object>> getRpaHealth() {
         boolean available = pythonRpaClient.isAvailable();
         Map<String, Object> body = new HashMap<>();

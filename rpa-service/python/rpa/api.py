@@ -268,9 +268,6 @@ def fill(doc_type: str, payload: dict[str, Any]) -> Response:
             mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         data = out.read_bytes()
         log.info("fill[%s]: %d bytes → %s", doc_type, len(data), out.name)
-        # RFC 5987: Starlette/HTTP кодируют headers в latin-1, поэтому кириллицу
-        # в filename отдаём через filename*=UTF-8''<percent-encoded>.
-        # ASCII-fallback (filename=...) добавляем для совместимости со старыми клиентами.
         ascii_name = re.sub(r"[^\x20-\x7E]+", "_", out.name) or "document.xlsx"
         encoded_name = quote(out.name, safe="")
         return Response(

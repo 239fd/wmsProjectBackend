@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<title>Акт переоценки</title>
+<style th:utext="${cssBase}"></style>
+<style>
+.items th { background: #e8e8e8; }
+.diff-positive { color: #006400; }
+.diff-negative { color: #8b0000; }
+</style>
+</head>
+<body>
+
+<div class="text-right small mb-2">
+  Утверждаю:
+  <div class="mt-12">
+    <span class="signature-line">&#160;</span>
+    <span th:text="${approvedBy} ?: ''">—</span>
+  </div>
+  <div th:text="${documentDate} ?: ''"></div>
+</div>
+
+<h1>АКТ ПЕРЕОЦЕНКИ ТОВАРНО-МАТЕРИАЛЬНЫХ ЦЕННОСТЕЙ</h1>
+<div class="text-center mb-4">
+  № <span th:text="${documentNumber} ?: '—'">—</span>
+  от <span th:text="${documentDate} ?: '—'">—</span>
+</div>
+
+<table class="bordered mb-4">
+  <tr>
+    <td style="width: 25%;" class="small muted">Организация</td>
+    <td th:text="${organizationName} ?: '—'">—</td>
+    <td style="width: 12%;" class="small muted">УНП</td>
+    <td th:text="${inn != null ? inn : (unp != null ? unp : '—')}">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Склад</td>
+    <td colspan="3" th:text="${warehouseName} ?: '—'">—</td>
+  </tr>
+  <tr>
+    <td class="small muted">Причина переоценки</td>
+    <td colspan="3">
+      <span class="bold" th:text="${reason} ?: '—'">—</span>
+      <span th:if="${reasonDescription}"> — <span th:text="${reasonDescription}">—</span></span>
+    </td>
+  </tr>
+</table>
+
+<p class="mb-4 small">
+  Настоящий акт составлен комиссией о том, что произведена переоценка следующих
+  товарно-материальных ценностей:
+</p>
+
+<table class="grid items mb-4">
+  <thead>
+    <tr>
+      <th style="width: 4%;">№</th>
+      <th style="width: 28%;">Наименование</th>
+      <th style="width: 10%;">Артикул</th>
+      <th style="width: 6%;">Ед.</th>
+      <th style="width: 8%;">Кол-во</th>
+      <th style="width: 11%;">Старая цена</th>
+      <th style="width: 11%;">Новая цена</th>
+      <th style="width: 11%;">Старая сумма</th>
+      <th style="width: 11%;">Новая сумма</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr th:each="item, it : ${items}" th:if="${items != null and !#lists.isEmpty(items)}">
+      <td class="text-center" th:text="${it.count}">1</td>
+      <td th:text="${item.productName} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.sku} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.unit} ?: 'шт'">шт</td>
+      <td class="text-right" th:text="${item.quantity} ?: '0'">0</td>
+      <td class="text-right" th:text="${item.oldPrice} ?: '0.00'">0.00</td>
+      <td class="text-right" th:text="${item.newPrice} ?: '0.00'">0.00</td>
+      <td class="text-right" th:text="${item.oldValue} ?: '0.00'">0.00</td>
+      <td class="text-right" th:text="${item.newValue} ?: '0.00'">0.00</td>
+    </tr>
+    <tr th:if="${items == null or #lists.isEmpty(items)}">
+      <td class="text-center">1</td>
+      <td th:text="${productName} ?: '—'">—</td>
+      <td class="text-center">—</td>
+      <td class="text-center" th:text="${unit} ?: 'шт'">шт</td>
+      <td class="text-right" th:text="${quantity} ?: '0'">0</td>
+      <td class="text-right" th:text="${oldPrice} ?: '0.00'">0.00</td>
+      <td class="text-right" th:text="${newPrice} ?: '0.00'">0.00</td>
+      <td class="text-right" th:text="${oldValue} ?: '0.00'">0.00</td>
+      <td class="text-right" th:text="${newValue} ?: '0.00'">0.00</td>
+    </tr>
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="7" class="text-right bold">Итого:</td>
+      <td class="text-right bold" th:text="${totalOldValue} ?: '0.00'">0.00</td>
+      <td class="text-right bold" th:text="${totalNewValue} ?: '0.00'">0.00</td>
+    </tr>
+    <tr>
+      <td colspan="7" class="text-right bold">Разница (дооценка/уценка):</td>
+      <td colspan="2" class="text-right bold"
+          th:classappend="${totalDifference != null and #strings.startsWith(totalDifference + '', '-')} ? 'diff-negative' : 'diff-positive'"
+          th:text="${totalDifference != null ? totalDifference : (priceDifference != null ? priceDifference : '0.00')}">0.00</td>
+    </tr>
+  </tfoot>
+</table>
+
+<table class="no-border signature-block mt-12">
+  <tr>
+    <td style="width: 50%;">
+      <div class="small muted">Председатель комиссии:</div>
+      <div class="mt-12"><span class="signature-line">&#160;</span></div>
+      <div class="small" th:text="${chairmanName} ?: ''">—</div>
+    </td>
+    <td style="width: 50%;">
+      <div class="small muted">Материально ответственное лицо:</div>
+      <div class="mt-12"><span class="signature-line">&#160;</span></div>
+      <div class="small" th:text="${responsiblePerson} ?: ''">—</div>
+    </td>
+  </tr>
+  <tr th:if="${commissionMembers != null and !#lists.isEmpty(commissionMembers)}">
+    <td colspan="2" class="small mt-4">
+      Члены комиссии:
+      <span th:text="${#strings.listJoin(commissionMembers, '; ')}">—</span>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

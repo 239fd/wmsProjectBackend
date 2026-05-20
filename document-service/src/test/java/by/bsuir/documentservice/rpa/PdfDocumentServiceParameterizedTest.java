@@ -15,7 +15,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("PdfDocumentService — все 14 типов: smoke + кириллица в полях")
 class PdfDocumentServiceParameterizedTest {
 
-    private final PdfDocumentService service = new PdfDocumentService();
+    private static final HtmlPdfRenderer RENDERER = newRenderer();
+    private final PdfDocumentService service = new PdfDocumentService(RENDERER);
+
+    private static HtmlPdfRenderer newRenderer() {
+        HtmlPdfRenderer r = new HtmlPdfRenderer();
+        r.init();
+        return r;
+    }
 
     private static final Map<String, Object> CYRILLIC_DATA = Map.ofEntries(
             Map.entry("date", "01.05.2026"),
@@ -77,7 +84,7 @@ class PdfDocumentServiceParameterizedTest {
         byte[] pdf = service.generateShippingInvoicePdf(CYRILLIC_DATA);
 
         try (org.apache.pdfbox.pdmodel.PDDocument doc =
-                     org.apache.pdfbox.Loader.loadPDF(pdf)) {
+                     org.apache.pdfbox.pdmodel.PDDocument.load(pdf)) {
             String text = new org.apache.pdfbox.text.PDFTextStripper().getText(doc);
             assertThat(text)
                     .contains("ТОВАРНО-ТРАНСПОРТНАЯ НАКЛАДНАЯ")

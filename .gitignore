@@ -58,3 +58,7 @@ local.properties
 .env.local
 .env.*.local
 
+keystore/
+**/keystore/
+*.key
+

@@ -2,7 +2,6 @@ package by.bsuir.warehouseservice.controller;
 
 import by.bsuir.warehouseservice.config.SecurityUtils;
 import by.bsuir.warehouseservice.dto.request.CreateCellRequest;
-import by.bsuir.warehouseservice.dto.request.CreateFridgeRequest;
 import by.bsuir.warehouseservice.dto.request.CreatePalletRequest;
 import by.bsuir.warehouseservice.dto.request.CreateRackRequest;
 import by.bsuir.warehouseservice.dto.request.CreateShelfRequest;
@@ -141,41 +140,6 @@ public class RackController {
     }
 
     @Operation(
-            summary = "Создать холодильную камеру",
-            description = "Создает холодильную камеру на стеллаже с указанием температуры хранения. Доступно для DIRECTOR и ACCOUNTANT"
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Холодильник успешно создан"),
-            @ApiResponse(responseCode = "400", description = "Некорректные данные"),
-            @ApiResponse(responseCode = "403", description = "Недостаточно прав"),
-            @ApiResponse(responseCode = "404", description = "Стеллаж не найден")
-    })
-    @PostMapping("/{rackId}/fridges")
-    public ResponseEntity<Map<String, String>> createFridge(
-            @Parameter(description = "ID стеллажа", required = true) @PathVariable UUID rackId,
-            @Valid @RequestBody CreateFridgeRequest request,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr) {
-
-        String userRole = SecurityUtils.resolveRole(userRoleHdr);
-        if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
-
-        CreateFridgeRequest updatedRequest = new CreateFridgeRequest(
-                rackId,
-                request.minTemperatureC(),
-                request.maxTemperatureC(),
-                request.lengthCm(),
-                request.widthCm(),
-                request.heightCm()
-        );
-
-        rackService.createFridge(updatedRequest);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(Map.of("message", "Холодильник успешно создан"));
-    }
-
-    @Operation(
             summary = "Создать паллетное место",
             description = "Создает паллетное место на стеллаже. Доступно для DIRECTOR и ACCOUNTANT"
     )
@@ -200,6 +164,7 @@ public class RackController {
                 rackId,
                 request.palletPlaceCount(),
                 request.maxWeightKg(),
+                request.maxHeightCm(),
                 request.palletType()
         );
 
@@ -271,7 +236,7 @@ public class RackController {
 
     @Operation(
             summary = "Получить все слоты стеллажа",
-            description = "Возвращает список всех слотов с указанием типа стеллажа (kind = SHELF/CELL/FRIDGE/PALLET) " +
+            description = "Возвращает список всех слотов с указанием типа стеллажа (kind = SHELF/CELL/PALLET) " +
                           "и массивом slots типизированных под этот kind. Удобно для UI — один вызов вместо четырёх."
     )
     @ApiResponse(responseCode = "200", description = "Слоты получены")

@@ -2,6 +2,7 @@ package by.bsuir.organizationservice.repository;
 
 import by.bsuir.organizationservice.model.entity.OrganizationEvent;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -16,4 +17,8 @@ public interface OrganizationEventRepository extends JpaRepository<OrganizationE
 
     @Query("SELECT MAX(e.eventVersion) FROM OrganizationEvent e WHERE e.orgId = :orgId")
     Integer findMaxVersionByOrgId(@Param("orgId") UUID orgId);
+
+    @Modifying
+    @Query("DELETE FROM OrganizationEvent e WHERE e.orgId = :orgId")
+    void deleteByOrgId(@Param("orgId") UUID orgId);
 }

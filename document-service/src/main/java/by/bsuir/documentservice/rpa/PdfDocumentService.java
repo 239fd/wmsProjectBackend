@@ -67,6 +67,10 @@ public class PdfDocumentService {
         return htmlPdfRenderer.render("cmr", m);
     }
 
+    public byte[] generateAnalyticsReportPdf(Map<String, Object> data) {
+        return htmlPdfRenderer.render("analytics-report", new HashMap<>(data));
+    }
+
     private Map<String, Object> normalize(Map<String, Object> data) {
         Map<String, Object> m = new HashMap<>(data);
         m.putIfAbsent("documentDate", data.getOrDefault("date", today()));

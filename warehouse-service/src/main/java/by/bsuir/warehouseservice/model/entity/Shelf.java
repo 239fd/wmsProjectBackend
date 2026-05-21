@@ -28,7 +28,7 @@ public class Shelf {
     @Column(name = "organization_id")
     private UUID organizationId;
 
-    @Column(name = "shelf_capacity_kg", nullable = false, precision = 8, scale = 2)
+    @Column(name = "shelf_capacity_kg", precision = 8, scale = 2)
     private BigDecimal shelfCapacityKg;
 
     @Column(name = "length_cm", nullable = false, precision = 8, scale = 2)

@@ -174,7 +174,7 @@ class SupplierServiceTest {
 
         assertThatThrownBy(() -> service.create(request, orgId))
                 .isInstanceOf(AppException.class)
-                .hasMessageContaining("УНП");
+                .hasMessageContaining("ИНН");
         verify(supplierRepository, never()).save(any());
     }
 
@@ -228,7 +228,7 @@ class SupplierServiceTest {
 
         assertThatThrownBy(() -> service.update(supplierId, updateReq, orgId))
                 .isInstanceOf(AppException.class)
-                .hasMessageContaining("УНП");
+                .hasMessageContaining("ИНН");
     }
 
     @Test

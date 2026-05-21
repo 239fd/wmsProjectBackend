@@ -10,7 +10,6 @@ public record CreateCellRequest(
         @NotNull(message = "ID стеллажа обязателен")
         UUID rackId,
 
-        @NotNull(message = "Максимальный вес обязателен")
         @Positive(message = "Максимальный вес должен быть положительным")
         BigDecimal maxWeightKg,
 

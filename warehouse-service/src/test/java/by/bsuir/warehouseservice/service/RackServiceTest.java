@@ -1,14 +1,12 @@
 package by.bsuir.warehouseservice.service;
 
 import by.bsuir.warehouseservice.dto.request.CreateCellRequest;
-import by.bsuir.warehouseservice.dto.request.CreateFridgeRequest;
 import by.bsuir.warehouseservice.dto.request.CreatePalletRequest;
 import by.bsuir.warehouseservice.dto.request.CreateRackRequest;
 import by.bsuir.warehouseservice.dto.request.CreateShelfRequest;
 import by.bsuir.warehouseservice.dto.response.RackResponse;
 import by.bsuir.warehouseservice.exception.AppException;
 import by.bsuir.warehouseservice.model.entity.Cell;
-import by.bsuir.warehouseservice.model.entity.Fridge;
 import by.bsuir.warehouseservice.model.entity.Pallet;
 import by.bsuir.warehouseservice.model.entity.PalletPlace;
 import by.bsuir.warehouseservice.model.entity.RackEvent;
@@ -18,7 +16,6 @@ import by.bsuir.warehouseservice.model.entity.WarehouseReadModel;
 import by.bsuir.warehouseservice.model.enums.PalletType;
 import by.bsuir.warehouseservice.model.enums.RackKind;
 import by.bsuir.warehouseservice.repository.CellRepository;
-import by.bsuir.warehouseservice.repository.FridgeRepository;
 import by.bsuir.warehouseservice.repository.PalletPlaceRepository;
 import by.bsuir.warehouseservice.repository.PalletRepository;
 import by.bsuir.warehouseservice.repository.RackEventRepository;
@@ -55,7 +52,6 @@ class RackServiceTest {
     @Mock private RackEventRepository eventRepository;
     @Mock private ShelfRepository shelfRepository;
     @Mock private CellRepository cellRepository;
-    @Mock private FridgeRepository fridgeRepository;
     @Mock private PalletRepository palletRepository;
     @Mock private PalletPlaceRepository palletPlaceRepository;
     @Mock private WarehouseReadModelRepository warehouseRepository;
@@ -70,7 +66,7 @@ class RackServiceTest {
         when(warehouseRepository.findByWarehouseId(warehouseId))
                 .thenReturn(Optional.of(WarehouseReadModel.builder()
                         .warehouseId(warehouseId).orgId(UUID.randomUUID()).build()));
-        CreateRackRequest req = new CreateRackRequest(warehouseId, RackKind.SHELF, "A-1", null);
+        CreateRackRequest req = new CreateRackRequest(warehouseId, RackKind.SHELF, "A-1", null, null);
 
         RackResponse response = rackService.createRack(req);
 
@@ -87,7 +83,7 @@ class RackServiceTest {
     void createRack_GivenMissingWarehouse_ShouldThrowNotFound() {
         UUID warehouseId = UUID.randomUUID();
         when(warehouseRepository.findByWarehouseId(warehouseId)).thenReturn(Optional.empty());
-        CreateRackRequest req = new CreateRackRequest(warehouseId, RackKind.SHELF, "A-1", null);
+        CreateRackRequest req = new CreateRackRequest(warehouseId, RackKind.SHELF, "A-1", null, null);
 
         AppException ex = catchApp(() -> rackService.createRack(req));
         assertThat(ex.getMessage()).contains("Склад не найден");
@@ -161,60 +157,6 @@ class RackServiceTest {
 
         verify(cellRepository).save(any(Cell.class));
         verify(eventRepository).save(any(RackEvent.class));
-    }
-
-    @Test
-    @DisplayName("createFridge: min > max → 400 bad request")
-    void createFridge_GivenInvalidTempRange_ShouldThrowBadRequest() {
-        UUID rackId = UUID.randomUUID();
-        when(rackRepository.findById(rackId)).thenReturn(Optional.of(
-                RackReadModel.builder().rackId(rackId).kind(RackKind.FRIDGE).build()));
-        when(fridgeRepository.existsById(rackId)).thenReturn(false);
-
-        CreateFridgeRequest req = new CreateFridgeRequest(rackId,
-                BigDecimal.valueOf(10), BigDecimal.valueOf(2),
-                BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE);
-
-        AppException ex = catchApp(() -> rackService.createFridge(req));
-        assertThat(ex.getMessage()).contains("Минимальная температура");
-        verify(fridgeRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("createFridge: уже существует → 409 conflict")
-    void createFridge_WhenAlreadyExists_ShouldThrowConflict() {
-        UUID rackId = UUID.randomUUID();
-        when(rackRepository.findById(rackId)).thenReturn(Optional.of(
-                RackReadModel.builder().rackId(rackId).kind(RackKind.FRIDGE).build()));
-        when(fridgeRepository.existsById(rackId)).thenReturn(true);
-
-        CreateFridgeRequest req = new CreateFridgeRequest(rackId,
-                BigDecimal.valueOf(-20), BigDecimal.valueOf(-5),
-                BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE);
-
-        AppException ex = catchApp(() -> rackService.createFridge(req));
-        assertThat(ex.getMessage()).contains("уже создан");
-    }
-
-    @Test
-    @DisplayName("createFridge: валидные параметры → сохраняет Fridge")
-    void createFridge_GivenValid_ShouldPersist() {
-        UUID rackId = UUID.randomUUID();
-        UUID warehouseId = UUID.randomUUID();
-        when(rackRepository.findById(rackId)).thenReturn(Optional.of(
-                RackReadModel.builder().rackId(rackId).warehouseId(warehouseId)
-                        .kind(RackKind.FRIDGE).build()));
-        when(warehouseRepository.findByWarehouseId(warehouseId)).thenReturn(Optional.of(
-                WarehouseReadModel.builder().warehouseId(warehouseId).orgId(UUID.randomUUID()).build()));
-        when(fridgeRepository.existsById(rackId)).thenReturn(false);
-        when(eventRepository.findMaxVersionByRackId(rackId)).thenReturn(0);
-
-        CreateFridgeRequest req = new CreateFridgeRequest(rackId,
-                BigDecimal.valueOf(-20), BigDecimal.valueOf(-5),
-                BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE);
-        rackService.createFridge(req);
-
-        verify(fridgeRepository).save(any(Fridge.class));
     }
 
     @Test

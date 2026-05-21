@@ -69,10 +69,13 @@ public class InvitationService {
                     invitation.getInvitationToken().toString()
             );
             emailSent = true;
-        } catch (Exception e) {
+        } catch (EmailService.EmailDeliveryException e) {
             emailError = e.getMessage();
-            log.error("Failed to send invitation email, but invitation created: {} (reason: {})",
-                    invitation.getInvitationId(), emailError);
+            log.warn("Invitation {} создано, но письмо не доставлено: {}", invitation.getInvitationId(), e.getMessage());
+        } catch (Exception e) {
+            emailError = "Письмо с приглашением не доставлено. "
+                    + "Скопируйте ссылку из реестра приглашений и передайте получателю вручную.";
+            log.error("Unexpected mail error для invitation {}: {}", invitation.getInvitationId(), e.getMessage(), e);
         }
 
         log.info("Invitation created successfully: {} (emailSent={})", invitation.getInvitationId(), emailSent);

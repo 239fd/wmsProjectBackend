@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public record CreateRackRequest(
@@ -19,6 +20,8 @@ public record CreateRackRequest(
         @Size(max = 255, message = "Название не должно превышать 255 символов")
         String name,
 
-        StorageConditions storageConditions
+        StorageConditions storageConditions,
+
+        BigDecimal maxWeightKg
 ) {
 }

@@ -15,16 +15,19 @@ import org.springframework.context.annotation.Configuration;
 public class RabbitMQConfig {
 
     public static final String PRODUCT_EXCHANGE = "product.exchange";
+    public static final String ORGANIZATION_EXCHANGE = "organization.exchange";
 
     public static final String PRODUCT_RECEIVED_QUEUE = "product.received.queue";
     public static final String PRODUCT_SHIPPED_QUEUE = "product.shipped.queue";
     public static final String PRODUCT_WRITTEN_OFF_QUEUE = "product.written_off.queue";
     public static final String PRODUCT_REVALUATED_QUEUE = "product.revaluated.queue";
+    public static final String ORGANIZATION_DELETED_PRODUCT_QUEUE = "organization.deleted.product.queue";
 
     public static final String PRODUCT_RECEIVED_KEY = "product.received";
     public static final String PRODUCT_SHIPPED_KEY = "product.shipped";
     public static final String PRODUCT_WRITTEN_OFF_KEY = "product.written_off";
     public static final String PRODUCT_REVALUATED_KEY = "product.revaluated";
+    public static final String ORGANIZATION_DELETED_KEY = "organization.deleted";
 
     @Bean
     public MessageConverter jsonMessageConverter() {
@@ -41,6 +44,21 @@ public class RabbitMQConfig {
     @Bean
     public TopicExchange productExchange() {
         return new TopicExchange(PRODUCT_EXCHANGE);
+    }
+
+    @Bean
+    public TopicExchange organizationExchange() {
+        return new TopicExchange(ORGANIZATION_EXCHANGE);
+    }
+
+    @Bean
+    public Queue organizationDeletedProductQueue() {
+        return new Queue(ORGANIZATION_DELETED_PRODUCT_QUEUE, true);
+    }
+
+    @Bean
+    public Binding organizationDeletedProductBinding() {
+        return BindingBuilder.bind(organizationDeletedProductQueue()).to(organizationExchange()).with(ORGANIZATION_DELETED_KEY);
     }
 
     @Bean

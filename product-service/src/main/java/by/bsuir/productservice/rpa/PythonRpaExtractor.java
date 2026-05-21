@@ -1,12 +1,12 @@
 package by.bsuir.productservice.rpa;
 
 import by.bsuir.productservice.config.RpaProperties;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import by.bsuir.productservice.dto.import_.SupplyDto;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
@@ -15,18 +15,25 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 @Slf4j
 @Component("oneCExtractor")
 @ConditionalOnProperty(prefix = "rpa.python", name = "enabled", havingValue = "true")
-public class PythonRpaExtractor implements PlannedDeliveryExtractor {
+public class PythonRpaExtractor implements SupplyExtractor {
 
     private static final String SOURCE_NAME = "1C-Python";
 
-    private final RpaProperties props;
     private final RestClient restClient;
+    private final ObjectMapper supplyMapper;
 
     public PythonRpaExtractor(RpaProperties props) {
-        this.props = props;
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         int millis = (int) Duration.ofSeconds(props.getPython().getTimeoutSeconds()).toMillis();
         factory.setConnectTimeout(10_000);
@@ -35,6 +42,11 @@ public class PythonRpaExtractor implements PlannedDeliveryExtractor {
                 .baseUrl(props.getPython().getBaseUrl())
                 .requestFactory(factory)
                 .build();
+        this.supplyMapper = new ObjectMapper()
+                .registerModule(new JavaTimeModule())
+                .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     }
 
     @Override
@@ -43,8 +55,8 @@ public class PythonRpaExtractor implements PlannedDeliveryExtractor {
     }
 
     @Override
-    public List<Map<String, Object>> extractDeliveries() {
-        log.info("PythonRpaExtractor: POST {}/parse/supplies", props.getPython().getBaseUrl());
+    public List<SupplyDto> extractSupplies() {
+        log.info("PythonRpaExtractor: POST /parse/supplies");
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restClient.post()
@@ -57,7 +69,7 @@ public class PythonRpaExtractor implements PlannedDeliveryExtractor {
                 log.warn("PythonRpaExtractor: пустой ответ от rpa-service");
                 return Collections.emptyList();
             }
-            return flatten(response);
+            return convert(response);
         } catch (RestClientResponseException e) {
             log.error("PythonRpaExtractor: HTTP {} от rpa-service: {}",
                     e.getStatusCode(), e.getResponseBodyAsString());
@@ -69,79 +81,62 @@ public class PythonRpaExtractor implements PlannedDeliveryExtractor {
         }
     }
 
-    private List<Map<String, Object>> flatten(Map<String, Object> response) {
-        List<Map<String, Object>> rows = new ArrayList<>();
+    @SuppressWarnings("unchecked")
+    private List<SupplyDto> convert(Map<String, Object> response) {
         Object suppliesObj = response.get("supplies");
         if (!(suppliesObj instanceof List<?> supplies)) {
-            log.warn("PythonRpaExtractor: в ответе нет поля 'supplies' (got keys={})", response.keySet());
-            return rows;
+            log.warn("PythonRpaExtractor: в ответе нет 'supplies' (keys={})", response.keySet());
+            return Collections.emptyList();
         }
-        for (Object supplyObj : supplies) {
-            if (!(supplyObj instanceof Map<?, ?> supplyMap)) {
-                continue;
-            }
-            String supplyExternalId = asString(supplyMap.get("external_id"));
-            String expectedDate = asString(supplyMap.get("expected_date"));
-            String supplierName = "";
-            Object supplierObj = supplyMap.get("supplier");
-            if (supplierObj instanceof Map<?, ?> supplierMap) {
-                supplierName = asString(supplierMap.get("name"));
-            }
-
-            Object itemsObj = supplyMap.get("supply_items");
-            if (!(itemsObj instanceof List<?> items) || items.isEmpty()) {
-                continue;
-            }
-            for (Object itemObj : items) {
-                if (!(itemObj instanceof Map<?, ?> itemMap)) {
-                    continue;
+        List<SupplyDto> result = new ArrayList<>();
+        for (Object raw : supplies) {
+            if (!(raw instanceof Map<?, ?> supplyMap)) continue;
+            Map<String, Object> normalized = unwrapSupply((Map<String, Object>) supplyMap);
+            try {
+                SupplyDto dto = supplyMapper.convertValue(normalized, SupplyDto.class);
+                Map<String, Object> snapshot = buildSnapshot(normalized);
+                int itemsCount = dto.items() != null ? dto.items().size() : 0;
+                if (dto.totalItems() != null && dto.totalItems() > itemsCount) {
+                    itemsCount = dto.totalItems();
                 }
-                String productName = "";
-                String sku = "";
-                Object productObj = itemMap.get("product");
-                if (productObj instanceof Map<?, ?> productMap) {
-                    productName = asString(productMap.get("name"));
-                    sku = asString(productMap.get("sku"));
-                }
-                int qty = parseQuantity(itemMap.get("expected_qty"));
-                String rowKey = !sku.isBlank() ? sku : asString(itemMap.get("row_number"));
-                String rowExternalId = supplyExternalId.isBlank() && rowKey.isBlank()
-                        ? null
-                        : supplyExternalId + "#" + rowKey;
-
-                Map<String, Object> row = new HashMap<>();
-                row.put("externalId", rowExternalId);
-                row.put("supplierName", supplierName);
-                row.put("productName", productName);
-                row.put("expectedQuantity", qty);
-                row.put("expectedDate", expectedDate);
-                rows.add(row);
+                result.add(new SupplyDto(
+                        dto.externalId(),
+                        dto.supplier(),
+                        dto.warehouseId(),
+                        dto.expectedDate(),
+                        dto.currency(),
+                        dto.totalAmount(),
+                        dto.notes(),
+                        Boolean.TRUE,
+                        itemsCount,
+                        null,
+                        snapshot));
+            } catch (Exception ex) {
+                log.warn("PythonRpaExtractor: не удалось распарсить supply: {}", ex.getMessage());
             }
         }
-        log.info("PythonRpaExtractor: flattened {} item-row(s) из {} supply(es)",
-                rows.size(), supplies.size());
-        return rows;
+        log.info("PythonRpaExtractor: получено {} supply", result.size());
+        return result;
     }
 
-    private static String asString(Object value) {
-        return value == null ? "" : value.toString();
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> unwrapSupply(Map<String, Object> raw) {
+        Object nested = raw.get("supply");
+        if (nested instanceof Map<?, ?>) {
+            return (Map<String, Object>) nested;
+        }
+        return raw;
     }
 
-    private static int parseQuantity(Object value) {
-        if (value == null) {
-            return 0;
+    private Map<String, Object> buildSnapshot(Map<String, Object> supplyMap) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        for (String key : List.of("transport", "commission", "international",
+                "receipt_session", "inventory_session", "discrepancies",
+                "writeoff", "revaluation", "generated_documents",
+                "extraction_log", "operation")) {
+            Object value = supplyMap.get(key);
+            if (value != null) snapshot.put(key, value);
         }
-        if (value instanceof Number n) {
-            return n.intValue();
-        }
-        try {
-            String s = value.toString().trim();
-            if (s.isEmpty()) {
-                return 0;
-            }
-            return (int) Math.floor(Double.parseDouble(s));
-        } catch (NumberFormatException e) {
-            return 0;
-        }
+        return snapshot.isEmpty() ? new HashMap<>() : snapshot;
     }
 }

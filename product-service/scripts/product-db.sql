@@ -281,24 +281,6 @@ CREATE INDEX idx_shipment_request_items_unit_sku ON shipment_request_items (unit
 CREATE INDEX idx_supply_items_supply_id ON supply_items (supply_id);
 CREATE INDEX idx_supply_items_product_id ON supply_items (product_id);
 
-CREATE TABLE planned_deliveries
-(
-    delivery_id       UUID PRIMARY KEY      DEFAULT uuid_generate_v4(),
-    external_id       VARCHAR(100) NOT NULL UNIQUE,
-    organization_id   UUID,
-    supplier_name     VARCHAR(255),
-    product_name      VARCHAR(255),
-    expected_quantity INT,
-    expected_date     DATE,
-    warehouse_id      UUID,
-    source            VARCHAR(50),
-    extracted_at      TIMESTAMP    NOT NULL DEFAULT now(),
-    processed         BOOLEAN      NOT NULL DEFAULT FALSE
-);
-
-CREATE INDEX idx_planned_deliveries_external_id ON planned_deliveries (external_id);
-CREATE INDEX idx_planned_deliveries_expected_date ON planned_deliveries (expected_date);
-
 CREATE TABLE extraction_log
 (
     log_id        BIGSERIAL PRIMARY KEY,

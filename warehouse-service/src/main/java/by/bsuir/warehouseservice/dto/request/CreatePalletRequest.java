@@ -15,9 +15,11 @@ public record CreatePalletRequest(
         @Positive(message = "Количество паллетомест должно быть положительным")
         Integer palletPlaceCount,
 
-        @NotNull(message = "Максимальный вес обязателен")
         @Positive(message = "Максимальный вес должен быть положительным")
         BigDecimal maxWeightKg,
+
+        @Positive(message = "Максимальная высота слота должна быть положительной")
+        BigDecimal maxHeightCm,
 
         @NotNull(message = "Тип паллета обязателен")
         PalletType palletType

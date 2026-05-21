@@ -104,11 +104,11 @@ class BarcodeServiceTest {
         Inventory inv = inventory(id, orgId, warehouseId, cellId);
         when(inventoryRepository.findById(id)).thenReturn(Optional.of(inv));
         when(warehouseClient.getRacksByWarehouse(warehouseId, "WORKER")).thenReturn(List.of(
-                new RackInfoDto(rackId, warehouseId, "SHELF", "R1", "AMBIENT", true)));
+                new RackInfoDto(rackId, warehouseId, "SHELF", "R1", "ROOM", true)));
         when(warehouseClient.getCellsByRack(rackId, "WORKER")).thenReturn(List.of(
                 new CellInfoDto(cellId, rackId, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN)));
         when(warehouseClient.getRack(rackId, "WORKER")).thenReturn(
-                new RackInfoDto(rackId, warehouseId, "SHELF", "R1", "AMBIENT", true));
+                new RackInfoDto(rackId, warehouseId, "SHELF", "R1", "ROOM", true));
         when(inventoryRepository.findByOrganizationIdAndUnitSku(any(), anyString())).thenReturn(Optional.empty());
 
         String sku = service.assignSkuToInventory(id, "WORKER");

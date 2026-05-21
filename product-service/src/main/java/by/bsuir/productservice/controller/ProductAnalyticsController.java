@@ -1,19 +1,25 @@
 package by.bsuir.productservice.controller;
 
 import by.bsuir.productservice.config.SecurityUtils;
+import by.bsuir.productservice.dto.request.AnalyticsReportRequest;
+import by.bsuir.productservice.service.AnalyticsReportService;
 import by.bsuir.productservice.service.ProductAnalyticsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,6 +32,7 @@ import java.util.UUID;
 public class ProductAnalyticsController {
 
     private final ProductAnalyticsService analyticsService;
+    private final AnalyticsReportService reportService;
 
     @Operation(summary = "Получить аналитику по остаткам", description = "Возвращает аналитические данные по текущим остаткам товаров на всех складах. Доступно только для DIRECTOR")
     @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "Аналитика успешно получена"), @ApiResponse(responseCode = "403", description = "Недостаточно прав")})
@@ -134,6 +141,44 @@ public class ProductAnalyticsController {
         }
         int safe = Math.max(0, Math.min(withinDays, 3650));
         return ResponseEntity.ok(analyticsService.getExpiringProducts(safe));
+    }
+
+    @Operation(summary = "Сформировать аналитический отчёт (PDF)",
+            description = "Возвращает PDF с выбранными разделами за указанный период. "
+                    + "При saveToRegistry=true сохраняет копию в реестр документов (MinIO). Только DIRECTOR.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Отчёт сформирован"),
+            @ApiResponse(responseCode = "400", description = "Некорректные параметры"),
+            @ApiResponse(responseCode = "403", description = "Недостаточно прав")})
+    @PostMapping("/report")
+    public ResponseEntity<byte[]> generateReport(
+            @Valid @RequestBody AnalyticsReportRequest request,
+            @RequestHeader(value = "X-User-Role", required = false) String userRoleHdr,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+
+        String role = SecurityUtils.resolveRole(userRoleHdr);
+        if (!"DIRECTOR".equals(role)) {
+            return ResponseEntity.status(403).build();
+        }
+        if (organizationId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        AnalyticsReportService.ReportResult result =
+                reportService.generateReport(request, organizationId, userId, role);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        String filename = "analytics-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".pdf";
+        headers.setContentDispositionFormData("attachment", filename);
+        if (result.documentId() != null) {
+            headers.set("X-Document-Id", result.documentId().toString());
+        }
+        if (result.documentNumber() != null) {
+            headers.set("X-Document-Number", result.documentNumber());
+        }
+        return ResponseEntity.ok().headers(headers).body(result.body());
     }
 }
 

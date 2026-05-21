@@ -1,14 +1,12 @@
 package by.bsuir.warehouseservice.service;
 
 import by.bsuir.warehouseservice.dto.request.CreateCellRequest;
-import by.bsuir.warehouseservice.dto.request.CreateFridgeRequest;
 import by.bsuir.warehouseservice.dto.request.CreatePalletRequest;
 import by.bsuir.warehouseservice.dto.request.CreateRackRequest;
 import by.bsuir.warehouseservice.dto.request.CreateShelfRequest;
 import by.bsuir.warehouseservice.dto.response.RackResponse;
 import by.bsuir.warehouseservice.exception.AppException;
 import by.bsuir.warehouseservice.model.entity.Cell;
-import by.bsuir.warehouseservice.model.entity.Fridge;
 import by.bsuir.warehouseservice.model.entity.Pallet;
 import by.bsuir.warehouseservice.model.entity.PalletPlace;
 import by.bsuir.warehouseservice.model.entity.RackEvent;
@@ -17,12 +15,12 @@ import by.bsuir.warehouseservice.model.entity.Shelf;
 import by.bsuir.warehouseservice.model.enums.PalletType;
 import by.bsuir.warehouseservice.model.enums.RackKind;
 import by.bsuir.warehouseservice.repository.CellRepository;
-import by.bsuir.warehouseservice.repository.FridgeRepository;
 import by.bsuir.warehouseservice.repository.PalletPlaceRepository;
 import by.bsuir.warehouseservice.repository.PalletRepository;
 import by.bsuir.warehouseservice.repository.RackEventRepository;
 import by.bsuir.warehouseservice.repository.RackReadModelRepository;
 import by.bsuir.warehouseservice.repository.ShelfRepository;
+import by.bsuir.warehouseservice.client.ProductClient;
 import by.bsuir.warehouseservice.repository.WarehouseReadModelRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -45,9 +43,9 @@ public class RackService {
     private final RackEventRepository eventRepository;
     private final ShelfRepository shelfRepository;
     private final CellRepository cellRepository;
-    private final FridgeRepository fridgeRepository;
     private final PalletRepository palletRepository;
     private final PalletPlaceRepository palletPlaceRepository;
+    private final ProductClient productClient;
     private final WarehouseReadModelRepository warehouseRepository;
     private final ObjectMapper objectMapper;
 
@@ -81,6 +79,7 @@ public class RackService {
                 .kind(request.kind())
                 .name(request.name())
                 .storageConditions(request.storageConditions())
+                .maxWeightKg(request.maxWeightKg())
                 .isActive(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -158,48 +157,6 @@ public class RackService {
     }
 
     @Transactional
-    public void createFridge(CreateFridgeRequest request) {
-        log.info("Creating fridge for rack: {}", request.rackId());
-
-        RackReadModel rack = rackRepository.findById(request.rackId())
-                .orElseThrow(() -> AppException.notFound("Стеллаж не найден"));
-
-        if (rack.getKind() != RackKind.FRIDGE) {
-            throw AppException.badRequest("Стеллаж должен иметь тип FRIDGE");
-        }
-
-        if (fridgeRepository.existsById(request.rackId())) {
-            throw AppException.conflict("Холодильник уже создан для этого стеллажа");
-        }
-
-        if (request.minTemperatureC().compareTo(request.maxTemperatureC()) > 0) {
-            throw AppException.badRequest("Минимальная температура не может быть больше максимальной");
-        }
-
-        Fridge fridge = Fridge.builder()
-                .rackId(request.rackId())
-                .organizationId(resolveOrgIdForRack(rack))
-                .minTemperatureC(request.minTemperatureC())
-                .maxTemperatureC(request.maxTemperatureC())
-                .lengthCm(request.lengthCm())
-                .widthCm(request.widthCm())
-                .heightCm(request.heightCm())
-                .build();
-
-        fridgeRepository.save(fridge);
-
-        Map<String, Object> eventData = new HashMap<>();
-        eventData.put("minTemperatureC", request.minTemperatureC());
-        eventData.put("maxTemperatureC", request.maxTemperatureC());
-        eventData.put("lengthCm", request.lengthCm());
-        eventData.put("widthCm", request.widthCm());
-        eventData.put("heightCm", request.heightCm());
-        saveRackEvent(request.rackId(), "FRIDGE_CREATED", eventData);
-
-        log.info("Fridge created successfully for rack: {}", request.rackId());
-    }
-
-    @Transactional
     public void createPallet(CreatePalletRequest request) {
         log.info("Creating pallet for rack: {}", request.rackId());
 
@@ -232,6 +189,7 @@ public class RackService {
                     .lengthCm(palletType.getLengthCm())
                     .widthCm(palletType.getWidthCm())
                     .heightCm(palletType.getHeightCm())
+                    .maxHeightCm(request.maxHeightCm())
                     .build();
             palletPlaceRepository.save(place);
         }
@@ -239,6 +197,7 @@ public class RackService {
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("palletPlaceCount", request.palletPlaceCount());
         eventData.put("maxWeightKg", request.maxWeightKg());
+        eventData.put("maxHeightCm", request.maxHeightCm());
         eventData.put("palletType", palletType.name());
         saveRackEvent(request.rackId(), "PALLET_CREATED", eventData);
 
@@ -315,26 +274,86 @@ public class RackService {
         RackReadModel rack = rackRepository.findById(rackId)
                 .orElseThrow(() -> AppException.notFound("Стеллаж не найден"));
 
-        List<Object> cells = new ArrayList<>();
+        List<Map<String, Object>> enriched = new ArrayList<>();
+        List<UUID> ids = new ArrayList<>();
 
         switch (rack.getKind()) {
             case SHELF:
-                cells.addAll(shelfRepository.findByRackId(rackId));
+                for (Shelf s : shelfRepository.findByRackId(rackId)) {
+                    Map<String, Object> row = shelfToMap(s);
+                    enriched.add(row);
+                    ids.add(s.getShelfId());
+                }
                 break;
             case CELL:
-                cells.addAll(cellRepository.findByRackId(rackId));
-                break;
-            case FRIDGE:
-                cells.addAll(fridgeRepository.findByRackId(rackId));
+                for (Cell c : cellRepository.findByRackId(rackId)) {
+                    Map<String, Object> row = cellToMap(c);
+                    enriched.add(row);
+                    ids.add(c.getCellId());
+                }
                 break;
             case PALLET:
-
-                cells.addAll(palletPlaceRepository.findByRackId(rackId));
+                for (PalletPlace p : palletPlaceRepository.findByRackId(rackId)) {
+                    Map<String, Object> row = palletPlaceToMap(p);
+                    enriched.add(row);
+                    ids.add(p.getPlaceId());
+                }
                 break;
         }
 
-        log.info("Found {} cells for rack: {}", cells.size(), rackId);
-        return cells;
+        Map<UUID, ProductClient.CellLoad> loads = productClient.getCellsLoad(ids);
+        for (Map<String, Object> row : enriched) {
+            UUID id = (UUID) row.get("id");
+            ProductClient.CellLoad load = loads.get(id);
+            int itemsCount = load == null ? 0 : load.itemsCount();
+            boolean occupied = load != null && load.occupied();
+            row.put("itemsCount", itemsCount);
+            row.put("totalQuantity", load == null ? java.math.BigDecimal.ZERO : load.totalQuantity());
+            row.put("occupied", occupied);
+            row.put("status", occupied ? "OCCUPIED" : "AVAILABLE");
+        }
+
+        log.info("Found {} cells for rack: {}", enriched.size(), rackId);
+        return new ArrayList<>(enriched);
+    }
+
+    private Map<String, Object> shelfToMap(Shelf s) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", s.getShelfId());
+        m.put("shelfId", s.getShelfId());
+        m.put("rackId", s.getRackId());
+        m.put("organizationId", s.getOrganizationId());
+        m.put("shelfCapacityKg", s.getShelfCapacityKg());
+        m.put("lengthCm", s.getLengthCm());
+        m.put("widthCm", s.getWidthCm());
+        m.put("heightCm", s.getHeightCm());
+        return m;
+    }
+
+    private Map<String, Object> cellToMap(Cell c) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", c.getCellId());
+        m.put("cellId", c.getCellId());
+        m.put("rackId", c.getRackId());
+        m.put("organizationId", c.getOrganizationId());
+        m.put("maxWeightKg", c.getMaxWeightKg());
+        m.put("lengthCm", c.getLengthCm());
+        m.put("widthCm", c.getWidthCm());
+        m.put("heightCm", c.getHeightCm());
+        return m;
+    }
+
+    private Map<String, Object> palletPlaceToMap(PalletPlace p) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", p.getPlaceId());
+        m.put("placeId", p.getPlaceId());
+        m.put("rackId", p.getRackId());
+        m.put("organizationId", p.getOrganizationId());
+        m.put("lengthCm", p.getLengthCm());
+        m.put("widthCm", p.getWidthCm());
+        m.put("heightCm", p.getHeightCm());
+        m.put("maxHeightCm", p.getMaxHeightCm());
+        return m;
     }
 
     @Transactional(readOnly = true)
@@ -382,6 +401,7 @@ public class RackService {
                 model.getKind(),
                 model.getName(),
                 model.getStorageConditions(),
+                model.getMaxWeightKg(),
                 model.getIsActive(),
                 model.getCreatedAt(),
                 model.getUpdatedAt()

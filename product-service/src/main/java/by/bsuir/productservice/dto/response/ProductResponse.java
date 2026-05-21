@@ -1,5 +1,7 @@
 package by.bsuir.productservice.dto.response;
 
+import by.bsuir.productservice.model.enums.StorageConditions;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -14,6 +16,7 @@ public record ProductResponse(
         String unitOfMeasure,
         BigDecimal weightKg,
         BigDecimal volumeM3,
+        StorageConditions requiredStorageCondition,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

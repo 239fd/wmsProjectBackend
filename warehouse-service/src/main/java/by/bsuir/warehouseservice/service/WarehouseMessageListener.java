@@ -74,4 +74,21 @@ public class WarehouseMessageListener {
             log.error("Error processing organization.archived event: {}", e.getMessage(), e);
         }
     }
+
+    @RabbitListener(queues = RabbitMQConfig.ORGANIZATION_DELETED_QUEUE)
+    public void handleOrganizationDeleted(@Payload Map<String, Object> message) {
+        log.info("Received organization.deleted event: {}", message);
+
+        try {
+            String orgIdStr = message.get("orgId").toString();
+            UUID orgId = UUID.fromString(orgIdStr);
+
+            warehouseService.deleteWarehousesByOrganization(orgId);
+
+            log.info("Successfully processed organization.deleted event for orgId: {}", orgId);
+
+        } catch (Exception e) {
+            log.error("Error processing organization.deleted event: {}", e.getMessage(), e);
+        }
+    }
 }

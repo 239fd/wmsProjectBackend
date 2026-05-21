@@ -20,6 +20,7 @@ public class RabbitMQConfig {
     public static final String WAREHOUSE_INFO_REQUEST_QUEUE = "warehouse.info.request.queue";
     public static final String WAREHOUSE_INFO_RESPONSE_QUEUE = "warehouse.info.response.queue";
     public static final String ORGANIZATION_ARCHIVED_QUEUE = "organization.archived.warehouse.queue";
+    public static final String ORGANIZATION_DELETED_QUEUE = "organization.deleted.warehouse.queue";
 
     public static final String WAREHOUSE_CREATED_KEY = "warehouse.created";
     public static final String WAREHOUSE_UPDATED_KEY = "warehouse.updated";
@@ -27,6 +28,7 @@ public class RabbitMQConfig {
     public static final String WAREHOUSE_INFO_REQUEST_KEY = "warehouse.info.request";
     public static final String WAREHOUSE_INFO_RESPONSE_KEY = "warehouse.info.response";
     public static final String ORGANIZATION_ARCHIVED_KEY = "organization.archived";
+    public static final String ORGANIZATION_DELETED_KEY = "organization.deleted";
 
     @Bean
     public MessageConverter jsonMessageConverter() {
@@ -81,6 +83,11 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Queue organizationDeletedWarehouseQueue() {
+        return new Queue(ORGANIZATION_DELETED_QUEUE, true);
+    }
+
+    @Bean
     public Binding warehouseCreatedBinding() {
         return BindingBuilder
                 .bind(warehouseCreatedQueue())
@@ -126,5 +133,13 @@ public class RabbitMQConfig {
                 .bind(organizationArchivedWarehouseQueue())
                 .to(organizationExchange())
                 .with(ORGANIZATION_ARCHIVED_KEY);
+    }
+
+    @Bean
+    public Binding organizationDeletedWarehouseBinding() {
+        return BindingBuilder
+                .bind(organizationDeletedWarehouseQueue())
+                .to(organizationExchange())
+                .with(ORGANIZATION_DELETED_KEY);
     }
 }

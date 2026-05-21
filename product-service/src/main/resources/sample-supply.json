@@ -1,0 +1,78 @@
+{
+  "supplies": [
+    {
+      "external_id": "POSTAVKA-2026-001",
+      "expected_date": "2026-06-01",
+      "currency": "BYN",
+      "total_amount": "1234.56",
+      "notes": "Пример плановой поставки. Все поля кроме external_id и items опциональны.",
+      "quantity_only": false,
+      "supplier": {
+        "name": "ООО Поставщик",
+        "unp": "100123456",
+        "address": "г. Минск, ул. Примерная, 1",
+        "phone": "+375 17 111-22-33",
+        "email": "info@supplier.by",
+        "contact_person": "Иванов И.И."
+      },
+      "items": [
+        {
+          "row_number": 1,
+          "expected_qty": "10",
+          "unit_price": "100.00",
+          "vat_rate": "20",
+          "vat_amount": "200.00",
+          "total_amount": "1200.00",
+          "packaging_type": "PALLET",
+          "notes": "",
+          "product": {
+            "sku": "X-12345",
+            "name": "Печенье «Альпийское» 200г",
+            "barcode": "4607010000001",
+            "category": "Кондитерские изделия",
+            "unit_of_measure": "шт",
+            "weight_kg": "0.2",
+            "manufacturer": "Кондитерская фабрика",
+            "storage_conditions": "ROOM"
+          },
+          "batch": {
+            "batch_number": "B-2026-001",
+            "manufacture_date": "2026-05-15",
+            "expiry_date": "2026-11-15",
+            "purchase_price": "85.00",
+            "storage_conditions": "ROOM"
+          }
+        },
+        {
+          "row_number": 2,
+          "expected_qty": "5",
+          "unit_price": "50.00",
+          "packaging_type": "BOX",
+          "product": {
+            "sku": "Y-67890",
+            "name": "Чай зелёный 100г",
+            "barcode": "4607010000002",
+            "category": "Напитки",
+            "unit_of_measure": "шт",
+            "storage_conditions": "ROOM"
+          },
+          "batch": {
+            "batch_number": "B-2026-T-001",
+            "expiry_date": "2027-05-30"
+          }
+        }
+      ]
+    },
+    {
+      "external_id": "POSTAVKA-2026-002",
+      "expected_date": "2026-06-10",
+      "quantity_only": true,
+      "total_items": 50,
+      "notes": "Поставка без детализации — приёмщик сам внесёт номенклатуру.",
+      "supplier": {
+        "name": "ИП Малинов",
+        "unp": "100987654"
+      }
+    }
+  ]
+}

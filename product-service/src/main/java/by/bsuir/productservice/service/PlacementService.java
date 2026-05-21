@@ -56,9 +56,14 @@ public class PlacementService {
         ProductReadModel product = productRepository.findById(batch.getProductId())
                 .orElseThrow(() -> AppException.notFound("Товар не найден"));
 
-        StorageConditions required = batch.getStorageConditions() != null
-                ? batch.getStorageConditions()
-                : StorageConditions.AMBIENT;
+        StorageConditions resolved = batch.getStorageConditions();
+        if (resolved == null) {
+            resolved = product.getRequiredStorageCondition();
+        }
+        if (resolved == null) {
+            resolved = StorageConditions.ROOM;
+        }
+        final StorageConditions required = resolved;
 
         List<RackInfoDto> matchingRacks = warehouseClient.getRacksByWarehouse(request.warehouseId(), userRole)
                 .stream()
@@ -129,9 +134,16 @@ public class PlacementService {
             throw AppException.forbidden("Партия принадлежит другой организации");
         }
 
-        StorageConditions required = batch.getStorageConditions() != null
-                ? batch.getStorageConditions()
-                : StorageConditions.AMBIENT;
+        ProductReadModel product = productRepository.findById(batch.getProductId())
+                .orElseThrow(() -> AppException.notFound("Товар не найден"));
+
+        StorageConditions required = batch.getStorageConditions();
+        if (required == null) {
+            required = product.getRequiredStorageCondition();
+        }
+        if (required == null) {
+            required = StorageConditions.ROOM;
+        }
 
         List<RackInfoDto> racks = warehouseClient.getRacksByWarehouse(request.warehouseId(), userRole);
         RackInfoDto matchingRack = null;
@@ -209,7 +221,7 @@ public class PlacementService {
 
     private boolean matchesConditions(String rackConditions, StorageConditions required) {
         if (rackConditions == null) {
-            return required == StorageConditions.AMBIENT || required == StorageConditions.DRY;
+            return required == StorageConditions.ROOM;
         }
         try {
             return StorageConditions.valueOf(rackConditions) == required;

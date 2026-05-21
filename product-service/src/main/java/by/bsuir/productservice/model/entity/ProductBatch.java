@@ -1,5 +1,6 @@
 package by.bsuir.productservice.model.entity;
 
+import by.bsuir.productservice.model.enums.PackagingType;
 import by.bsuir.productservice.model.enums.StorageConditions;
 import jakarta.persistence.*;
 import lombok.*;
@@ -51,6 +52,10 @@ public class ProductBatch {
     @Enumerated(EnumType.STRING)
     @Column(name = "storage_conditions", length = 20)
     private StorageConditions storageConditions;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "packaging_type", length = 10)
+    private PackagingType packagingType;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

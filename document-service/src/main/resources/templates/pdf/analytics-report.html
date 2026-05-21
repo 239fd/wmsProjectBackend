@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<title>Аналитический отчёт</title>
+<style th:utext="${cssBase}"></style>
+<style>
+.section { margin-top: 14pt; }
+.kpi-table td { padding: 4pt 6pt; }
+.kpi-label { color: #555; width: 60%; }
+.kpi-value { font-weight: bold; text-align: right; }
+.subtitle { color: #555; font-size: 8pt; text-align: center; margin-bottom: 12pt; }
+.section-title {
+  font-size: 11pt; font-weight: bold;
+  border-bottom: 0.5pt solid #000;
+  padding-bottom: 3pt; margin-bottom: 6pt;
+}
+.chip {
+  display: inline-block; padding: 1pt 6pt;
+  border: 0.5pt solid #888; border-radius: 3pt;
+  margin-right: 4pt; font-size: 8pt;
+}
+.chip-a { background: #e8f5e9; }
+.chip-b { background: #fff8e1; }
+.chip-c { background: #ffebee; }
+.urgency-EXPIRED { color: #b00; font-weight: bold; }
+.urgency-CRITICAL { color: #d32f2f; font-weight: bold; }
+.urgency-WARNING { color: #f57c00; }
+.urgency-INFO { color: #1976d2; }
+table.compact td, table.compact th { padding: 2pt 4pt; font-size: 8pt; }
+.note { font-size: 8pt; color: #555; font-style: italic; margin-top: 4pt; }
+</style>
+</head>
+<body>
+
+<h1>АНАЛИТИЧЕСКИЙ ОТЧЁТ</h1>
+<div class="subtitle">
+  Период: <span th:text="${periodFrom}">—</span> — <span th:text="${periodTo}">—</span>
+  &#160;•&#160; Сформирован: <span th:text="${generatedAt}">—</span>
+</div>
+
+<div th:if="${summary != null}" class="section">
+  <div class="section-title">1. Сводка по организации</div>
+  <table class="bordered kpi-table">
+    <tr>
+      <td class="kpi-label">Всего складов</td>
+      <td class="kpi-value" th:text="${summary['totalWarehouses']}">0</td>
+    </tr>
+    <tr>
+      <td class="kpi-label">Активных складов</td>
+      <td class="kpi-value" th:text="${summary['activeWarehouses']}">0</td>
+    </tr>
+    <tr>
+      <td class="kpi-label">Всего ячеек / слотов</td>
+      <td class="kpi-value" th:text="${summary['totalSlots']}">0</td>
+    </tr>
+    <tr>
+      <td class="kpi-label">Занято</td>
+      <td class="kpi-value" th:text="${summary['occupiedSlots']}">0</td>
+    </tr>
+    <tr>
+      <td class="kpi-label">Свободно</td>
+      <td class="kpi-value" th:text="${summary['freeSlots']}">0</td>
+    </tr>
+    <tr>
+      <td class="kpi-label">Заполненность, %</td>
+      <td class="kpi-value">
+        <span th:text="${summary['utilizationPercent']}">0</span> %
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div th:if="${structure != null and !#lists.isEmpty(structure)}" class="section">
+  <div class="section-title">2. Структура складов</div>
+  <table class="grid compact">
+    <thead>
+      <tr>
+        <th style="width: 22%;">Склад</th>
+        <th style="width: 24%;">Адрес</th>
+        <th style="width: 8%;">Активен</th>
+        <th style="width: 8%;">Стеллажи</th>
+        <th style="width: 14%;">Типы (SHELF/CELL/PALLET)</th>
+        <th style="width: 8%;">Слоты</th>
+        <th style="width: 8%;">Занято</th>
+        <th style="width: 8%;">%</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr th:each="wh : ${structure}">
+        <td th:text="${wh['name']} ?: '—'">—</td>
+        <td th:text="${wh['address']} ?: '—'">—</td>
+        <td class="text-center" th:text="${wh['isActive']} == true ? 'да' : 'нет'">да</td>
+        <td class="text-center" th:text="${wh['structure']['racksCount']}">0</td>
+        <td class="text-center small">
+          <span th:text="${wh['structure']['racksByKind']['SHELF']}">0</span>/
+          <span th:text="${wh['structure']['racksByKind']['CELL']}">0</span>/
+          <span th:text="${wh['structure']['racksByKind']['PALLET']}">0</span>
+        </td>
+        <td class="text-center" th:text="${wh['structure']['totalSlots']}">0</td>
+        <td class="text-center" th:text="${wh['structure']['occupiedSlots']}">0</td>
+        <td class="text-center" th:text="${wh['structure']['utilizationPercent']}">0</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note">
+    Темп. зоны (ROOM/COOL/FRIDGE/FREEZER) и грузоподъёмность стеллажей детально доступны в карточке склада.
+  </div>
+</div>
+
+<div th:if="${abc != null}" class="section">
+  <div class="section-title">3. ABC-анализ</div>
+  <table class="bordered kpi-table mb-4">
+    <tr>
+      <td class="kpi-label">Классифицировано товаров</td>
+      <td class="kpi-value" th:text="${abc['totalProducts']}">0</td>
+    </tr>
+    <tr>
+      <td class="kpi-label">Распределение по классам</td>
+      <td class="kpi-value">
+        <span class="chip chip-a">A:
+          <span th:text="${abc['distribution']['productCountByClass']['A']}">0</span>
+        </span>
+        <span class="chip chip-b">B:
+          <span th:text="${abc['distribution']['productCountByClass']['B']}">0</span>
+        </span>
+        <span class="chip chip-c">C:
+          <span th:text="${abc['distribution']['productCountByClass']['C']}">0</span>
+        </span>
+      </td>
+    </tr>
+  </table>
+  <div th:if="${abc['topProducts'] != null and !#lists.isEmpty(abc['topProducts'])}">
+    <h3>Топ товаров (до 50 позиций)</h3>
+    <table class="grid compact">
+      <thead>
+        <tr>
+          <th style="width: 6%;">№</th>
+          <th style="width: 14%;">Артикул (SKU)</th>
+          <th>Наименование</th>
+          <th style="width: 12%;">Класс</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:each="p, it : ${abc['topProducts']}">
+          <td class="text-center" th:text="${it.count}">1</td>
+          <td th:text="${p['sku']} ?: '—'">—</td>
+          <td th:text="${p['name']} ?: '—'">—</td>
+          <td class="text-center">
+            <span class="chip" th:text="${p['abcClass']} ?: '—'">—</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div th:if="${detailed != null}" class="section">
+  <div class="section-title">4. Остатки, оборачиваемость и сроки годности</div>
+
+  <h3>4.1. Остатки на складах</h3>
+  <table class="bordered kpi-table mb-4">
+    <tr>
+      <td class="kpi-label">Уникальных товаров</td>
+      <td class="kpi-value" th:text="${detailed['inventory']['uniqueProducts']} ?: 0">0</td>
+    </tr>
+    <tr>
+      <td class="kpi-label">Всего единиц</td>
+      <td class="kpi-value" th:text="${detailed['inventory']['totalQuantity']} ?: 0">0</td>
+    </tr>
+    <tr>
+      <td class="kpi-label">Зарезервировано</td>
+      <td class="kpi-value" th:text="${detailed['inventory']['reservedQuantity']} ?: 0">0</td>
+    </tr>
+    <tr>
+      <td class="kpi-label">Доступно</td>
+      <td class="kpi-value" th:text="${detailed['inventory']['availableQuantity']} ?: 0">0</td>
+    </tr>
+  </table>
+
+  <h3>4.2. Операции за период</h3>
+  <table class="bordered kpi-table mb-4">
+    <tr>
+      <td class="kpi-label">Всего операций</td>
+      <td class="kpi-value" th:text="${detailed['operations']['totalOperations']} ?: 0">0</td>
+    </tr>
+  </table>
+  <table class="grid compact mb-4"
+         th:if="${detailed['operations']['operationsByType'] != null
+                  and !#maps.isEmpty(detailed['operations']['operationsByType'])}">
+    <thead>
+      <tr>
+        <th>Тип операции</th>
+        <th style="width: 30%;">Количество</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr th:each="e : ${detailed['operations']['operationsByType']}">
+        <td th:text="${e.key}">—</td>
+        <td class="text-right" th:text="${e.value}">0</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>4.3. Истекающие сроки годности (окно 30 дней)</h3>
+  <div th:if="${detailed['expiringCount']} == 0" class="note">
+    Партии с истекающим сроком не найдены.
+  </div>
+  <table class="grid compact"
+         th:if="${detailed['expiring'] != null and !#lists.isEmpty(detailed['expiring'])}">
+    <thead>
+      <tr>
+        <th style="width: 6%;">№</th>
+        <th style="width: 14%;">SKU</th>
+        <th>Товар</th>
+        <th style="width: 12%;">Партия</th>
+        <th style="width: 12%;">Срок до</th>
+        <th style="width: 10%;">Осталось дн.</th>
+        <th style="width: 10%;">Кол-во</th>
+        <th style="width: 12%;">Статус</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr th:each="b, it : ${detailed['expiring']}">
+        <td class="text-center" th:text="${it.count}">1</td>
+        <td th:text="${b['sku']} ?: '—'">—</td>
+        <td th:text="${b['productName']} ?: '—'">—</td>
+        <td th:text="${b['batchNumber']} ?: '—'">—</td>
+        <td class="text-center" th:text="${b['expiryDate']} ?: '—'">—</td>
+        <td class="text-center" th:text="${b['daysLeft']}">0</td>
+        <td class="text-right" th:text="${b['quantity']}">0</td>
+        <td th:text="${b['urgency']}">INFO</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section note">
+  WMS Analytics Report &#160;•&#160; <span th:text="${generatedAt}">—</span>
+</div>
+
+</body>
+</html>

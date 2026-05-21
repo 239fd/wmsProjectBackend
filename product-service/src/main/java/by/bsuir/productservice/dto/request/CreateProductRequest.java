@@ -1,5 +1,6 @@
 package by.bsuir.productservice.dto.request;
 
+import by.bsuir.productservice.model.enums.StorageConditions;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -26,6 +27,8 @@ public record CreateProductRequest(
 
         BigDecimal weightKg,
 
-        BigDecimal volumeM3
+        BigDecimal volumeM3,
+
+        StorageConditions requiredStorageCondition
 ) {
 }

@@ -9,7 +9,7 @@ public record UpdateOrganizationRequest(
         @Size(max = 100, message = "Краткое наименование не должно превышать 100 символов")
         String shortName,
 
-        @Size(max = 20, message = "УНП не должен превышать 20 символов")
+        @Size(max = 20, message = "ИНН не должен превышать 20 символов")
         String unp,
 
         @Size(max = 512, message = "Адрес не должен превышать 512 символов")

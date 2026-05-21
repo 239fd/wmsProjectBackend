@@ -102,10 +102,20 @@ public class SupplyController {
         return ResponseEntity.ok(supplyService.updateStatus(supplyId, newStatus, userId));
     }
 
-    @Operation(summary = "Отменить поставку (только в статусе PLANNED)")
+    @Operation(summary = "Удалить поставку (только в статусе PLANNED)")
     @DeleteMapping("/{supplyId}")
     public ResponseEntity<Map<String, String>> cancel(@PathVariable UUID supplyId) {
         supplyService.delete(supplyId);
-        return ResponseEntity.ok(Map.of("message", "Поставка отменена"));
+        return ResponseEntity.ok(Map.of("message", "Поставка удалена"));
+    }
+
+    @Operation(summary = "Изменить плановую поставку",
+            description = "Полностью переписывает позиции и реквизиты поставки. Доступно только в статусе PLANNED.")
+    @PutMapping("/{supplyId}")
+    public ResponseEntity<SupplyResponse> update(
+            @PathVariable UUID supplyId,
+            @Valid @RequestBody CreateSupplyRequest request,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return ResponseEntity.ok(supplyService.update(supplyId, request, organizationId));
     }
 }

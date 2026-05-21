@@ -10,6 +10,7 @@ import by.bsuir.ssoservice.model.entity.LoginAudit;
 import by.bsuir.ssoservice.model.entity.UserReadModel;
 import by.bsuir.ssoservice.model.enums.UserRole;
 import by.bsuir.ssoservice.repository.LoginAuditRepository;
+import by.bsuir.ssoservice.repository.UserEventRepository;
 import by.bsuir.ssoservice.repository.UserReadModelRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
 public class ProfileService {
 
     private final UserReadModelRepository userRepository;
+    private final UserEventRepository userEventRepository;
     private final LoginAuditRepository loginAuditRepository;
     private final RefreshTokenService refreshTokenService;
     private final PasswordEncoder passwordEncoder;
@@ -210,9 +212,17 @@ public class ProfileService {
             throw new RuntimeException("Доступ запрещен");
         }
 
-        loginAuditRepository.deactivateSessionById(sessionId);
+        if (session.getRefreshTokenHash() != null) {
+            boolean removed = refreshTokenService.deleteUserTokenByHash(
+                    userId, session.getRefreshTokenHash(), passwordEncoder);
+            if (!removed) {
+                log.debug("Redis refresh token for session {} not found (already expired or never tracked)", sessionId);
+            }
+        }
 
-        log.info("Session {} terminated for user: {}", sessionId, userId);
+        loginAuditRepository.delete(session);
+
+        log.info("Session {} terminated and removed for user: {}", sessionId, userId);
     }
 
     @Transactional
@@ -235,22 +245,19 @@ public class ProfileService {
         UserReadModel user = userRepository.findById(userId)
                 .orElseThrow(() -> AppException.notFound("Пользователь не найден"));
 
-        List<LoginAudit> sessions = loginAuditRepository.findByUserIdAndIsActiveTrueOrderByLoginAtDesc(userId);
-        for (LoginAudit session : sessions) {
-            refreshTokenService.deleteRefreshToken(session.getRefreshTokenHash());
-        }
-        loginAuditRepository.deactivateAllUserSessions(userId);
+        UUID orgId = user.getOrganizationId();
+        UserRole role = user.getRole();
+
         refreshTokenService.deleteAllUserTokens(userId);
+        loginAuditRepository.deleteByUserId(userId);
+        userEventRepository.deleteByUserId(userId);
+        userRepository.delete(user);
 
-        user.setIsActive(false);
-        user.setUpdatedAt(LocalDateTime.now());
-        userRepository.save(user);
-
-        if (user.getRole() == UserRole.DIRECTOR && user.getOrganizationId() != null) {
-            publishDirectorDeleted(user.getUserId(), user.getOrganizationId());
+        if (role == UserRole.DIRECTOR && orgId != null) {
+            publishDirectorDeleted(userId, orgId);
         }
 
-        log.info("Account deactivated for user: {} (role: {})", userId, user.getRole());
+        log.info("Account permanently deleted for user: {} (role: {})", userId, role);
     }
 
     private void publishDirectorDeleted(UUID userId, UUID orgId) {

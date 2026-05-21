@@ -31,4 +31,6 @@ public interface SupplyRepository extends JpaRepository<Supply, UUID> {
     Page<Supply> findByOrganizationIdAndStatus(UUID organizationId, SupplyStatus status, Pageable pageable);
 
     List<Supply> findByWarehouseIdAndStatus(UUID warehouseId, SupplyStatus status);
+
+    java.util.Optional<Supply> findByOrganizationIdAndExternalId(UUID organizationId, String externalId);
 }

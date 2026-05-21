@@ -59,7 +59,7 @@ public class SupplierController {
     @Operation(summary = "Создать нового поставщика")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Поставщик создан"),
-            @ApiResponse(responseCode = "409", description = "Поставщик с таким УНП уже существует")
+            @ApiResponse(responseCode = "409", description = "Поставщик с таким ИНН уже существует")
     })
     @PostMapping
     public ResponseEntity<SupplierResponse> create(

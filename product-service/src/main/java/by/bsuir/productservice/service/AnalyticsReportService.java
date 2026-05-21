@@ -1,160 +1,258 @@
 package by.bsuir.productservice.service;
 
-import java.util.Locale;
-
+import by.bsuir.productservice.client.DocumentClient;
+import by.bsuir.productservice.client.WarehouseAnalyticsClient;
+import by.bsuir.productservice.dto.request.AnalyticsReportRequest;
+import by.bsuir.productservice.exception.AppException;
+import by.bsuir.productservice.model.entity.GeneratedDocument;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.springframework.stereotype.Service;
-import java.io.ByteArrayOutputStream;
+
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AnalyticsReportService {
 
-    private static final float MARGIN = 50f;
-    private static final float LINE_HEIGHT = 18f;
-    PDType1Font font = PDType1Font.HELVETICA;
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+    private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
+    private static final int ABC_TOP_LIMIT = 50;
+    private static final int EXPIRING_WINDOW_DAYS = 30;
 
     private final ProductAnalyticsService analyticsService;
     private final AbcAnalysisService abcAnalysisService;
+    private final WarehouseAnalyticsClient warehouseAnalyticsClient;
+    private final DocumentClient documentClient;
+    private final DocumentRegistryService documentRegistryService;
 
-    public byte[] generateReport(String preset) {
-        LocalDate[] range = presetToRange(preset);
-        LocalDate from = range[0];
-        LocalDate to = range[1];
+    public ReportResult generateReport(
+            AnalyticsReportRequest request,
+            UUID organizationId,
+            UUID userId,
+            String userRole) {
 
-        Map<String, Object> dynamics = analyticsService.getOperationsDynamics(from, to);
-        Map<String, Object> inventory = analyticsService.getInventoryAnalytics();
-        int abcItems = abcAnalysisService.getAbcReport().size();
+        if (request.from() == null || request.to() == null) {
+            throw AppException.badRequest("Период (from/to) обязателен");
+        }
+        if (request.from().isAfter(request.to())) {
+            throw AppException.badRequest("Дата начала не может быть позже даты окончания");
+        }
+        if (request.sections() == null || request.sections().isEmpty()) {
+            throw AppException.badRequest("Выберите хотя бы один раздел отчёта");
+        }
+        if (organizationId == null) {
+            throw AppException.badRequest("organizationId обязателен");
+        }
 
-        return buildPdf(preset, from, to, dynamics, inventory, abcItems);
+        Map<String, Object> payload = buildPayload(request, organizationId, userRole);
+
+        if (request.saveToRegistry()) {
+            GeneratedDocument saved = documentRegistryService.register(
+                    null, "analytics-report", payload, organizationId, userId);
+            byte[] body = documentRegistryService.downloadBytes(saved.getId(), organizationId);
+            return new ReportResult(body, saved.getId(), saved.getDocumentNumber());
+        }
+
+        DocumentClient.Fetched fetched = documentClient.fetch(
+                "analytics-report", payload, organizationId, "auto");
+        if (fetched.body() == null || fetched.body().length == 0) {
+            throw AppException.internalError("document-service не вернул содержимое отчёта");
+        }
+        return new ReportResult(fetched.body(), null, null);
     }
 
-    private byte[] buildPdf(String preset, LocalDate from, LocalDate to,
-                              Map<String, Object> dynamics, Map<String, Object> inventory, int abcItems) {
-        try (PDDocument doc = new PDDocument()) {
-            PDPage page = new PDPage(PDRectangle.A4);
-            doc.addPage(page);
+    private Map<String, Object> buildPayload(
+            AnalyticsReportRequest request, UUID organizationId, String userRole) {
 
-            PDType1Font fontBold = new PDType1Font(font.getCOSObject());
-            PDType1Font fontRegular = new PDType1Font(font.getCOSObject());
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("organizationId", organizationId.toString());
+        payload.put("periodFrom", request.from().format(DATE_FMT));
+        payload.put("periodTo", request.to().format(DATE_FMT));
+        payload.put("generatedAt", LocalDateTime.now().format(DATETIME_FMT));
 
-            float startY = page.getMediaBox().getHeight() - MARGIN;
+        List<String> sectionsIncluded = new ArrayList<>();
 
-            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                float y = startY;
+        if (request.hasSection(AnalyticsReportRequest.SECTION_SUMMARY)
+                || request.hasSection(AnalyticsReportRequest.SECTION_STRUCTURE)) {
+            Map<String, Object> summary = warehouseAnalyticsClient
+                    .getOrganizationSummary(organizationId, userRole);
 
-                y = writeLine(cs, fontBold, 16, MARGIN, y,
-                        "АНАЛИТИЧЕСКИЙ ОТЧЁТ ПО СКЛАДУ");
-                y -= LINE_HEIGHT / 2;
-                y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "Период: " + presetLabel(preset) + "  (" +
-                        from.format(DATE_FMT) + " — " + to.format(DATE_FMT) + ")");
-                y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "Сформирован: " + LocalDate.now().format(DATE_FMT));
-                y -= LINE_HEIGHT;
-
-                y = writeLine(cs, fontBold, 13, MARGIN, y, "1. Остатки на складе");
-                y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "Уникальных товаров:  " + inventory.getOrDefault("uniqueProducts", "—"));
-                y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "Всего единиц (факт): " + inventory.getOrDefault("totalQuantity", "—"));
-                y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "Зарезервировано:     " + inventory.getOrDefault("reservedQuantity", "—"));
-                y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "Доступно:            " + inventory.getOrDefault("availableQuantity", "—"));
-                y -= LINE_HEIGHT;
-
-                y = writeLine(cs, fontBold, 13, MARGIN, y, "2. Операции за период");
-                y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "Всего операций: " + dynamics.getOrDefault("totalOperations", "—"));
-
-                Object byType = dynamics.get("operationsByType");
-                if (byType instanceof Map<?, ?> typeMap) {
-                    for (Map.Entry<?, ?> e : typeMap.entrySet()) {
-                        y = writeLine(cs, fontRegular, 11, MARGIN + 15, y,
-                                "• " + e.getKey() + ": " + e.getValue());
-                    }
-                }
-                y -= LINE_HEIGHT;
-
-                y = writeLine(cs, fontBold, 13, MARGIN, y, "3. ABC-анализ");
-                y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "Классифицировано товаров: " + abcItems);
-                y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "A (высокий оборот, 80% выручки) — ключевые товары");
-                y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "B (средний оборот, 15%) — вспомогательные");
-                y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "C (низкий оборот, 5%) — редкие позиции");
-                y = writeLine(cs, fontRegular, 11, MARGIN, y,
-                        "Детальный список — /api/analytics/abc.");
-                y -= LINE_HEIGHT * 2;
-
-                cs.setFont(fontRegular, 9);
-                cs.beginText();
-                cs.newLineAtOffset(MARGIN, y);
-                cs.showText("WMS Analytics Report  |  " + LocalDate.now().format(DATE_FMT));
-                cs.endText();
-
-                cs.moveTo(MARGIN, y + LINE_HEIGHT);
-                cs.lineTo(page.getMediaBox().getWidth() - MARGIN, y + LINE_HEIGHT);
-                cs.stroke();
+            if (request.hasSection(AnalyticsReportRequest.SECTION_SUMMARY)) {
+                payload.put("summary", buildSummarySection(summary));
+                sectionsIncluded.add(AnalyticsReportRequest.SECTION_SUMMARY);
             }
 
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            doc.save(out);
-            return out.toByteArray();
+            if (request.hasSection(AnalyticsReportRequest.SECTION_STRUCTURE)) {
+                payload.put("structure",
+                        buildStructureSection(summary, request.warehouseIds()));
+                sectionsIncluded.add(AnalyticsReportRequest.SECTION_STRUCTURE);
+            }
+        }
 
-        } catch (Exception e) {
-            log.error("Ошибка генерации аналитического PDF: {}", e.getMessage(), e);
-            throw new RuntimeException("Не удалось создать PDF-отчёт: " + e.getMessage(), e);
+        if (request.hasSection(AnalyticsReportRequest.SECTION_ABC)) {
+            payload.put("abc", buildAbcSection());
+            sectionsIncluded.add(AnalyticsReportRequest.SECTION_ABC);
+        }
+
+        if (request.hasSection(AnalyticsReportRequest.SECTION_DETAILED)) {
+            payload.put("detailed", buildDetailedSection(request.from(), request.to()));
+            sectionsIncluded.add(AnalyticsReportRequest.SECTION_DETAILED);
+        }
+
+        payload.put("sectionsIncluded", sectionsIncluded);
+        return payload;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> buildSummarySection(Map<String, Object> summary) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("totalWarehouses", summary.getOrDefault("totalWarehouses", 0));
+        result.put("activeWarehouses", summary.getOrDefault("activeWarehouses", 0));
+
+        Object whList = summary.get("warehouses");
+        long totalSlots = 0;
+        long occupiedSlots = 0;
+        if (whList instanceof List<?> list) {
+            for (Object item : list) {
+                if (!(item instanceof Map<?, ?> m)) continue;
+                Object struct = ((Map<String, Object>) m).get("structure");
+                if (struct instanceof Map<?, ?> sm) {
+                    totalSlots += longOf(sm.get("totalSlots"));
+                    occupiedSlots += longOf(sm.get("occupiedSlots"));
+                }
+            }
+        }
+        double utilization = totalSlots > 0
+                ? Math.round(((double) occupiedSlots / totalSlots) * 1000.0) / 10.0
+                : 0.0;
+        result.put("totalSlots", totalSlots);
+        result.put("occupiedSlots", occupiedSlots);
+        result.put("freeSlots", totalSlots - occupiedSlots);
+        result.put("utilizationPercent", utilization);
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> buildStructureSection(
+            Map<String, Object> summary, List<UUID> warehouseIds) {
+
+        Object whList = summary.get("warehouses");
+        if (!(whList instanceof List<?> list)) return List.of();
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> m)) continue;
+            Map<String, Object> wh = (Map<String, Object>) m;
+            if (warehouseIds != null && !warehouseIds.isEmpty()) {
+                Object idRaw = wh.get("warehouseId");
+                if (idRaw == null) continue;
+                try {
+                    if (!warehouseIds.contains(UUID.fromString(idRaw.toString()))) continue;
+                } catch (IllegalArgumentException ex) {
+                    continue;
+                }
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("warehouseId", wh.get("warehouseId"));
+            row.put("name", wh.get("name"));
+            row.put("address", wh.getOrDefault("address", ""));
+            row.put("isActive", wh.get("isActive"));
+            row.put("structure", normalizeStructure(wh.get("structure")));
+            result.add(row);
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> buildAbcSection() {
+        Map<String, Object> distribution = analyticsService.getAbcDistribution();
+        if (distribution == null) distribution = new LinkedHashMap<>();
+        Map<String, Object> productCountByClass = new LinkedHashMap<>();
+        productCountByClass.put("A", 0L);
+        productCountByClass.put("B", 0L);
+        productCountByClass.put("C", 0L);
+        Object raw = distribution.get("productCountByClass");
+        if (raw instanceof Map<?, ?> rm) {
+            for (Map.Entry<?, ?> e : rm.entrySet()) {
+                productCountByClass.put(String.valueOf(e.getKey()), longOf(e.getValue()));
+            }
+        }
+        distribution.put("productCountByClass", productCountByClass);
+
+        List<Map<String, Object>> fullReport = abcAnalysisService.getAbcReport();
+        List<Map<String, Object>> top = fullReport.stream()
+                .limit(ABC_TOP_LIMIT)
+                .toList();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("distribution", distribution);
+        result.put("topProducts", top);
+        result.put("totalProducts", fullReport.size());
+        return result;
+    }
+
+    private Map<String, Object> normalizeStructure(Object raw) {
+        Map<String, Object> s = new LinkedHashMap<>();
+        if (raw instanceof Map<?, ?> sm) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> src = (Map<String, Object>) sm;
+            s.putAll(src);
+        }
+        s.putIfAbsent("racksCount", 0);
+        s.putIfAbsent("totalSlots", 0);
+        s.putIfAbsent("occupiedSlots", 0);
+        s.putIfAbsent("freeSlots", 0);
+        s.putIfAbsent("utilizationPercent", 0);
+        Map<String, Object> kinds = new LinkedHashMap<>();
+        Object existingKinds = s.get("racksByKind");
+        if (existingKinds instanceof Map<?, ?> km) {
+            for (Map.Entry<?, ?> e : km.entrySet()) {
+                kinds.put(String.valueOf(e.getKey()), e.getValue());
+            }
+        }
+        kinds.putIfAbsent("SHELF", 0);
+        kinds.putIfAbsent("CELL", 0);
+        kinds.putIfAbsent("PALLET", 0);
+        s.put("racksByKind", kinds);
+        return s;
+    }
+
+    private Map<String, Object> buildDetailedSection(LocalDate from, LocalDate to) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        Map<String, Object> inventory = analyticsService.getInventoryAnalytics();
+        result.put("inventory", inventory);
+
+        Map<String, Object> dynamics = analyticsService.getOperationsDynamics(from, to);
+        result.put("operations", dynamics);
+
+        List<Map<String, Object>> expiring = analyticsService.getExpiringProducts(EXPIRING_WINDOW_DAYS);
+        result.put("expiring", expiring);
+        result.put("expiringCount", expiring.size());
+
+        Map<String, Object> comparison = analyticsService.getInventoryComparison(from, to);
+        result.put("inventoryComparison", comparison);
+        return result;
+    }
+
+    private long longOf(Object value) {
+        if (value == null) return 0L;
+        if (value instanceof Number n) return n.longValue();
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException ex) {
+            return 0L;
         }
     }
 
-    private float writeLine(PDPageContentStream cs, PDType1Font font, float size,
-                             float x, float y, String text) throws Exception {
-        cs.beginText();
-        cs.setFont(font, size);
-        cs.newLineAtOffset(x, y);
-        cs.showText(sanitize(text));
-        cs.endText();
-        return y - LINE_HEIGHT;
-    }
-
-    private String sanitize(String text) {
-        return text == null ? "" : text.replaceAll("[^\\x20-\\x7E]", "?");
-    }
-
-    private String presetLabel(String preset) {
-        return switch (preset.toLowerCase(Locale.ROOT)) {
-            case "week" -> "Неделя";
-            case "month" -> "Месяц";
-            case "quarter" -> "Квартал";
-            case "year" -> "Год";
-            default -> preset;
-        };
-    }
-
-    private LocalDate[] presetToRange(String preset) {
-        LocalDate to = LocalDate.now();
-        LocalDate from = switch (preset.toLowerCase(Locale.ROOT)) {
-            case "week" -> to.minusWeeks(1);
-            case "month" -> to.minusMonths(1);
-            case "quarter" -> to.minusMonths(3);
-            case "year" -> to.minusYears(1);
-            default -> to.minusMonths(1);
-        };
-        return new LocalDate[]{from, to};
-    }
+    public record ReportResult(byte[] body, UUID documentId, String documentNumber) { }
 }

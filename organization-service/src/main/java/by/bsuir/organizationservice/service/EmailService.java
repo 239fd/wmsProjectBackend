@@ -50,7 +50,14 @@ public class EmailService {
             log.info("Invitation email sent via SMTP to: {}", toEmail);
         } catch (MailException | MessagingException | java.io.UnsupportedEncodingException e) {
             log.error("Failed to send invitation email to {}: {}", toEmail, e.getMessage(), e);
-            throw new RuntimeException("Не удалось отправить приглашение на email: " + e.getMessage(), e);
+            throw new EmailDeliveryException("Письмо с приглашением не доставлено. "
+                    + "Скопируйте ссылку из реестра приглашений и передайте получателю вручную.");
+        }
+    }
+
+    public static final class EmailDeliveryException extends RuntimeException {
+        public EmailDeliveryException(String message) {
+            super(message);
         }
     }
 

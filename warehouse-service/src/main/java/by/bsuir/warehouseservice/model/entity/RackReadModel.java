@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Filter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -44,6 +45,9 @@ public class RackReadModel {
     @Enumerated(EnumType.STRING)
     @Column(name = "storage_conditions", length = 20)
     private StorageConditions storageConditions;
+
+    @Column(name = "max_weight_kg", precision = 10, scale = 2)
+    private BigDecimal maxWeightKg;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default

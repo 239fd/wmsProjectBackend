@@ -31,4 +31,8 @@ public interface OrganizationInvitationCodeRepository extends JpaRepository<Orga
     @Modifying
     @Query("UPDATE OrganizationInvitationCode o SET o.isActive = false WHERE o.expiresAt < :now AND o.isActive = true")
     int deactivateExpiredCodes(LocalDateTime now);
+
+    @Modifying
+    @Query("DELETE FROM OrganizationInvitationCode o WHERE o.orgId = :orgId")
+    void deleteByOrgId(UUID orgId);
 }

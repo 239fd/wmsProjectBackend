@@ -28,7 +28,8 @@ public class DocumentNumberService {
             Map.entry("write-off-act", "СПС"),
             Map.entry("invoice", "И"),
             Map.entry("picking-list", "ЛП"),
-            Map.entry("placement-list", "ЛР"));
+            Map.entry("placement-list", "ЛР"),
+            Map.entry("analytics-report", "ОТЧ"));
 
     private final DocumentCounterRepository repository;
 

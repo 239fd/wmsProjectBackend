@@ -113,7 +113,7 @@ class OrganizationServiceTest {
 
         assertThatThrownBy(() -> organizationService.createOrganization(req, directorUserId))
                 .isInstanceOf(AppException.class)
-                .hasMessageContaining("УНП");
+                .hasMessageContaining("ИНН");
 
         AppException ex = catchAppException(
                 () -> organizationService.createOrganization(req, directorUserId));
@@ -290,56 +290,6 @@ class OrganizationServiceTest {
         AppException ex = catchAppException(
                 () -> organizationService.deleteOrganization(orgId, directorUserId));
         assertThat(ex.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    @DisplayName("archiveOrganizationOnDirectorDelete: активная → архивирует, увольняет не-DIRECTOR")
-    void archiveOnDirectorDelete_GivenActive_ShouldArchive() {
-        UUID orgId = UUID.randomUUID();
-        OrganizationReadModel rm = sampleOrg(orgId);
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(rm));
-        when(eventRepository.findMaxVersionByOrgId(orgId)).thenReturn(0);
-        OrganizationEmployee worker = OrganizationEmployee.builder()
-                .userId(UUID.randomUUID()).orgId(orgId).role("WORKER")
-                .joinedAt(LocalDateTime.now()).isActive(true).build();
-        when(employeeRepository.findByOrgIdAndIsActiveTrue(orgId))
-                .thenReturn(new ArrayList<>(List.of(worker)));
-
-        organizationService.archiveOrganizationOnDirectorDelete(orgId, directorUserId);
-
-        assertThat(rm.getStatus()).isEqualTo(OrganizationStatus.ARCHIVED);
-        assertThat(worker.getIsActive()).isFalse();
-        verify(invitationCodeRepository).deactivateAllByOrgId(orgId);
-        verify(rabbitTemplate).convertAndSend(
-                eq(RabbitMQConfig.ORGANIZATION_EXCHANGE),
-                eq(RabbitMQConfig.ORGANIZATION_ARCHIVED_KEY),
-                any(Object.class));
-    }
-
-    @Test
-    @DisplayName("archiveOrganizationOnDirectorDelete: уже архивирована → no-op без событий")
-    void archiveOnDirectorDelete_GivenAlreadyArchived_ShouldNoOp() {
-        UUID orgId = UUID.randomUUID();
-        OrganizationReadModel rm = sampleOrg(orgId);
-        rm.setStatus(OrganizationStatus.ARCHIVED);
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.of(rm));
-
-        organizationService.archiveOrganizationOnDirectorDelete(orgId, directorUserId);
-
-        verify(employeeRepository, never()).findByOrgIdAndIsActiveTrue(any());
-        verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any(Object.class));
-    }
-
-    @Test
-    @DisplayName("archiveOrganizationOnDirectorDelete: орг не найдена → no-op (warning в логах)")
-    void archiveOnDirectorDelete_GivenMissing_ShouldNoOp() {
-        UUID orgId = UUID.randomUUID();
-        when(readModelRepository.findByOrgId(orgId)).thenReturn(Optional.empty());
-
-        organizationService.archiveOrganizationOnDirectorDelete(orgId, directorUserId);
-
-        verify(readModelRepository, never()).save(any());
-        verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any(Object.class));
     }
 
     @Test

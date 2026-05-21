@@ -22,6 +22,6 @@ public class Pallet {
     @Column(name = "pallet_place_count", nullable = false)
     private Integer palletPlaceCount;
 
-    @Column(name = "max_weight_kg", nullable = false, precision = 8, scale = 2)
+    @Column(name = "max_weight_kg", precision = 8, scale = 2)
     private BigDecimal maxWeightKg;
 }

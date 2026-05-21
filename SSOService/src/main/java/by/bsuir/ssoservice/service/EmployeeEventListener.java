@@ -4,6 +4,7 @@ import by.bsuir.ssoservice.config.RabbitMQConfig;
 import by.bsuir.ssoservice.model.entity.UserReadModel;
 import by.bsuir.ssoservice.model.enums.UserRole;
 import by.bsuir.ssoservice.repository.LoginAuditRepository;
+import by.bsuir.ssoservice.repository.UserEventRepository;
 import by.bsuir.ssoservice.repository.UserReadModelRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ import java.util.UUID;
 public class EmployeeEventListener {
 
     private final UserReadModelRepository userRepository;
+    private final UserEventRepository userEventRepository;
     private final LoginAuditRepository loginAuditRepository;
     private final RefreshTokenService refreshTokenService;
 
@@ -82,6 +84,32 @@ public class EmployeeEventListener {
             log.info("organization.archived: уволено {} пользователей в организации {}", affected, orgId);
         } catch (Exception e) {
             log.error("organization.archived: ошибка обработки: {}", e.getMessage(), e);
+        }
+    }
+
+    @RabbitListener(queues = RabbitMQConfig.ORGANIZATION_DELETED_SSO_QUEUE)
+    @Transactional
+    public void handleOrganizationDeleted(Map<String, Object> event) {
+        try {
+            String orgIdStr = (String) event.get("orgId");
+            if (orgIdStr == null) {
+                log.warn("organization.deleted: некорректное событие: {}", event);
+                return;
+            }
+            UUID orgId = UUID.fromString(orgIdStr);
+            List<UserReadModel> users = userRepository.findByOrganizationId(orgId);
+            int deleted = 0;
+            for (UserReadModel user : users) {
+                UUID userId = user.getUserId();
+                refreshTokenService.deleteAllUserTokens(userId);
+                loginAuditRepository.deleteByUserId(userId);
+                userEventRepository.deleteByUserId(userId);
+                userRepository.delete(user);
+                deleted++;
+            }
+            log.info("organization.deleted: физически удалено {} пользователей в организации {}", deleted, orgId);
+        } catch (Exception e) {
+            log.error("organization.deleted: ошибка обработки: {}", e.getMessage(), e);
         }
     }
 

@@ -1,5 +1,6 @@
 package by.bsuir.productservice.model.entity;
 
+import by.bsuir.productservice.model.enums.StorageConditions;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Filter;
@@ -57,6 +58,10 @@ public class ProductReadModel {
 
     @Column(name="abc_class", nullable = false)
     private String abcClass;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "required_storage_condition", length = 20)
+    private StorageConditions requiredStorageCondition;
 
     @Column(name = "organization_id")
     private UUID organizationId;

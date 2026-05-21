@@ -1,6 +1,7 @@
 package by.bsuir.productservice.model.entity;
 
 import by.bsuir.productservice.model.enums.SupplyStatus;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -11,7 +12,6 @@ import lombok.*;
 import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import org.springframework.data.domain.Persistable;
 
 @Entity
 @Table(name = "supplies")
@@ -21,7 +21,7 @@ import org.springframework.data.domain.Persistable;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Supply implements Persistable<UUID> {
+public class Supply {
 
     @Id
     @Column(name = "supply_id")
@@ -33,6 +33,9 @@ public class Supply implements Persistable<UUID> {
     @Column(name = "supplier_id")
     private UUID supplierId;
 
+    @Column(name = "supplier_name", length = 255)
+    private String supplierName;
+
     @Column(name = "warehouse_id", nullable = false)
     private UUID warehouseId;
 
@@ -40,6 +43,15 @@ public class Supply implements Persistable<UUID> {
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "status", nullable = false, columnDefinition = "supply_status")
     private SupplyStatus status;
+
+    @Column(name = "external_id", length = 100)
+    private String externalId;
+
+    @Column(name = "source", nullable = false, length = 32)
+    private String source;
+
+    @Column(name = "quantity_only", nullable = false)
+    private Boolean quantityOnly;
 
     @Column(name = "expected_date")
     private LocalDate expectedDate;
@@ -49,6 +61,16 @@ public class Supply implements Persistable<UUID> {
 
     @Column(name = "total_items", nullable = false)
     private Integer totalItems;
+
+    @Column(name = "currency", length = 8)
+    private String currency;
+
+    @Column(name = "total_amount", precision = 14, scale = 2)
+    private BigDecimal totalAmount;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "snapshot", columnDefinition = "jsonb")
+    private String snapshot;
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
@@ -62,8 +84,8 @@ public class Supply implements Persistable<UUID> {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JoinColumn(name = "supply_id")
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    @JoinColumn(name = "supply_id", nullable = false, updatable = false)
     @Builder.Default
     private List<SupplyItem> items = new ArrayList<>();
 
@@ -71,6 +93,8 @@ public class Supply implements Persistable<UUID> {
     protected void onCreate() {
         if (status == null) status = SupplyStatus.PLANNED;
         if (totalItems == null) totalItems = 0;
+        if (quantityOnly == null) quantityOnly = Boolean.FALSE;
+        if (source == null || source.isBlank()) source = "MANUAL";
         if (createdAt == null) createdAt = LocalDateTime.now();
         if (updatedAt == null) updatedAt = LocalDateTime.now();
     }
@@ -78,17 +102,5 @@ public class Supply implements Persistable<UUID> {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
-    }
-
-    @Override
-    @Transient
-    public UUID getId() {
-        return supplyId;
-    }
-
-    @Override
-    @Transient
-    public boolean isNew() {
-        return createdAt == null;
     }
 }

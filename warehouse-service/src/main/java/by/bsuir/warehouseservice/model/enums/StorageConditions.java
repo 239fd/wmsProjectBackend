@@ -1,8 +1,8 @@
 package by.bsuir.warehouseservice.model.enums;
 
 public enum StorageConditions {
-    AMBIENT,
+    ROOM,
+    COOL,
     FRIDGE,
-    FREEZER,
-    DRY
+    FREEZER
 }

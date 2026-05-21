@@ -55,6 +55,16 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     Optional<Inventory> findByProductIdAndWarehouseIdForUpdate(
             @Param("productId") UUID productId, @Param("warehouseId") UUID warehouseId);
 
+    @Query("SELECT i.cellId AS cellId, COUNT(i) AS itemsCount, COALESCE(SUM(i.quantity), 0) AS totalQuantity "
+            + "FROM Inventory i WHERE i.cellId IN :cellIds GROUP BY i.cellId")
+    List<CellLoadProjection> aggregateLoadByCellIds(@Param("cellIds") List<UUID> cellIds);
+
+    interface CellLoadProjection {
+        UUID getCellId();
+        Long getItemsCount();
+        BigDecimal getTotalQuantity();
+    }
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM Inventory i WHERE i.inventoryId = :id")
     Optional<Inventory> findByIdForUpdate(@Param("id") UUID id);

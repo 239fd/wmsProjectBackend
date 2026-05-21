@@ -10,7 +10,6 @@ public record CreateShelfRequest(
         @NotNull(message = "ID стеллажа обязателен")
         UUID rackId,
 
-        @NotNull(message = "Грузоподъёмность обязательна")
         @Positive(message = "Грузоподъёмность должна быть положительной")
         BigDecimal shelfCapacityKg,
 

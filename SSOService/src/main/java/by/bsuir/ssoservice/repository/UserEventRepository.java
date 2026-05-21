@@ -13,4 +13,6 @@ public interface UserEventRepository extends JpaRepository<UserEvent, Integer> {
     List<UserEvent> findByUserIdOrderByEventVersionAsc(UUID userId);
 
     UserEvent findFirstByUserIdOrderByEventVersionDesc(UUID userId);
+
+    void deleteByUserId(UUID userId);
 }

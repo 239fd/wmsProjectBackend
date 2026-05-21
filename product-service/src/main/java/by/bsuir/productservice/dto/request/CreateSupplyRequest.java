@@ -1,48 +1,70 @@
 package by.bsuir.productservice.dto.request;
 
+import by.bsuir.productservice.model.enums.PackagingType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-@Schema(description = "Запрос на создание поставки (заказа поставщику)")
+@Schema(description = "Запрос на создание плановой поставки")
 public record CreateSupplyRequest(
-        @Schema(description = "ID поставщика", example = "550e8400-e29b-41d4-a716-446655440020")
         UUID supplierId,
 
-        @Schema(description = "ID склада назначения", example = "550e8400-e29b-41d4-a716-446655440003")
-        @NotNull(message = "Склад обязателен")
+        @Schema(description = "Имя поставщика (если supplierId не задан)")
+        String supplierName,
+
         UUID warehouseId,
 
-        @Schema(description = "Плановая дата поступления", example = "2026-06-15")
+        @Schema(description = "Плановая дата поступления")
         LocalDate expectedDate,
 
-        @Schema(description = "Примечания к поставке", example = "Срочная поставка молочной продукции")
+        @Schema(description = "Валюта")
+        String currency,
+
+        @Schema(description = "Общая сумма поставки")
+        BigDecimal totalAmount,
+
+        @Schema(description = "Примечания")
         String notes,
 
-        @Schema(description = "ID сотрудника, создающего поставку", example = "550e8400-e29b-41d4-a716-446655440005")
-        @NotNull(message = "User ID обязателен")
         UUID createdBy,
 
-        @Schema(description = "Позиции поставки")
+        @Schema(description = "Режим «только число позиций» — items не нужны, передайте totalItems")
+        Boolean quantityOnly,
+
+        @Schema(description = "Плановое число позиций (для quantity_only)")
+        Integer totalItems,
+
+        @Schema(description = "Позиции (для детального режима)")
         List<SupplyItemRequest> items
 ) {
-    @Schema(description = "Позиция поставки")
-    public record SupplyItemRequest(
-            @Schema(description = "ID товара", example = "550e8400-e29b-41d4-a716-446655440001")
-            @NotNull(message = "Product ID обязателен")
-            UUID productId,
 
-            @Schema(description = "Ожидаемое количество", example = "500.000")
+    public record SupplyItemRequest(
+            UUID productId,
+            String productName,
+            String sku,
+            String barcode,
+            String category,
+            String unitOfMeasure,
+            String manufacturer,
+            String storageConditions,
+
             @NotNull(message = "Ожидаемое количество обязательно")
             BigDecimal expectedQty,
 
-            @Schema(description = "Закупочная цена за единицу, BYN", example = "2.50")
             BigDecimal unitPrice,
-
-            @Schema(description = "Примечания к позиции", example = "Молоко 3.2%, срок хранения 10 дней")
+            BigDecimal vatRate,
+            BigDecimal vatAmount,
+            BigDecimal totalAmount,
+            PackagingType packagingType,
+            String batchNumber,
+            LocalDate manufactureDate,
+            LocalDate expiryDate,
+            BigDecimal purchasePrice,
+            Boolean markedForWriteoff,
             String notes
     ) {
     }

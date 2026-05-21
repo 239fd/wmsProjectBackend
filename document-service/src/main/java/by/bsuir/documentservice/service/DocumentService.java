@@ -82,6 +82,7 @@ public class DocumentService {
             case "invoice" -> pdfService.generateInvoicePdf(data);
             case "transport-note" -> pdfService.generateTransportNotePdf(data);
             case "cmr" -> pdfService.generateCmrPdf(data);
+            case "analytics-report" -> pdfService.generateAnalyticsReportPdf(data);
             default -> throw new IllegalArgumentException("Unknown document type: " + type);
         };
     }

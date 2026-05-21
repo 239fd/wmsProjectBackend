@@ -24,4 +24,8 @@ public interface InvitationRepository extends JpaRepository<Invitation, UUID> {
     @Modifying
     @Query("DELETE FROM Invitation i WHERE i.expiresAt < :now AND i.used = false")
     void deleteExpiredInvitations(LocalDateTime now);
+
+    @Modifying
+    @Query("DELETE FROM Invitation i WHERE i.orgId = :orgId")
+    void deleteByOrgId(UUID orgId);
 }

@@ -20,5 +20,9 @@ public interface OrganizationEmployeeRepository extends JpaRepository<Organizati
     Optional<OrganizationEmployee> findByUserIdAndOrgIdAndIsActiveTrue(UUID userId, UUID orgId);
 
     boolean existsByUserIdAndOrgIdAndIsActiveTrue(UUID userId, UUID orgId);
+
+    List<OrganizationEmployee> findByOrgId(UUID orgId);
+
+    void deleteByOrgId(UUID orgId);
 }
 

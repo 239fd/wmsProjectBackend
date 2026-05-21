@@ -77,7 +77,7 @@ class PlacementServiceTest {
         UUID batchOrg = UUID.randomUUID();
         UUID callerOrg = UUID.randomUUID();
         when(batchRepository.findById(batchId)).thenReturn(Optional.of(
-                batch(batchId, batchOrg, UUID.randomUUID(), StorageConditions.AMBIENT)));
+                batch(batchId, batchOrg, UUID.randomUUID(), StorageConditions.ROOM)));
 
         PlacementRequest req = new PlacementRequest(batchId, UUID.randomUUID(),
                 BigDecimal.ONE, UUID.randomUUID(), null, null);
@@ -93,7 +93,7 @@ class PlacementServiceTest {
         UUID batchId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
         when(batchRepository.findById(batchId)).thenReturn(Optional.of(
-                batch(batchId, null, productId, StorageConditions.AMBIENT)));
+                batch(batchId, null, productId, StorageConditions.ROOM)));
         when(productRepository.findById(productId)).thenReturn(Optional.empty());
 
         PlacementRequest req = new PlacementRequest(batchId, UUID.randomUUID(),
@@ -115,7 +115,7 @@ class PlacementServiceTest {
         when(productRepository.findById(productId)).thenReturn(Optional.of(
                 ProductReadModel.builder().productId(productId).abcClass("A").build()));
         when(warehouseClient.getRacksByWarehouse(warehouseId, "WORKER"))
-                .thenReturn(List.of(rack(UUID.randomUUID(), "R1", "AMBIENT", true)));
+                .thenReturn(List.of(rack(UUID.randomUUID(), "R1", "ROOM", true)));
 
         PlacementRequest req = new PlacementRequest(batchId, warehouseId,
                 BigDecimal.ONE, UUID.randomUUID(), null, null);
@@ -134,11 +134,11 @@ class PlacementServiceTest {
         UUID rackId = UUID.randomUUID();
         UUID cellId = UUID.randomUUID();
         when(batchRepository.findById(batchId)).thenReturn(Optional.of(
-                batch(batchId, null, productId, StorageConditions.AMBIENT)));
+                batch(batchId, null, productId, StorageConditions.ROOM)));
         when(productRepository.findById(productId)).thenReturn(Optional.of(
                 ProductReadModel.builder().productId(productId).abcClass("B").build()));
         when(warehouseClient.getRacksByWarehouse(warehouseId, "WORKER"))
-                .thenReturn(List.of(rack(rackId, "R1", "AMBIENT", true)));
+                .thenReturn(List.of(rack(rackId, "R1", "ROOM", true)));
         when(warehouseClient.getCellsByRack(rackId, "WORKER"))
                 .thenReturn(List.of(cell(cellId, rackId)));
         when(inventoryRepository.findByWarehouseId(warehouseId))
@@ -162,11 +162,11 @@ class PlacementServiceTest {
         UUID rackId = UUID.randomUUID();
         UUID cellId = UUID.randomUUID();
         when(batchRepository.findById(batchId)).thenReturn(Optional.of(
-                batch(batchId, UUID.randomUUID(), productId, StorageConditions.AMBIENT)));
+                batch(batchId, UUID.randomUUID(), productId, StorageConditions.ROOM)));
         when(productRepository.findById(productId)).thenReturn(Optional.of(
                 ProductReadModel.builder().productId(productId).abcClass("A").build()));
         when(warehouseClient.getRacksByWarehouse(warehouseId, "WORKER"))
-                .thenReturn(List.of(rack(rackId, "R1", "AMBIENT", true)));
+                .thenReturn(List.of(rack(rackId, "R1", "ROOM", true)));
         when(warehouseClient.getCellsByRack(rackId, "WORKER"))
                 .thenReturn(List.of(cell(cellId, rackId)));
         when(inventoryRepository.findByWarehouseId(warehouseId)).thenReturn(List.of());
@@ -200,7 +200,7 @@ class PlacementServiceTest {
         UUID warehouseId = UUID.randomUUID();
         UUID cellId = UUID.randomUUID();
         when(batchRepository.findById(batchId)).thenReturn(Optional.of(
-                batch(batchId, null, UUID.randomUUID(), StorageConditions.AMBIENT)));
+                batch(batchId, null, UUID.randomUUID(), StorageConditions.ROOM)));
         when(warehouseClient.getRacksByWarehouse(warehouseId, "WORKER")).thenReturn(List.of());
 
         PlacementRequest req = new PlacementRequest(batchId, warehouseId,
@@ -221,7 +221,7 @@ class PlacementServiceTest {
         when(batchRepository.findById(batchId)).thenReturn(Optional.of(
                 batch(batchId, null, UUID.randomUUID(), StorageConditions.FRIDGE)));
         when(warehouseClient.getRacksByWarehouse(warehouseId, "WORKER"))
-                .thenReturn(List.of(rack(rackId, "R1", "AMBIENT", true)));
+                .thenReturn(List.of(rack(rackId, "R1", "ROOM", true)));
         when(warehouseClient.getCellsByRack(rackId, "WORKER"))
                 .thenReturn(List.of(cell(cellId, rackId)));
 
@@ -241,9 +241,9 @@ class PlacementServiceTest {
         UUID rackId = UUID.randomUUID();
         UUID cellId = UUID.randomUUID();
         when(batchRepository.findById(batchId)).thenReturn(Optional.of(
-                batch(batchId, null, UUID.randomUUID(), StorageConditions.AMBIENT)));
+                batch(batchId, null, UUID.randomUUID(), StorageConditions.ROOM)));
         when(warehouseClient.getRacksByWarehouse(warehouseId, "WORKER"))
-                .thenReturn(List.of(rack(rackId, "R1", "AMBIENT", true)));
+                .thenReturn(List.of(rack(rackId, "R1", "ROOM", true)));
         when(warehouseClient.getCellsByRack(rackId, "WORKER"))
                 .thenReturn(List.of(cell(cellId, rackId)));
         when(inventoryRepository.findByCellId(cellId)).thenReturn(Optional.of(
@@ -265,9 +265,9 @@ class PlacementServiceTest {
         UUID rackId = UUID.randomUUID();
         UUID cellId = UUID.randomUUID();
         when(batchRepository.findById(batchId)).thenReturn(Optional.of(
-                batch(batchId, UUID.randomUUID(), UUID.randomUUID(), StorageConditions.AMBIENT)));
+                batch(batchId, UUID.randomUUID(), UUID.randomUUID(), StorageConditions.ROOM)));
         when(warehouseClient.getRacksByWarehouse(warehouseId, "WORKER"))
-                .thenReturn(List.of(rack(rackId, "R1", "AMBIENT", true)));
+                .thenReturn(List.of(rack(rackId, "R1", "ROOM", true)));
         when(warehouseClient.getCellsByRack(rackId, "WORKER"))
                 .thenReturn(List.of(cell(cellId, rackId)));
         when(inventoryRepository.findByCellId(cellId)).thenReturn(Optional.empty());

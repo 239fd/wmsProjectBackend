@@ -30,8 +30,8 @@ public class UserEventListener {
             UUID userId = UUID.fromString(userIdStr);
             UUID orgId = UUID.fromString(orgIdStr);
 
-            log.info("user.director.deleted: архивирую организацию {} (директор {})", orgId, userId);
-            organizationService.archiveOrganizationOnDirectorDelete(orgId, userId);
+            log.info("user.director.deleted: удаляю организацию {} (директор {})", orgId, userId);
+            organizationService.deleteOrganizationOnDirectorDelete(orgId, userId);
         } catch (Exception e) {
             log.error("user.director.deleted: ошибка обработки: {}", e.getMessage(), e);
         }

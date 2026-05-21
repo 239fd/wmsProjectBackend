@@ -147,6 +147,16 @@ public class DocumentController {
         return wrap(documentService.generate("cmr", data, organizationId, format, mode));
     }
 
+    @PostMapping("/analytics-report")
+    @Operation(summary = "Сгенерировать аналитический отчёт (bytes)")
+    public ResponseEntity<byte[]> generateAnalyticsReport(
+            @RequestBody Map<String, Object> data,
+            @RequestParam(required = false, defaultValue = "pdf") String format,
+            @RequestHeader(value = MODE_HEADER, required = false, defaultValue = "auto") String mode,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return wrap(documentService.generate("analytics-report", data, organizationId, format, mode));
+    }
+
     @GetMapping("/rpa/health")
     @Operation(summary = "Здоровье Python rpa-service")
     public ResponseEntity<Map<String, Object>> getRpaHealth() {

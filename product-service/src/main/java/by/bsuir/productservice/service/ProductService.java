@@ -82,6 +82,7 @@ public class ProductService {
                 .unitOfMeasure(request.unitOfMeasure())
                 .weightKg(request.weightKg())
                 .volumeM3(request.volumeM3())
+                .requiredStorageCondition(request.requiredStorageCondition())
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -201,6 +202,7 @@ public class ProductService {
         if (request.unitOfMeasure() != null) eventData.put("unitOfMeasure", request.unitOfMeasure());
         if (request.weightKg() != null) eventData.put("weightKg", request.weightKg());
         if (request.volumeM3() != null) eventData.put("volumeM3", request.volumeM3());
+        if (request.requiredStorageCondition() != null) eventData.put("requiredStorageCondition", request.requiredStorageCondition().name());
 
         ProductEvent productEvent = ProductEvent.builder()
                 .productId(productId)
@@ -219,6 +221,7 @@ public class ProductService {
         if (request.unitOfMeasure() != null) product.setUnitOfMeasure(request.unitOfMeasure());
         if (request.weightKg() != null) product.setWeightKg(request.weightKg());
         if (request.volumeM3() != null) product.setVolumeM3(request.volumeM3());
+        if (request.requiredStorageCondition() != null) product.setRequiredStorageCondition(request.requiredStorageCondition());
         product.setUpdatedAt(LocalDateTime.now());
 
         productRepository.save(product);
@@ -261,6 +264,7 @@ public class ProductService {
                 model.getUnitOfMeasure(),
                 model.getWeightKg(),
                 model.getVolumeM3(),
+                model.getRequiredStorageCondition(),
                 model.getCreatedAt(),
                 model.getUpdatedAt()
         );

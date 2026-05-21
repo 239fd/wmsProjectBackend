@@ -3,6 +3,7 @@ package by.bsuir.ssoservice.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -40,6 +41,34 @@ public class RefreshTokenService {
 
     public void deleteAllUserTokens(UUID userId) {
         deleteAllUserTokensExcept(userId, null);
+    }
+
+    public boolean deleteUserTokenByHash(UUID userId, String hash, PasswordEncoder passwordEncoder) {
+        if (hash == null || hash.isBlank()) {
+            return false;
+        }
+        String pattern = REFRESH_TOKEN_PREFIX + "*";
+        var keys = redisTemplate.keys(pattern);
+        if (keys == null) {
+            return false;
+        }
+        for (String key : keys) {
+            try {
+                Object storedUserId = redisTemplate.opsForValue().get(key);
+                if (!userId.toString().equals(storedUserId)) {
+                    continue;
+                }
+                String plainToken = key.substring(REFRESH_TOKEN_PREFIX.length());
+                if (passwordEncoder.matches(plainToken, hash)) {
+                    redisTemplate.delete(key);
+                    log.debug("Refresh token matched and deleted for user {}", userId);
+                    return true;
+                }
+            } catch (Exception ex) {
+                log.debug("deleteUserTokenByHash: skipping key {} due to {}", key, ex.getMessage());
+            }
+        }
+        return false;
     }
 
     public void deleteAllUserTokensExcept(UUID userId, String exceptToken) {

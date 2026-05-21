@@ -24,4 +24,8 @@ public interface LoginAuditRepository extends JpaRepository<LoginAudit, Integer>
     @Modifying
     @Query("UPDATE LoginAudit la SET la.isActive = false, la.logoutAt = CURRENT_TIMESTAMP WHERE la.userId = :userId AND la.isActive = true")
     void deactivateAllUserSessions(@Param("userId") UUID userId);
+
+    @Modifying
+    @Query("DELETE FROM LoginAudit la WHERE la.userId = :userId")
+    void deleteByUserId(@Param("userId") UUID userId);
 }

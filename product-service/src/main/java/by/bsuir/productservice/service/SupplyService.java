@@ -94,31 +94,65 @@ public class SupplyService {
 
     @Transactional
     public SupplyResponse create(CreateSupplyRequest request, UUID organizationId) {
+        if (request.warehouseId() == null) {
+            throw AppException.badRequest("Склад обязателен");
+        }
+        if (request.createdBy() == null) {
+            throw AppException.badRequest("User ID обязателен");
+        }
         log.info("Creating supply for warehouse: {}", request.warehouseId());
 
+        boolean quantityOnly = Boolean.TRUE.equals(request.quantityOnly());
         UUID supplyId = UUID.randomUUID();
 
         List<SupplyItem> items = new ArrayList<>();
-        if (request.items() != null) {
+        if (!quantityOnly && request.items() != null) {
+            int rowNumber = 1;
             for (CreateSupplyRequest.SupplyItemRequest itemReq : request.items()) {
                 items.add(SupplyItem.builder()
                         .supplyId(supplyId)
                         .productId(itemReq.productId())
+                        .rowNumber(rowNumber++)
+                        .productName(itemReq.productName())
+                        .sku(itemReq.sku())
+                        .barcode(itemReq.barcode())
+                        .category(itemReq.category())
+                        .unitOfMeasure(itemReq.unitOfMeasure())
+                        .manufacturer(itemReq.manufacturer())
+                        .storageConditions(parseConditions(itemReq.storageConditions()))
                         .expectedQty(itemReq.expectedQty())
                         .unitPrice(itemReq.unitPrice())
+                        .vatRate(itemReq.vatRate())
+                        .vatAmount(itemReq.vatAmount())
+                        .totalAmount(itemReq.totalAmount())
+                        .packagingType(itemReq.packagingType())
+                        .batchNumber(itemReq.batchNumber())
+                        .manufactureDate(itemReq.manufactureDate())
+                        .expiryDate(itemReq.expiryDate())
+                        .purchasePrice(itemReq.purchasePrice())
+                        .markedForWriteoff(Boolean.TRUE.equals(itemReq.markedForWriteoff()))
                         .notes(itemReq.notes())
                         .build());
             }
         }
 
+        int totalItems = quantityOnly
+                ? (request.totalItems() != null ? request.totalItems() : 0)
+                : items.size();
+
         Supply supply = Supply.builder()
                 .supplyId(supplyId)
                 .organizationId(organizationId)
                 .supplierId(request.supplierId())
+                .supplierName(request.supplierName())
                 .warehouseId(request.warehouseId())
                 .status(SupplyStatus.PLANNED)
+                .source("MANUAL")
+                .quantityOnly(quantityOnly)
                 .expectedDate(request.expectedDate())
-                .totalItems(items.size())
+                .currency(request.currency())
+                .totalAmount(request.totalAmount())
+                .totalItems(totalItems)
                 .notes(request.notes())
                 .createdBy(request.createdBy())
                 .items(items)
@@ -127,6 +161,16 @@ public class SupplyService {
         supplyRepository.save(supply);
         log.info("Supply created: {}", supply.getSupplyId());
         return toResponse(supply);
+    }
+
+    private by.bsuir.productservice.model.enums.StorageConditions parseConditions(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return by.bsuir.productservice.model.enums.StorageConditions.valueOf(
+                    raw.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     @Transactional
@@ -152,8 +196,76 @@ public class SupplyService {
         if (supply.getStatus() != SupplyStatus.PLANNED) {
             throw AppException.badRequest("Можно удалить только поставку в статусе PLANNED");
         }
-        supply.setStatus(SupplyStatus.CANCELLED);
+        supplyRepository.delete(supply);
+    }
+
+    @Transactional
+    public SupplyResponse update(UUID supplyId, CreateSupplyRequest request, UUID organizationId) {
+        Supply supply = find(supplyId);
+        if (supply.getStatus() != SupplyStatus.PLANNED) {
+            throw AppException.badRequest("Изменять можно только поставку в статусе PLANNED");
+        }
+        if (organizationId != null && supply.getOrganizationId() != null
+                && !organizationId.equals(supply.getOrganizationId())) {
+            throw AppException.forbidden("Нет доступа к поставке");
+        }
+
+        boolean quantityOnly = Boolean.TRUE.equals(request.quantityOnly());
+        if (request.supplierId() != null) supply.setSupplierId(request.supplierId());
+        if (request.supplierName() != null) supply.setSupplierName(request.supplierName());
+        if (request.warehouseId() != null) supply.setWarehouseId(request.warehouseId());
+        if (request.expectedDate() != null) supply.setExpectedDate(request.expectedDate());
+        if (request.currency() != null) supply.setCurrency(request.currency());
+        if (request.totalAmount() != null) supply.setTotalAmount(request.totalAmount());
+        if (request.notes() != null) supply.setNotes(request.notes());
+        supply.setQuantityOnly(quantityOnly);
+
+        if (supply.getItems() != null) supply.getItems().clear();
+
+        List<SupplyItem> newItems = new ArrayList<>();
+        if (!quantityOnly && request.items() != null) {
+            int rowNumber = 1;
+            for (CreateSupplyRequest.SupplyItemRequest itemReq : request.items()) {
+                newItems.add(SupplyItem.builder()
+                        .supplyId(supply.getSupplyId())
+                        .productId(itemReq.productId())
+                        .rowNumber(rowNumber++)
+                        .productName(itemReq.productName())
+                        .sku(itemReq.sku())
+                        .barcode(itemReq.barcode())
+                        .category(itemReq.category())
+                        .unitOfMeasure(itemReq.unitOfMeasure())
+                        .manufacturer(itemReq.manufacturer())
+                        .storageConditions(parseConditions(itemReq.storageConditions()))
+                        .expectedQty(itemReq.expectedQty())
+                        .unitPrice(itemReq.unitPrice())
+                        .vatRate(itemReq.vatRate())
+                        .vatAmount(itemReq.vatAmount())
+                        .totalAmount(itemReq.totalAmount())
+                        .packagingType(itemReq.packagingType())
+                        .batchNumber(itemReq.batchNumber())
+                        .manufactureDate(itemReq.manufactureDate())
+                        .expiryDate(itemReq.expiryDate())
+                        .purchasePrice(itemReq.purchasePrice())
+                        .markedForWriteoff(Boolean.TRUE.equals(itemReq.markedForWriteoff()))
+                        .notes(itemReq.notes())
+                        .build());
+            }
+        }
+        if (supply.getItems() != null) {
+            supply.getItems().addAll(newItems);
+        } else {
+            supply.setItems(newItems);
+        }
+        if (quantityOnly) {
+            if (request.totalItems() != null && request.totalItems() > 0) {
+                supply.setTotalItems(request.totalItems());
+            }
+        } else {
+            supply.setTotalItems(newItems.size());
+        }
         supplyRepository.save(supply);
+        return toResponse(supply);
     }
 
     private void validateTransition(SupplyStatus current, SupplyStatus next) {
@@ -180,9 +292,26 @@ public class SupplyService {
                         .map(i -> new SupplyResponse.SupplyItemResponse(
                                 i.getItemId(),
                                 i.getProductId(),
+                                i.getRowNumber(),
+                                i.getProductName(),
+                                i.getSku(),
+                                i.getBarcode(),
+                                i.getCategory(),
+                                i.getUnitOfMeasure(),
+                                i.getManufacturer(),
+                                i.getStorageConditions(),
                                 i.getExpectedQty(),
                                 i.getActualQty(),
                                 i.getUnitPrice(),
+                                i.getVatRate(),
+                                i.getVatAmount(),
+                                i.getTotalAmount(),
+                                i.getPackagingType(),
+                                i.getBatchNumber(),
+                                i.getManufactureDate(),
+                                i.getExpiryDate(),
+                                i.getPurchasePrice(),
+                                i.getMarkedForWriteoff(),
                                 i.getNotes()))
                         .collect(Collectors.toList());
 
@@ -190,11 +319,17 @@ public class SupplyService {
                 s.getSupplyId(),
                 s.getOrganizationId(),
                 s.getSupplierId(),
+                s.getSupplierName(),
                 s.getWarehouseId(),
                 s.getStatus(),
+                s.getExternalId(),
+                s.getSource(),
+                s.getQuantityOnly(),
                 s.getExpectedDate(),
                 s.getActualDate(),
                 s.getTotalItems(),
+                s.getCurrency(),
+                s.getTotalAmount(),
                 s.getNotes(),
                 s.getCreatedBy(),
                 s.getCreatedAt(),

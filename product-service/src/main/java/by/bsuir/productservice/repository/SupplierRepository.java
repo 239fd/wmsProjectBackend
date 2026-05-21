@@ -24,4 +24,8 @@ public interface SupplierRepository extends JpaRepository<Supplier, UUID> {
     Page<Supplier> findByOrganizationIdAndIsActiveTrue(UUID organizationId, Pageable pageable);
 
     boolean existsByOrganizationIdAndUnpAndIsActiveTrue(UUID organizationId, String unp);
+
+    java.util.Optional<Supplier> findFirstByOrganizationIdAndUnp(UUID organizationId, String unp);
+
+    java.util.Optional<Supplier> findFirstByOrganizationIdAndNameIgnoreCase(UUID organizationId, String name);
 }

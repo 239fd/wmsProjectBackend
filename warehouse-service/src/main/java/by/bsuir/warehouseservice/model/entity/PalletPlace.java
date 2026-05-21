@@ -37,6 +37,9 @@ public class PalletPlace {
     @Column(name = "height_cm", nullable = false, precision = 8, scale = 2)
     private BigDecimal heightCm;
 
+    @Column(name = "max_height_cm", precision = 8, scale = 2)
+    private BigDecimal maxHeightCm;
+
     @PrePersist
     protected void onCreate() {
         if (placeId == null) {

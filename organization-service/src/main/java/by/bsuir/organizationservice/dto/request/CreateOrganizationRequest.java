@@ -14,8 +14,8 @@ public record CreateOrganizationRequest(
         @Size(max = 100, message = "Краткое наименование не должно превышать 100 символов")
         String shortName,
 
-        @NotBlank(message = "УНП обязателен")
-        @Pattern(regexp = "^\\d{9}$", message = "УНП должен состоять из 9 цифр")
+        @NotBlank(message = "ИНН обязателен")
+        @Pattern(regexp = "^\\d{9}$", message = "ИНН должен состоять из 9 цифр")
         String unp,
 
         @Size(max = 512, message = "Адрес не должен превышать 512 символов")

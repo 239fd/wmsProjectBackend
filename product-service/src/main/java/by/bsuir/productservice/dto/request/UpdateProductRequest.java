@@ -1,5 +1,7 @@
 package by.bsuir.productservice.dto.request;
 
+import by.bsuir.productservice.model.enums.StorageConditions;
+
 import java.math.BigDecimal;
 
 public record UpdateProductRequest(
@@ -10,6 +12,7 @@ public record UpdateProductRequest(
         String description,
         String unitOfMeasure,
         BigDecimal weightKg,
-        BigDecimal volumeM3
+        BigDecimal volumeM3,
+        StorageConditions requiredStorageCondition
 ) {
 }

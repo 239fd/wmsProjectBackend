@@ -268,6 +268,61 @@ public class RackService {
     }
 
     @Transactional(readOnly = true)
+    public List<Map<String, Object>> getAllCellsFlat(UUID warehouseId) {
+        List<RackReadModel> racks = rackRepository.findByWarehouseId(warehouseId);
+        List<Map<String, Object>> result = new ArrayList<>();
+        List<UUID> allSlotIds = new ArrayList<>();
+        for (RackReadModel rack : racks) {
+            if (!Boolean.TRUE.equals(rack.getIsActive())) continue;
+            switch (rack.getKind()) {
+                case SHELF:
+                    for (Shelf s : shelfRepository.findByRackId(rack.getRackId())) {
+                        Map<String, Object> row = shelfToMap(s);
+                        annotateRack(row, rack);
+                        result.add(row);
+                        allSlotIds.add(s.getShelfId());
+                    }
+                    break;
+                case CELL:
+                    for (Cell c : cellRepository.findByRackId(rack.getRackId())) {
+                        Map<String, Object> row = cellToMap(c);
+                        annotateRack(row, rack);
+                        result.add(row);
+                        allSlotIds.add(c.getCellId());
+                    }
+                    break;
+                case PALLET:
+                    for (PalletPlace p : palletPlaceRepository.findByRackId(rack.getRackId())) {
+                        Map<String, Object> row = palletPlaceToMap(p);
+                        annotateRack(row, rack);
+                        result.add(row);
+                        allSlotIds.add(p.getPlaceId());
+                    }
+                    break;
+            }
+        }
+        Map<UUID, ProductClient.CellLoad> loads = productClient.getCellsLoad(allSlotIds);
+        for (Map<String, Object> row : result) {
+            UUID id = (UUID) row.get("id");
+            ProductClient.CellLoad load = loads.get(id);
+            int itemsCount = load == null ? 0 : load.itemsCount();
+            boolean occupied = load != null && load.occupied();
+            row.put("itemsCount", itemsCount);
+            row.put("totalQuantity", load == null ? java.math.BigDecimal.ZERO : load.totalQuantity());
+            row.put("occupied", occupied);
+            row.put("status", occupied ? "OCCUPIED" : "AVAILABLE");
+        }
+        return result;
+    }
+
+    private void annotateRack(Map<String, Object> row, RackReadModel rack) {
+        row.put("rackName", rack.getName());
+        row.put("rackKind", rack.getKind().name());
+        row.put("rackStorageConditions",
+                rack.getStorageConditions() != null ? rack.getStorageConditions().name() : null);
+        row.put("rackMaxWeightKg", rack.getMaxWeightKg());
+    }
+
     public List<Object> getCellsByRack(UUID rackId) {
         log.info("Getting cells for rack: {}", rackId);
 

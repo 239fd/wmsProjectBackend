@@ -62,7 +62,7 @@ _TYPE_MAP: dict[str, str] = {
     # type'ы с layout / language см. _resolve_spec
 }
 
-_UNSUPPORTED: set[str] = {"picking-list", "placement-list", "receipt-act", "release-order", "shipment-order"}
+_UNSUPPORTED: set[str] = {"picking-list", "placement-list", "release-order", "shipment-order"}
 
 
 def _resolve_spec(doc_type: str, payload: dict[str, Any]) -> ExcelSpec | WordSpec:
@@ -79,6 +79,9 @@ def _resolve_spec(doc_type: str, payload: dict[str, Any]) -> ExcelSpec | WordSpe
     elif doc_type == "cmr":
         lang = (payload.get("language") or "ru").lower()
         suffix = {"en": "CMR-EN", "ru-only": "CMR-RU", "ru": "CMR"}.get(lang, "CMR")
+    elif doc_type == "receipt-act":
+        discrepancies = payload.get("discrepancies") or []
+        suffix = "АктРасхождения" if discrepancies else "АктПриемки"
     else:
         suffix = _TYPE_MAP.get(doc_type)
         if not suffix:
@@ -245,7 +248,8 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "templates_count": len(EXCEL_SPECS) + len(WORD_SPECS),
-        "supported_doc_types": sorted(set(_TYPE_MAP) | {"transport-note", "waybill", "cmr"}),
+        "supported_doc_types": sorted(
+            set(_TYPE_MAP) | {"transport-note", "waybill", "cmr", "receipt-act"}),
     }
 
 
@@ -261,10 +265,10 @@ def fill(doc_type: str, payload: dict[str, Any]) -> Response:
     tmp_dir = Path(tempfile.mkdtemp(prefix=f"rpa-{doc_type}-"))
     try:
         if isinstance(spec, ExcelSpec):
-            out = fill_excel(spec, order, tmp_dir, visible=False)
+            out = fill_excel(spec, order, tmp_dir, visible=True)
             mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         else:
-            out = fill_word(spec, order, tmp_dir, visible=False)
+            out = fill_word(spec, order, tmp_dir, visible=True)
             mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         data = out.read_bytes()
         log.info("fill[%s]: %d bytes → %s", doc_type, len(data), out.name)

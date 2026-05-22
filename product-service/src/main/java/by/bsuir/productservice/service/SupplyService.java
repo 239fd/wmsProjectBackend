@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -89,18 +90,31 @@ public class SupplyService {
 
     @Transactional
     public SupplyResponse create(CreateSupplyRequest request) {
-        return create(request, null);
+        return create(request, null, null, null);
     }
 
     @Transactional
     public SupplyResponse create(CreateSupplyRequest request, UUID organizationId) {
-        if (request.warehouseId() == null) {
+        return create(request, organizationId, null, null);
+    }
+
+    @Transactional
+    public SupplyResponse create(CreateSupplyRequest request, UUID organizationId, UUID warehouseFallback) {
+        return create(request, organizationId, warehouseFallback, null);
+    }
+
+    @Transactional
+    public SupplyResponse create(CreateSupplyRequest request, UUID organizationId,
+                                 UUID warehouseFallback, UUID userFallback) {
+        UUID warehouseId = request.warehouseId() != null ? request.warehouseId() : warehouseFallback;
+        if (warehouseId == null) {
             throw AppException.badRequest("Склад обязателен");
         }
-        if (request.createdBy() == null) {
+        UUID createdBy = request.createdBy() != null ? request.createdBy() : userFallback;
+        if (createdBy == null) {
             throw AppException.badRequest("User ID обязателен");
         }
-        log.info("Creating supply for warehouse: {}", request.warehouseId());
+        log.info("Creating supply for warehouse: {} by user: {}", warehouseId, createdBy);
 
         boolean quantityOnly = Boolean.TRUE.equals(request.quantityOnly());
         UUID supplyId = UUID.randomUUID();
@@ -120,12 +134,17 @@ public class SupplyService {
                         .unitOfMeasure(itemReq.unitOfMeasure())
                         .manufacturer(itemReq.manufacturer())
                         .storageConditions(parseConditions(itemReq.storageConditions()))
-                        .expectedQty(itemReq.expectedQty())
+                        .expectedQty(itemReq.expectedQty() != null ? itemReq.expectedQty() : BigDecimal.ZERO)
                         .unitPrice(itemReq.unitPrice())
                         .vatRate(itemReq.vatRate())
                         .vatAmount(itemReq.vatAmount())
                         .totalAmount(itemReq.totalAmount())
                         .packagingType(itemReq.packagingType())
+                        .unitsPerPackage(itemReq.unitsPerPackage())
+                        .packageLengthCm(itemReq.packageLengthCm())
+                        .packageWidthCm(itemReq.packageWidthCm())
+                        .packageHeightCm(itemReq.packageHeightCm())
+                        .packageWeightKg(itemReq.packageWeightKg())
                         .batchNumber(itemReq.batchNumber())
                         .manufactureDate(itemReq.manufactureDate())
                         .expiryDate(itemReq.expiryDate())
@@ -145,7 +164,7 @@ public class SupplyService {
                 .organizationId(organizationId)
                 .supplierId(request.supplierId())
                 .supplierName(request.supplierName())
-                .warehouseId(request.warehouseId())
+                .warehouseId(warehouseId)
                 .status(SupplyStatus.PLANNED)
                 .source("MANUAL")
                 .quantityOnly(quantityOnly)
@@ -154,7 +173,7 @@ public class SupplyService {
                 .totalAmount(request.totalAmount())
                 .totalItems(totalItems)
                 .notes(request.notes())
-                .createdBy(request.createdBy())
+                .createdBy(createdBy)
                 .items(items)
                 .build();
 
@@ -210,14 +229,18 @@ public class SupplyService {
             throw AppException.forbidden("Нет доступа к поставке");
         }
 
-        boolean quantityOnly = Boolean.TRUE.equals(request.quantityOnly());
+        boolean quantityOnly = request.quantityOnly() != null
+                ? request.quantityOnly()
+                : Boolean.TRUE.equals(supply.getQuantityOnly());
         if (request.supplierId() != null) supply.setSupplierId(request.supplierId());
-        if (request.supplierName() != null) supply.setSupplierName(request.supplierName());
+        if (request.supplierName() != null && !request.supplierName().isBlank()) {
+            supply.setSupplierName(request.supplierName());
+        }
         if (request.warehouseId() != null) supply.setWarehouseId(request.warehouseId());
         if (request.expectedDate() != null) supply.setExpectedDate(request.expectedDate());
         if (request.currency() != null) supply.setCurrency(request.currency());
         if (request.totalAmount() != null) supply.setTotalAmount(request.totalAmount());
-        if (request.notes() != null) supply.setNotes(request.notes());
+        supply.setNotes(request.notes());
         supply.setQuantityOnly(quantityOnly);
 
         if (supply.getItems() != null) supply.getItems().clear();
@@ -237,12 +260,17 @@ public class SupplyService {
                         .unitOfMeasure(itemReq.unitOfMeasure())
                         .manufacturer(itemReq.manufacturer())
                         .storageConditions(parseConditions(itemReq.storageConditions()))
-                        .expectedQty(itemReq.expectedQty())
+                        .expectedQty(itemReq.expectedQty() != null ? itemReq.expectedQty() : BigDecimal.ZERO)
                         .unitPrice(itemReq.unitPrice())
                         .vatRate(itemReq.vatRate())
                         .vatAmount(itemReq.vatAmount())
                         .totalAmount(itemReq.totalAmount())
                         .packagingType(itemReq.packagingType())
+                        .unitsPerPackage(itemReq.unitsPerPackage())
+                        .packageLengthCm(itemReq.packageLengthCm())
+                        .packageWidthCm(itemReq.packageWidthCm())
+                        .packageHeightCm(itemReq.packageHeightCm())
+                        .packageWeightKg(itemReq.packageWeightKg())
                         .batchNumber(itemReq.batchNumber())
                         .manufactureDate(itemReq.manufactureDate())
                         .expiryDate(itemReq.expiryDate())
@@ -264,8 +292,13 @@ public class SupplyService {
         } else {
             supply.setTotalItems(newItems.size());
         }
-        supplyRepository.save(supply);
-        return toResponse(supply);
+        log.info("Updating supply {}: req.quantityOnly={}, req.totalItems={}, req.supplierId={}, req.supplierName={}, req.expectedDate={}, req.items.size={}, persisted.totalItems={}",
+                supplyId, request.quantityOnly(), request.totalItems(),
+                request.supplierId(), request.supplierName(), request.expectedDate(),
+                request.items() == null ? null : request.items().size(),
+                supply.getTotalItems());
+        Supply persisted = supplyRepository.saveAndFlush(supply);
+        return toResponse(persisted);
     }
 
     private void validateTransition(SupplyStatus current, SupplyStatus next) {
@@ -307,6 +340,11 @@ public class SupplyService {
                                 i.getVatAmount(),
                                 i.getTotalAmount(),
                                 i.getPackagingType(),
+                                i.getUnitsPerPackage(),
+                                i.getPackageLengthCm(),
+                                i.getPackageWidthCm(),
+                                i.getPackageHeightCm(),
+                                i.getPackageWeightKg(),
                                 i.getBatchNumber(),
                                 i.getManufactureDate(),
                                 i.getExpiryDate(),

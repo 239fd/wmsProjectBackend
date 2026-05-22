@@ -10,13 +10,17 @@ import by.bsuir.productservice.model.entity.ProductOperation;
 import by.bsuir.productservice.model.entity.ProductReadModel;
 import by.bsuir.productservice.model.entity.ReceiptSession;
 import by.bsuir.productservice.model.entity.Supplier;
+import by.bsuir.productservice.model.entity.Supply;
 import by.bsuir.productservice.model.enums.OperationStatus;
 import by.bsuir.productservice.model.enums.ReceiptSessionStatus;
+import by.bsuir.productservice.model.enums.StorageConditions;
+import by.bsuir.productservice.model.enums.SupplyStatus;
 import by.bsuir.productservice.repository.ProductBatchRepository;
 import by.bsuir.productservice.repository.ProductOperationRepository;
 import by.bsuir.productservice.repository.ProductReadModelRepository;
 import by.bsuir.productservice.repository.ReceiptSessionRepository;
 import by.bsuir.productservice.repository.SupplierRepository;
+import by.bsuir.productservice.repository.SupplyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -45,6 +49,8 @@ public class ReceiptSessionService {
     private final ProductReadModelRepository productRepository;
     private final ProductBatchRepository batchRepository;
     private final SupplierRepository supplierRepository;
+    private final SupplyRepository supplyRepository;
+    private final PlacementService placementService;
     private final DocumentRegistryService documentRegistryService;
 
     @Transactional
@@ -54,6 +60,26 @@ public class ReceiptSessionService {
         }
         if (req.items() == null || req.items().isEmpty()) {
             throw AppException.badRequest("Список позиций не может быть пустым");
+        }
+
+        if (req.supplyId() != null) {
+            Supply planned = supplyRepository.findById(req.supplyId())
+                    .orElseThrow(() -> AppException.badRequest(
+                            "Плановая поставка не найдена: " + req.supplyId()));
+            if (planned.getStatus() != SupplyStatus.PLANNED
+                    && planned.getStatus() != SupplyStatus.IN_PROGRESS) {
+                throw AppException.badRequest(
+                        "Плановая поставка уже в статусе " + planned.getStatus()
+                                + ", приёмка по ней невозможна");
+            }
+            int plannedCount = planned.getTotalItems() != null ? planned.getTotalItems() : 0;
+            int actualCount = req.items().size();
+            if (plannedCount > 0 && actualCount != plannedCount) {
+                throw AppException.badRequest(String.format(
+                        "Несоответствие количества позиций: планировалось %d, передано %d. "
+                                + "Доведите список до %d позиций или измените плановую поставку.",
+                        plannedCount, actualCount, plannedCount));
+            }
         }
 
         UUID sessionId = UUID.randomUUID();
@@ -73,11 +99,24 @@ public class ReceiptSessionService {
         List<UUID> operationIds = new ArrayList<>();
         for (CreateReceiptSessionRequest.ReceiptItem item : req.items()) {
             UUID effectiveBatchId = resolveBatchId(item, req, organizationId);
+            UUID effectiveCellId = item.cellId();
+            if (effectiveCellId == null && item.palletPlaceId() != null) {
+                effectiveCellId = item.palletPlaceId();
+            }
+            if (effectiveCellId == null) {
+                effectiveCellId = placementService.autoSelectCellForReceipt(
+                        req.warehouseId(), item.productId(),
+                        item.quantity(), item.unitsPerPackage(),
+                        item.storageConditions(), item.packagingType(),
+                        item.packageLengthCm(), item.packageWidthCm(),
+                        item.packageHeightCm(), item.packageWeightKg(),
+                        "WORKER");
+            }
             ReceiveProductRequest rpr = new ReceiveProductRequest(
                     item.productId(),
                     effectiveBatchId,
                     req.warehouseId(),
-                    item.cellId(),
+                    effectiveCellId,
                     item.quantity(),
                     req.userId(),
                     req.supplyId(),
@@ -128,6 +167,8 @@ public class ReceiptSessionService {
         session.setCompletedAt(LocalDateTime.now());
         sessionRepository.save(session);
 
+        markPlannedSupplyAccepted(session);
+
         log.info("Receipt session {} completed without discrepancies ({} ops, by user {})",
                 sessionId, ops.size(), userId);
         return session;
@@ -170,9 +211,27 @@ public class ReceiptSessionService {
         session.setCompletedAt(LocalDateTime.now());
         sessionRepository.save(session);
 
+        markPlannedSupplyAccepted(session);
+
         log.info("Receipt session {} completed with {} discrepancies (by user {})",
                 sessionId, realDiscrepancies.size(), req.userId());
         return session;
+    }
+
+    private void markPlannedSupplyAccepted(ReceiptSession session) {
+        if (session.getSupplyId() == null) {
+            return;
+        }
+        supplyRepository.findById(session.getSupplyId()).ifPresent(supply -> {
+            if (supply.getStatus() == SupplyStatus.ACCEPTED) {
+                return;
+            }
+            supply.setStatus(SupplyStatus.ACCEPTED);
+            supply.setActualDate(LocalDate.now());
+            supplyRepository.save(supply);
+            log.info("Supply {} → ACCEPTED after receipt session {}",
+                    supply.getSupplyId(), session.getSessionId());
+        });
     }
 
     public Page<ReceiptSession> listSessions(
@@ -233,10 +292,18 @@ public class ReceiptSessionService {
                 .expiryDate(item.expiryDate())
                 .supplier(supplier != null ? supplier.getName() : null)
                 .purchasePrice(item.pricePerUnit())
+                .packagingType(item.packagingType())
+                .unitsPerPackage(item.unitsPerPackage())
+                .packageLengthCm(item.packageLengthCm())
+                .packageWidthCm(item.packageWidthCm())
+                .packageHeightCm(item.packageHeightCm())
+                .packageWeightKg(item.packageWeightKg())
+                .storageConditions(item.storageConditions())
                 .build();
         batchRepository.save(batch);
-        log.info("Auto-created ProductBatch {} for receipt session {} (number={}, expiryDate={})",
-                batch.getBatchId(), req.warehouseId(), item.batchNumber(), item.expiryDate());
+        log.info("Auto-created ProductBatch {} for receipt session {} (number={}, expiryDate={}, packaging={}, units/pkg={})",
+                batch.getBatchId(), req.warehouseId(), item.batchNumber(), item.expiryDate(),
+                item.packagingType(), item.unitsPerPackage());
         return batch.getBatchId();
     }
 

@@ -21,6 +21,8 @@ public interface ProductReadModelRepository
 
     Optional<ProductReadModel> findByBarcode(String barcode);
 
+    Optional<ProductReadModel> findFirstByOrganizationIdAndNameIgnoreCase(UUID organizationId, String name);
+
     Optional<ProductReadModel> findByProductIdAndOrganizationId(UUID productId, UUID organizationId);
 
     List<ProductReadModel> findByCategory(String category);

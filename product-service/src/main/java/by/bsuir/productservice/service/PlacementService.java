@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -40,6 +41,204 @@ public class PlacementService {
     private final ProductReadModelRepository productRepository;
     private final InventoryRepository inventoryRepository;
     private final ProductOperationRepository operationRepository;
+
+    public UUID autoSelectCellForReceipt(
+            UUID warehouseId, UUID productId, BigDecimal quantity, Integer unitsPerPackage,
+            StorageConditions overrideConditions, String userRole) {
+        return autoSelectCellForReceipt(warehouseId, productId, quantity, unitsPerPackage,
+                overrideConditions, null, null, null, null, null, userRole);
+    }
+
+    public UUID autoSelectCellForReceipt(
+            UUID warehouseId, UUID productId, BigDecimal quantity, Integer unitsPerPackage,
+            StorageConditions overrideConditions,
+            by.bsuir.productservice.model.enums.PackagingType packagingType,
+            String userRole) {
+        return autoSelectCellForReceipt(warehouseId, productId, quantity, unitsPerPackage,
+                overrideConditions, packagingType, null, null, null, null, userRole);
+    }
+
+    public UUID autoSelectCellForReceipt(
+            UUID warehouseId, UUID productId, BigDecimal quantity, Integer unitsPerPackage,
+            StorageConditions overrideConditions,
+            by.bsuir.productservice.model.enums.PackagingType packagingType,
+            BigDecimal packageLengthCm, BigDecimal packageWidthCm, BigDecimal packageHeightCm,
+            BigDecimal packageWeightKg,
+            String userRole) {
+        ProductReadModel product = productRepository.findById(productId).orElse(null);
+        StorageConditions required = overrideConditions;
+        if (required == null && product != null) required = product.getRequiredStorageCondition();
+        if (required == null) required = StorageConditions.ROOM;
+        final StorageConditions cond = required;
+
+        // quantity теперь в ШТУКАХ (canonical). Кол-во упаковок: numPackages.
+        int upp = (unitsPerPackage != null && unitsPerPackage > 0) ? unitsPerPackage : 1;
+        BigDecimal numPackages = quantity != null
+                ? quantity.divide(BigDecimal.valueOf(upp), 0, java.math.RoundingMode.CEILING)
+                : BigDecimal.ZERO;
+
+        BigDecimal incomingWeightKg;
+        if (packageWeightKg != null) {
+            incomingWeightKg = packageWeightKg.multiply(numPackages);
+        } else if (product != null && product.getWeightKg() != null) {
+            incomingWeightKg = product.getWeightKg().multiply(quantity != null ? quantity : BigDecimal.ZERO);
+        } else {
+            incomingWeightKg = BigDecimal.ZERO;
+        }
+
+        // Объём через ГАБАРИТЫ УПАКОВКИ (a × b × c × numPackages), а не product.volumeM3.
+        BigDecimal singlePackageVolM3 = BigDecimal.ZERO;
+        if (packageLengthCm != null && packageWidthCm != null && packageHeightCm != null) {
+            singlePackageVolM3 = packageLengthCm.multiply(packageWidthCm).multiply(packageHeightCm)
+                    .divide(BigDecimal.valueOf(1_000_000), 6, java.math.RoundingMode.HALF_UP);
+        }
+        BigDecimal incomingVolumeM3 = singlePackageVolM3.multiply(numPackages);
+
+        boolean requirePallet = packagingType == by.bsuir.productservice.model.enums.PackagingType.PALLET;
+
+        List<RackInfoDto> matching;
+        try {
+            matching = warehouseClient.getRacksByWarehouse(warehouseId, userRole).stream()
+                    .filter(r -> Boolean.TRUE.equals(r.isActive()))
+                    .filter(r -> matchesConditions(r.storageConditions(), cond))
+                    .filter(r -> requirePallet
+                            ? "PALLET".equals(r.kind())
+                            : !"PALLET".equals(r.kind()))
+                    .toList();
+        } catch (Exception e) {
+            log.warn("autoSelectCellForReceipt: warehouseClient failed: {}", e.getMessage());
+            return null;
+        }
+        if (matching.isEmpty()) {
+            log.warn("autoSelectCellForReceipt: нет стеллажей с условиями {} на складе {}", cond, warehouseId);
+            return null;
+        }
+
+        List<Inventory> warehouseInv = inventoryRepository.findByWarehouseId(warehouseId);
+        Set<UUID> occupied = warehouseInv.stream()
+                .filter(inv -> inv.getQuantity() != null && inv.getQuantity().compareTo(BigDecimal.ZERO) > 0)
+                .map(Inventory::getCellId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<UUID, BigDecimal> weightByRack = computeWeightByRack(warehouseInv);
+
+        for (RackInfoDto rack : matching) {
+            BigDecimal rackUsed = weightByRack.getOrDefault(rack.rackId(), BigDecimal.ZERO);
+            if (rack.maxWeightKg() != null
+                    && rackUsed.add(incomingWeightKg).compareTo(rack.maxWeightKg()) > 0) {
+                log.info("autoSelectCellForReceipt: стеллаж {} перегружен — used={}кг, нужно ещё {}кг, max={}кг",
+                        rack.name(), rackUsed, incomingWeightKg, rack.maxWeightKg());
+                continue;
+            }
+
+            List<CellInfoDto> cells;
+            try {
+                cells = warehouseClient.getCellsByRack(rack.rackId(), userRole);
+            } catch (Exception e) {
+                continue;
+            }
+            for (CellInfoDto cell : cells) {
+                if (occupied.contains(cell.cellId())) continue;
+                if (cell.maxWeightKg() != null
+                        && incomingWeightKg.compareTo(cell.maxWeightKg()) > 0) {
+                    log.debug("Cell {} weight overflow: incoming={}, max={}",
+                            cell.cellId(), incomingWeightKg, cell.maxWeightKg());
+                    continue;
+                }
+                BigDecimal cellVolumeM3 = cellVolumeM3(cell);
+                if (cellVolumeM3 != null && incomingVolumeM3.compareTo(BigDecimal.ZERO) > 0
+                        && incomingVolumeM3.compareTo(cellVolumeM3) > 0) {
+                    log.debug("Cell {} volume overflow: incoming={}m3, capacity={}m3",
+                            cell.cellId(), incomingVolumeM3, cellVolumeM3);
+                    continue;
+                }
+                // Линейные размеры упаковки vs ячейки: сортируем триплеты и сравниваем.
+                if (!fitsByLinearDimensions(
+                        packageLengthCm, packageWidthCm, packageHeightCm,
+                        cell.lengthCm(), cell.widthCm(), cell.heightCm())) {
+                    log.debug("Cell {} linear-size mismatch: package={}x{}x{}см, cell={}x{}x{}см",
+                            cell.cellId(),
+                            packageLengthCm, packageWidthCm, packageHeightCm,
+                            cell.lengthCm(), cell.widthCm(), cell.heightCm());
+                    continue;
+                }
+                // PALLET-place: проверка высоты упаковки против max-высоты паллет-места.
+                if (requirePallet && packageHeightCm != null && cell.maxHeightCm() != null
+                        && packageHeightCm.compareTo(cell.maxHeightCm()) > 0) {
+                    log.debug("Pallet-place {} height overflow: packageH={}см, max={}см",
+                            cell.cellId(), packageHeightCm, cell.maxHeightCm());
+                    continue;
+                }
+                log.info("Auto-picked cell {} on rack {} for product {} (weight={}кг, volume={}m3, packs={})",
+                        cell.cellId(), rack.name(), productId, incomingWeightKg, incomingVolumeM3, numPackages);
+                return cell.cellId();
+            }
+        }
+        log.warn("autoSelectCellForReceipt: нет свободных ячеек на складе {} (cond={}, weight={}кг)",
+                warehouseId, cond, incomingWeightKg);
+        return null;
+    }
+
+    private BigDecimal effectiveUnits(BigDecimal quantity, Integer unitsPerPackage) {
+        if (quantity == null) return BigDecimal.ZERO;
+        if (unitsPerPackage == null || unitsPerPackage <= 1) return quantity;
+        return quantity.multiply(BigDecimal.valueOf(unitsPerPackage));
+    }
+
+    private BigDecimal cellVolumeM3(CellInfoDto cell) {
+        if (cell.lengthCm() == null || cell.widthCm() == null || cell.heightCm() == null) return null;
+        BigDecimal cm3 = cell.lengthCm().multiply(cell.widthCm()).multiply(cell.heightCm());
+        return cm3.divide(BigDecimal.valueOf(1_000_000), 6, java.math.RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Упаковка влезает в ячейку, если сортированные триплеты её L/W/H ≤ сортированные триплеты ячейки.
+     * Разрешает любой поворот упаковки. Если хотя бы один размер не задан — проверка пропускается.
+     */
+    private boolean fitsByLinearDimensions(
+            BigDecimal pL, BigDecimal pW, BigDecimal pH,
+            BigDecimal cL, BigDecimal cW, BigDecimal cH) {
+        if (pL == null || pW == null || pH == null) return true;
+        if (cL == null || cW == null || cH == null) return true;
+        BigDecimal[] pkg = { pL, pW, pH };
+        BigDecimal[] cel = { cL, cW, cH };
+        java.util.Arrays.sort(pkg);
+        java.util.Arrays.sort(cel);
+        return pkg[0].compareTo(cel[0]) <= 0
+                && pkg[1].compareTo(cel[1]) <= 0
+                && pkg[2].compareTo(cel[2]) <= 0;
+    }
+
+    private Map<UUID, BigDecimal> computeWeightByRack(List<Inventory> warehouseInv) {
+        Map<UUID, BigDecimal> byRack = new java.util.HashMap<>();
+        for (Inventory inv : warehouseInv) {
+            if (inv.getProductId() == null || inv.getQuantity() == null) continue;
+            ProductReadModel p = productRepository.findById(inv.getProductId()).orElse(null);
+            if (p == null || p.getWeightKg() == null) continue;
+            BigDecimal w = p.getWeightKg().multiply(inv.getQuantity());
+            UUID rackId = lookupRackOfCell(inv.getCellId());
+            if (rackId == null) continue;
+            byRack.merge(rackId, w, BigDecimal::add);
+        }
+        return byRack;
+    }
+
+    private final Map<UUID, UUID> cellToRackCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private UUID lookupRackOfCell(UUID cellId) {
+        if (cellId == null) return null;
+        return cellToRackCache.computeIfAbsent(cellId, id -> {
+            try {
+                Map<String, Object> info = warehouseClient.getCellInfo(id, "WORKER");
+                if (info == null) return null;
+                Object rackId = info.get("rackId");
+                return rackId == null ? null : UUID.fromString(rackId.toString());
+            } catch (Exception e) {
+                return null;
+            }
+        });
+    }
 
     @Transactional
     public PlacementResponse autoPlacement(PlacementRequest request, UUID organizationId, String userRole) {

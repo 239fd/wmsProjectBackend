@@ -81,8 +81,11 @@ public class SupplyController {
     @PostMapping
     public ResponseEntity<SupplyResponse> create(
             @Valid @RequestBody CreateSupplyRequest request,
-            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(supplyService.create(request, organizationId));
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-Warehouse-Id", required = false) UUID warehouseHeader,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userHeader) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(supplyService.create(request, organizationId, warehouseHeader, userHeader));
     }
 
     @Operation(summary = "Изменить статус поставки",

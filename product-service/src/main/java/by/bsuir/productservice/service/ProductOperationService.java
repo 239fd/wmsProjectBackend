@@ -93,15 +93,15 @@ public class ProductOperationService {
             operationRepository.save(operation);
 
         Optional<Inventory> existingInventory = inventoryRepository
-                .findByProductIdAndWarehouseIdForUpdate(request.productId(), request.warehouseId());
+                .findExactInventoryForUpdate(
+                        request.productId(), request.batchId(),
+                        request.warehouseId(), request.cellId());
 
         if (existingInventory.isPresent()) {
 
             Inventory inventory = existingInventory.get();
             BigDecimal qtyBefore = inventory.getQuantity();
             inventory.setQuantity(qtyBefore.add(request.quantity()));
-            inventory.setCellId(request.cellId());
-            inventory.setBatchId(request.batchId());
             if (inventory.getOrganizationId() == null) {
                 inventory.setOrganizationId(effectiveOrgId);
             }
@@ -196,8 +196,11 @@ public class ProductOperationService {
             UUID effectiveOrgId = organizationId != null ? organizationId : product.getOrganizationId();
 
             Inventory source = inventoryRepository
-                    .findByProductIdAndWarehouseIdForUpdate(request.productId(), request.fromWarehouseId())
-                    .orElseThrow(() -> AppException.notFound("Запасы товара на складе-отправителе не найдены"));
+                    .findExactInventoryForUpdate(
+                            request.productId(), request.batchId(),
+                            request.fromWarehouseId(), request.fromCellId())
+                    .orElseThrow(() -> AppException.notFound(
+                            "Запасы товара в указанной ячейке не найдены"));
 
             if (organizationId != null && source.getOrganizationId() != null
                     && !organizationId.equals(source.getOrganizationId())) {
@@ -212,14 +215,20 @@ public class ProductOperationService {
             }
 
             BigDecimal srcBefore = source.getQuantity();
-            source.setQuantity(srcBefore.subtract(request.quantity()));
+            BigDecimal srcAfter = srcBefore.subtract(request.quantity());
+            if (srcAfter.compareTo(BigDecimal.ZERO) < 0) {
+                throw AppException.badRequest(String.format(
+                        "Недостаточно товара для перемещения. В ячейке: %s, запрошено: %s",
+                        srcBefore, request.quantity()));
+            }
+            source.setQuantity(srcAfter);
             source.setLastUpdated(LocalDateTime.now());
             inventoryRepository.save(source);
 
-            Optional<Inventory> existingDest = (request.toCellId() != null)
-                    ? inventoryRepository.findByCellId(request.toCellId())
-                            .map(inv -> inventoryRepository.findByIdForUpdate(inv.getInventoryId()).orElse(inv))
-                    : inventoryRepository.findByProductIdAndWarehouseIdForUpdate(request.productId(), request.toWarehouseId());
+            UUID destBatchId = request.batchId() != null ? request.batchId() : source.getBatchId();
+            Optional<Inventory> existingDest = inventoryRepository.findExactInventoryForUpdate(
+                    request.productId(), destBatchId,
+                    request.toWarehouseId(), request.toCellId());
 
             BigDecimal dstBefore;
             Inventory dest;
@@ -271,6 +280,13 @@ public class ProductOperationService {
                     srcBefore, request.quantity().negate(), operation.getOperationId(), request.userId(), transferMeta);
             inventoryEventService.recordQuantityChange(dest, InventoryEventType.ITEM_ADDED,
                     dstBefore, request.quantity(), operation.getOperationId(), request.userId(), transferMeta);
+
+            if (source.getQuantity().compareTo(BigDecimal.ZERO) == 0
+                    && (source.getReservedQuantity() == null
+                        || source.getReservedQuantity().compareTo(BigDecimal.ZERO) == 0)) {
+                inventoryRepository.delete(source);
+                log.info("Source inventory {} drained → deleted (cell freed)", source.getInventoryId());
+            }
 
             log.info("Product transferred successfully. Operation ID: {}, dest inventory: {}",
                     operation.getOperationId(), dest.getInventoryId());

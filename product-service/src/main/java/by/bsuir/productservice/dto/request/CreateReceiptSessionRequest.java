@@ -1,5 +1,7 @@
 package by.bsuir.productservice.dto.request;
 
+import by.bsuir.productservice.model.enums.PackagingType;
+import by.bsuir.productservice.model.enums.StorageConditions;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -40,6 +42,14 @@ public record CreateReceiptSessionRequest(
             BigDecimal pricePerUnit,
             String batchNumber,
             LocalDate expiryDate,
+            PackagingType packagingType,
+            Integer unitsPerPackage,
+            BigDecimal packageLengthCm,
+            BigDecimal packageWidthCm,
+            BigDecimal packageHeightCm,
+            BigDecimal packageWeightKg,
+            UUID palletPlaceId,
+            StorageConditions storageConditions,
             String notes
     ) {
     }

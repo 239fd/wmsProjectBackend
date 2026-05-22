@@ -1,13 +1,17 @@
 package by.bsuir.productservice.controller;
 
+import by.bsuir.productservice.dto.import_.SalesOrderDto;
 import by.bsuir.productservice.dto.request.CreateShipmentRequestRequest;
 import by.bsuir.productservice.dto.request.PickRequest;
 import by.bsuir.productservice.dto.response.ShipmentRequestResponse;
+import by.bsuir.productservice.rpa.PythonRpaSalesExtractor;
+import by.bsuir.productservice.service.SalesImportService;
 import by.bsuir.productservice.service.ShipmentRequestService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -17,6 +21,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -26,8 +32,27 @@ import java.util.UUID;
 public class ShipmentRequestController {
 
     private final ShipmentRequestService service;
+    private final SalesImportService salesImportService;
+    private final ObjectProvider<PythonRpaSalesExtractor> salesExtractorProvider;
 
     private static final int MAX_PAGE_SIZE = 100;
+
+    @Operation(summary = "Импорт отгрузок из 1С (Заказы клиентов через Python RPA)")
+    @PostMapping("/import-1c")
+    public ResponseEntity<Map<String, Object>> importFrom1c(
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId,
+            @RequestHeader(value = "X-Warehouse-Id", required = false) UUID warehouseId,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        PythonRpaSalesExtractor extractor = salesExtractorProvider.getIfAvailable();
+        if (extractor == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", "RPA-канал отключён (rpa.python.enabled=false)"));
+        }
+        List<SalesOrderDto> orders = extractor.extractSales();
+        SalesImportService.ImportResult result =
+                salesImportService.importSales(organizationId, warehouseId, userId, orders);
+        return ResponseEntity.ok(result.toMap());
+    }
 
     @Operation(summary = "Создать заявку на отгрузку")
     @PostMapping

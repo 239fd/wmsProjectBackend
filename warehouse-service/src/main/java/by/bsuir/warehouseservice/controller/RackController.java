@@ -235,6 +235,19 @@ public class RackController {
     }
 
     @Operation(
+            summary = "Все ячейки склада плоским списком",
+            description = "Возвращает все ячейки (SHELF/CELL/PALLET) на складе с метаданными "
+                    + "rackName/rackKind/rackStorageConditions/rackMaxWeightKg + indicator occupied. "
+                    + "Используется UI приёмки для dropdown выбора ячейки."
+    )
+    @ApiResponse(responseCode = "200", description = "Список ячеек получен")
+    @GetMapping("/warehouse/{warehouseId}/cells-flat")
+    public ResponseEntity<List<Map<String, Object>>> getAllCellsFlat(
+            @PathVariable UUID warehouseId) {
+        return ResponseEntity.ok(rackService.getAllCellsFlat(warehouseId));
+    }
+
+    @Operation(
             summary = "Получить все слоты стеллажа",
             description = "Возвращает список всех слотов с указанием типа стеллажа (kind = SHELF/CELL/PALLET) " +
                           "и массивом slots типизированных под этот kind. Удобно для UI — один вызов вместо четырёх."

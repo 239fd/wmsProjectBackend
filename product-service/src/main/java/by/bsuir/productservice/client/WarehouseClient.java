@@ -56,12 +56,13 @@ public class WarehouseClient {
             List<Map<String, Object>> body = response.getBody();
             if (body == null) return Collections.emptyList();
             return body.stream().map(m -> new CellInfoDto(
-                    parseUuid(m.get("cellId")),
+                    parseUuid(m.get("cellId") != null ? m.get("cellId") : m.get("id")),
                     rackId,
                     parseDecimal(m.get("maxWeightKg")),
                     parseDecimal(m.get("lengthCm")),
                     parseDecimal(m.get("widthCm")),
-                    parseDecimal(m.get("heightCm"))
+                    parseDecimal(m.get("heightCm")),
+                    parseDecimal(m.get("maxHeightCm"))
             )).toList();
         } catch (Exception e) {
             log.error("Failed to fetch cells for rack {}: {}", rackId, e.getMessage());

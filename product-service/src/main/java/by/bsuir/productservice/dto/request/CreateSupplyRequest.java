@@ -1,8 +1,9 @@
 package by.bsuir.productservice.dto.request;
 
 import by.bsuir.productservice.model.enums.PackagingType;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.Valid;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -11,61 +12,45 @@ import java.util.UUID;
 
 @Schema(description = "Запрос на создание плановой поставки")
 public record CreateSupplyRequest(
-        UUID supplierId,
-
-        @Schema(description = "Имя поставщика (если supplierId не задан)")
-        String supplierName,
-
-        UUID warehouseId,
-
-        @Schema(description = "Плановая дата поступления")
-        LocalDate expectedDate,
-
-        @Schema(description = "Валюта")
-        String currency,
-
-        @Schema(description = "Общая сумма поставки")
-        BigDecimal totalAmount,
-
-        @Schema(description = "Примечания")
-        String notes,
-
-        UUID createdBy,
-
-        @Schema(description = "Режим «только число позиций» — items не нужны, передайте totalItems")
-        Boolean quantityOnly,
-
-        @Schema(description = "Плановое число позиций (для quantity_only)")
-        Integer totalItems,
-
-        @Schema(description = "Позиции (для детального режима)")
-        List<SupplyItemRequest> items
+        @JsonProperty("supplierId") UUID supplierId,
+        @JsonProperty("supplierName") String supplierName,
+        @JsonProperty("warehouseId") UUID warehouseId,
+        @JsonProperty("expectedDate") LocalDate expectedDate,
+        @JsonProperty("currency") String currency,
+        @JsonProperty("totalAmount") BigDecimal totalAmount,
+        @JsonProperty("notes") String notes,
+        @JsonProperty("createdBy") UUID createdBy,
+        @JsonProperty("quantityOnly") Boolean quantityOnly,
+        @JsonProperty("totalItems") Integer totalItems,
+        @JsonProperty("items") @Valid List<SupplyItemRequest> items
 ) {
 
     public record SupplyItemRequest(
-            UUID productId,
-            String productName,
-            String sku,
-            String barcode,
-            String category,
-            String unitOfMeasure,
-            String manufacturer,
-            String storageConditions,
-
-            @NotNull(message = "Ожидаемое количество обязательно")
-            BigDecimal expectedQty,
-
-            BigDecimal unitPrice,
-            BigDecimal vatRate,
-            BigDecimal vatAmount,
-            BigDecimal totalAmount,
-            PackagingType packagingType,
-            String batchNumber,
-            LocalDate manufactureDate,
-            LocalDate expiryDate,
-            BigDecimal purchasePrice,
-            Boolean markedForWriteoff,
-            String notes
+            @JsonProperty("productId") UUID productId,
+            @JsonProperty("productName") String productName,
+            @JsonProperty("sku") String sku,
+            @JsonProperty("barcode") String barcode,
+            @JsonProperty("category") String category,
+            @JsonProperty("unitOfMeasure") String unitOfMeasure,
+            @JsonProperty("manufacturer") String manufacturer,
+            @JsonProperty("storageConditions") String storageConditions,
+            @JsonProperty("expectedQty") BigDecimal expectedQty,
+            @JsonProperty("unitPrice") BigDecimal unitPrice,
+            @JsonProperty("vatRate") BigDecimal vatRate,
+            @JsonProperty("vatAmount") BigDecimal vatAmount,
+            @JsonProperty("totalAmount") BigDecimal totalAmount,
+            @JsonProperty("packagingType") PackagingType packagingType,
+            @JsonProperty("unitsPerPackage") Integer unitsPerPackage,
+            @JsonProperty("packageLengthCm") BigDecimal packageLengthCm,
+            @JsonProperty("packageWidthCm") BigDecimal packageWidthCm,
+            @JsonProperty("packageHeightCm") BigDecimal packageHeightCm,
+            @JsonProperty("packageWeightKg") BigDecimal packageWeightKg,
+            @JsonProperty("batchNumber") String batchNumber,
+            @JsonProperty("manufactureDate") LocalDate manufactureDate,
+            @JsonProperty("expiryDate") LocalDate expiryDate,
+            @JsonProperty("purchasePrice") BigDecimal purchasePrice,
+            @JsonProperty("markedForWriteoff") Boolean markedForWriteoff,
+            @JsonProperty("notes") String notes
     ) {
     }
 }

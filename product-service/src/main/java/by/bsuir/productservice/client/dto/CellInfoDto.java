@@ -9,6 +9,7 @@ public record CellInfoDto(
         BigDecimal maxWeightKg,
         BigDecimal lengthCm,
         BigDecimal widthCm,
-        BigDecimal heightCm
+        BigDecimal heightCm,
+        BigDecimal maxHeightCm
 ) {
 }

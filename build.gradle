@@ -45,7 +45,7 @@ subprojects {
     tasks.withType(JavaCompile).configureEach {
         options.release = 21
         options.encoding = 'UTF-8'
-        options.compilerArgs += ['-Xlint:all', '-Xlint:-serial']
+        options.compilerArgs += ['-Xlint:all', '-Xlint:-serial', '-parameters']
     }
 
     checkstyle {

@@ -50,6 +50,7 @@ public record SupplyDto(
             BigDecimal vatAmount,
             BigDecimal totalAmount,
             String packagingType,
+            Integer unitsPerPackage,
             Boolean markedForWriteoff,
             String notes) { }
 

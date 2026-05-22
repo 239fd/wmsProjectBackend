@@ -29,13 +29,13 @@ public class TenantFilterAspect {
         if (orgId != null) {
             try {
                 Session session = entityManager.unwrap(Session.class);
-                if (session.getEnabledFilter("orgFilter") == null) {
+                if (session.getSessionFactory().getDefinedFilterNames().contains("orgFilter")
+                        && session.getEnabledFilter("orgFilter") == null) {
                     session.enableFilter("orgFilter").setParameter("orgId", orgId);
                 }
             } catch (Exception e) {
-                log.warn("Не удалось включить orgFilter: {}", e.getMessage());
+                log.debug("orgFilter не включён: {}", e.getMessage());
             }
-
         }
         return pjp.proceed();
     }

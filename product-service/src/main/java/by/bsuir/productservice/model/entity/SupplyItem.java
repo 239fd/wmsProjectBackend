@@ -76,6 +76,21 @@ public class SupplyItem {
     @Column(name = "packaging_type", length = 10)
     private PackagingType packagingType;
 
+    @Column(name = "units_per_package")
+    private Integer unitsPerPackage;
+
+    @Column(name = "package_length_cm", precision = 8, scale = 2)
+    private BigDecimal packageLengthCm;
+
+    @Column(name = "package_width_cm", precision = 8, scale = 2)
+    private BigDecimal packageWidthCm;
+
+    @Column(name = "package_height_cm", precision = 8, scale = 2)
+    private BigDecimal packageHeightCm;
+
+    @Column(name = "package_weight_kg", precision = 10, scale = 3)
+    private BigDecimal packageWeightKg;
+
     @Column(name = "batch_number", length = 100)
     private String batchNumber;
 

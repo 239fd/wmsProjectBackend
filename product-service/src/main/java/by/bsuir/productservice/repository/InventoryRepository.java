@@ -68,4 +68,16 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM Inventory i WHERE i.inventoryId = :id")
     Optional<Inventory> findByIdForUpdate(@Param("id") UUID id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT i FROM Inventory i "
+            + "WHERE i.productId = :productId "
+            + "AND i.warehouseId = :warehouseId "
+            + "AND ((:batchId IS NULL AND i.batchId IS NULL) OR i.batchId = :batchId) "
+            + "AND ((:cellId IS NULL AND i.cellId IS NULL) OR i.cellId = :cellId)")
+    Optional<Inventory> findExactInventoryForUpdate(
+            @Param("productId") UUID productId,
+            @Param("batchId") UUID batchId,
+            @Param("warehouseId") UUID warehouseId,
+            @Param("cellId") UUID cellId);
 }

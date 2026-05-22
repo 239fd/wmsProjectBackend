@@ -183,6 +183,7 @@ public class SupplyImportService {
                 .vatAmount(dto.vatAmount())
                 .totalAmount(dto.totalAmount())
                 .packagingType(parsePackagingType(dto.packagingType()))
+                .unitsPerPackage(dto.unitsPerPackage())
                 .batchNumber(batchDto != null ? batchDto.batchNumber() : null)
                 .manufactureDate(batchDto != null ? batchDto.manufactureDate() : null)
                 .expiryDate(batchDto != null ? batchDto.expiryDate() : null)

@@ -69,7 +69,7 @@ public class ProductBatch {
     @Column(name = "package_height_cm", precision = 8, scale = 2)
     private BigDecimal packageHeightCm;
 
-    @Column(name = "package_weight_kg", precision = 10, scale = 3)
+    @Column(name = "package_weight_kg", precision = 14, scale = 3)
     private BigDecimal packageWeightKg;
 
     @Column(name = "created_at", nullable = false)

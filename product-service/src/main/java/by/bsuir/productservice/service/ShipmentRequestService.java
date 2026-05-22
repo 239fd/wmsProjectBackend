@@ -7,6 +7,8 @@ import by.bsuir.productservice.exception.AppException;
 import by.bsuir.productservice.model.entity.GeneratedDocument;
 import by.bsuir.productservice.model.entity.Inventory;
 import by.bsuir.productservice.model.entity.ProductOperation;
+import by.bsuir.productservice.model.entity.ProductBatch;
+import by.bsuir.productservice.model.entity.ProductReadModel;
 import by.bsuir.productservice.model.entity.ShipmentRequest;
 import by.bsuir.productservice.model.entity.ShipmentRequestItem;
 import by.bsuir.productservice.model.enums.AllocationStrategy;
@@ -17,7 +19,9 @@ import by.bsuir.productservice.model.enums.OperationType;
 import by.bsuir.productservice.model.enums.ShipmentRequestStatus;
 import by.bsuir.productservice.model.enums.ShipmentType;
 import by.bsuir.productservice.repository.InventoryRepository;
+import by.bsuir.productservice.repository.ProductBatchRepository;
 import by.bsuir.productservice.repository.ProductOperationRepository;
+import by.bsuir.productservice.repository.ProductReadModelRepository;
 import by.bsuir.productservice.repository.ShipmentRequestItemRepository;
 import by.bsuir.productservice.repository.ShipmentRequestRepository;
 import lombok.RequiredArgsConstructor;
@@ -46,9 +50,12 @@ public class ShipmentRequestService {
     private final ShipmentRequestItemRepository itemRepository;
     private final InventoryRepository inventoryRepository;
     private final ProductOperationRepository operationRepository;
+    private final ProductBatchRepository batchRepository;
+    private final ProductReadModelRepository productRepository;
     private final FEFOService fefoService;
     private final InventoryEventService inventoryEventService;
     private final DocumentRegistryService documentRegistryService;
+    private final by.bsuir.productservice.client.WarehouseClient warehouseClient;
 
     @Transactional
     public ShipmentRequestResponse create(CreateShipmentRequestRequest request, UUID userId, UUID organizationId) {
@@ -63,9 +70,32 @@ public class ShipmentRequestService {
         DomesticDocumentKind documentKind = request.domesticDocumentKind() != null
                 ? request.domesticDocumentKind()
                 : DomesticDocumentKind.TN;
+        AllocationStrategy strategy = request.strategy() != null ? request.strategy() : AllocationStrategy.AUTO;
 
         if (shipmentType == ShipmentType.EXPORT && "BYN".equals(currency)) {
             throw AppException.badRequest("Для экспортной отгрузки укажите валюту контракта (USD/EUR/RUB)");
+        }
+
+        Map<UUID, BigDecimal> aggregatedByProduct = new HashMap<>();
+        for (CreateShipmentRequestRequest.Item itemReq : request.items()) {
+            aggregatedByProduct.merge(itemReq.productId(), itemReq.expectedQty(), BigDecimal::add);
+        }
+
+        Map<UUID, List<FEFOService.InventoryAllocation>> allocationsByProduct = new HashMap<>();
+        for (Map.Entry<UUID, BigDecimal> entry : aggregatedByProduct.entrySet()) {
+            UUID productId = entry.getKey();
+            BigDecimal needed = entry.getValue();
+            List<FEFOService.InventoryAllocation> allocations;
+            try {
+                allocations = fefoService.selectInventory(
+                        productId, request.warehouseId(), needed, strategy);
+            } catch (AppException e) {
+                ProductReadModel p = productRepository.findById(productId).orElse(null);
+                String prodName = p != null ? p.getName() : productId.toString();
+                throw AppException.badRequest(
+                        "Невозможно создать заявку: товар «" + prodName + "» — " + e.getMessage());
+            }
+            allocationsByProduct.put(productId, allocations);
         }
 
         ShipmentRequest entity = ShipmentRequest.builder()
@@ -78,7 +108,7 @@ public class ShipmentRequestService {
                 .plannedDate(request.plannedDate())
                 .comment(request.comment())
                 .status(ShipmentRequestStatus.PLANNED)
-                .strategy(request.strategy() != null ? request.strategy() : AllocationStrategy.AUTO)
+                .strategy(strategy)
                 .shipmentType(shipmentType)
                 .currency(currency)
                 .documentLayout(documentLayout)
@@ -91,19 +121,52 @@ public class ShipmentRequestService {
                 .build();
         requestRepository.save(entity);
 
-        for (CreateShipmentRequestRequest.Item itemReq : request.items()) {
-            ShipmentRequestItem item = ShipmentRequestItem.builder()
-                    .itemId(UUID.randomUUID())
-                    .requestId(entity.getRequestId())
-                    .productId(itemReq.productId())
-                    .batchId(itemReq.batchId())
-                    .expectedQty(itemReq.expectedQty())
-                    .pickedQty(BigDecimal.ZERO)
-                    .status("PENDING")
-                    .build();
-            itemRepository.save(item);
+        for (Map.Entry<UUID, List<FEFOService.InventoryAllocation>> e : allocationsByProduct.entrySet()) {
+            UUID productId = e.getKey();
+            for (FEFOService.InventoryAllocation alloc : e.getValue()) {
+                Inventory inventory = inventoryRepository.findByIdForUpdate(alloc.getInventoryId())
+                        .orElseThrow(() -> AppException.notFound("Inventory не найден при резерве"));
+                BigDecimal available = inventory.getQuantity().subtract(inventory.getReservedQuantity());
+                if (available.compareTo(alloc.getQuantity()) < 0) {
+                    throw AppException.conflict(
+                            "Конфликт резервирования: партия "
+                                    + alloc.getBatchId() + " уже зарезервирована другой заявкой");
+                }
+                inventory.setReservedQuantity(inventory.getReservedQuantity().add(alloc.getQuantity()));
+                inventory.setLastUpdated(LocalDateTime.now());
+                inventoryRepository.save(inventory);
+
+                ShipmentRequestItem item = ShipmentRequestItem.builder()
+                        .itemId(UUID.randomUUID())
+                        .requestId(entity.getRequestId())
+                        .productId(productId)
+                        .batchId(alloc.getBatchId())
+                        .inventoryId(alloc.getInventoryId())
+                        .cellId(alloc.getCellId())
+                        .expectedQty(alloc.getQuantity())
+                        .pickedQty(BigDecimal.ZERO)
+                        .unitSku(inventory.getUnitSku())
+                        .status("PENDING")
+                        .build();
+                itemRepository.save(item);
+            }
         }
 
+        try {
+            List<ShipmentRequestItem> all = itemRepository.findByRequestId(entity.getRequestId());
+            Map<String, Object> pickingPayload = buildPickingListPayload(entity, all,
+                    documentLayout, currency);
+            documentRegistryService.register(null, "picking-list", pickingPayload,
+                    organizationId, userId != null ? userId : entity.getCreatedBy());
+        } catch (Exception ex) {
+            log.warn("Не удалось сгенерировать picking-list для заявки {}: {}",
+                    entity.getRequestId(), ex.getMessage());
+        }
+
+        log.info("Shipment request {} created with {} items (strategy={})",
+                entity.getRequestId(),
+                allocationsByProduct.values().stream().mapToInt(List::size).sum(),
+                strategy);
         return mapToResponse(entity, List.of());
     }
 
@@ -204,6 +267,9 @@ public class ShipmentRequestService {
         if (req.getStatus() == ShipmentRequestStatus.COMPLETED) {
             throw AppException.badRequest("Заявка уже завершена");
         }
+        if (req.getStatus() == ShipmentRequestStatus.CANCELLED) {
+            throw AppException.badRequest("Отменённую заявку нельзя завершить");
+        }
         List<ShipmentRequestItem> items = itemRepository.findByRequestId(requestId);
         boolean allPicked = items.stream()
                 .allMatch(i -> i.getPickedQty().compareTo(i.getExpectedQty()) >= 0);
@@ -215,41 +281,48 @@ public class ShipmentRequestService {
         UUID primaryOperationId = null;
 
         for (ShipmentRequestItem item : items) {
-            List<FEFOService.InventoryAllocation> allocations = fefoService.selectInventory(
-                    item.getProductId(),
-                    req.getWarehouseId(),
-                    item.getPickedQty(),
-                    strategy);
-
-            for (FEFOService.InventoryAllocation allocation : allocations) {
-                Inventory inventory = inventoryRepository.findByIdForUpdate(allocation.getInventoryId())
-                        .orElseThrow(() -> AppException.notFound("Inventory не найден"));
-                BigDecimal qtyBefore = inventory.getQuantity();
-                inventory.setQuantity(qtyBefore.subtract(allocation.getQuantity()));
-                inventory.setLastUpdated(LocalDateTime.now());
-                inventoryRepository.save(inventory);
-
-                ProductOperation operation = ProductOperation.builder()
-                        .operationId(UUID.randomUUID())
-                        .operationType(OperationType.SHIPMENT)
-                        .productId(allocation.getProductId())
-                        .batchId(allocation.getBatchId())
-                        .organizationId(req.getOrganizationId())
-                        .warehouseId(allocation.getWarehouseId())
-                        .fromCellId(allocation.getCellId())
-                        .quantity(allocation.getQuantity())
-                        .userId(req.getCreatedBy())
-                        .operationDate(LocalDateTime.now())
-                        .notes(String.format("Отгрузка по заявке %s (стратегия %s)", requestId, strategy))
-                        .build();
-                operationRepository.save(operation);
-                if (primaryOperationId == null) primaryOperationId = operation.getOperationId();
-
-                inventoryEventService.recordQuantityChange(inventory, InventoryEventType.ITEM_REMOVED,
-                        qtyBefore, allocation.getQuantity().negate(),
-                        operation.getOperationId(), req.getCreatedBy(),
-                        Map.of("requestId", requestId, "strategy", strategy.name()));
+            if (item.getInventoryId() == null) {
+                throw AppException.conflict(
+                        "Позиция " + item.getItemId() + " не привязана к inventory — пересоздайте заявку");
             }
+            Inventory inventory = inventoryRepository.findByIdForUpdate(item.getInventoryId())
+                    .orElseThrow(() -> AppException.notFound("Inventory не найден при завершении заявки"));
+
+            BigDecimal qty = item.getExpectedQty();
+            BigDecimal qtyBefore = inventory.getQuantity();
+            inventory.setQuantity(qtyBefore.subtract(qty));
+            inventory.setReservedQuantity(inventory.getReservedQuantity().subtract(qty).max(BigDecimal.ZERO));
+            inventory.setLastUpdated(LocalDateTime.now());
+            inventoryRepository.save(inventory);
+
+            if (inventory.getQuantity().compareTo(BigDecimal.ZERO) <= 0
+                    && (inventory.getReservedQuantity() == null
+                        || inventory.getReservedQuantity().compareTo(BigDecimal.ZERO) <= 0)) {
+                inventoryRepository.delete(inventory);
+                log.info("Inventory {} отгружен полностью → удалён (ячейка освобождена)",
+                        inventory.getInventoryId());
+            }
+
+            ProductOperation operation = ProductOperation.builder()
+                    .operationId(UUID.randomUUID())
+                    .operationType(OperationType.SHIPMENT)
+                    .productId(item.getProductId())
+                    .batchId(item.getBatchId())
+                    .organizationId(req.getOrganizationId())
+                    .warehouseId(req.getWarehouseId())
+                    .fromCellId(item.getCellId())
+                    .quantity(qty)
+                    .userId(req.getCreatedBy())
+                    .operationDate(LocalDateTime.now())
+                    .notes(String.format("Отгрузка по заявке %s (стратегия %s)", requestId, strategy))
+                    .build();
+            operationRepository.save(operation);
+            if (primaryOperationId == null) primaryOperationId = operation.getOperationId();
+
+            inventoryEventService.recordQuantityChange(inventory, InventoryEventType.ITEM_REMOVED,
+                    qtyBefore, qty.negate(),
+                    operation.getOperationId(), req.getCreatedBy(),
+                    Map.of("requestId", requestId, "strategy", strategy.name()));
         }
 
         List<UUID> generatedIds = generateShipmentDocuments(req, items, primaryOperationId,
@@ -269,9 +342,24 @@ public class ShipmentRequestService {
         if (req.getStatus() == ShipmentRequestStatus.COMPLETED) {
             throw AppException.badRequest("Завершённую заявку нельзя отменить");
         }
+        if (req.getStatus() == ShipmentRequestStatus.CANCELLED) {
+            return;
+        }
+        List<ShipmentRequestItem> items = itemRepository.findByRequestId(requestId);
+        for (ShipmentRequestItem item : items) {
+            if (item.getInventoryId() == null) continue;
+            Inventory inventory = inventoryRepository.findByIdForUpdate(item.getInventoryId())
+                    .orElse(null);
+            if (inventory == null) continue;
+            BigDecimal released = inventory.getReservedQuantity().subtract(item.getExpectedQty());
+            inventory.setReservedQuantity(released.max(BigDecimal.ZERO));
+            inventory.setLastUpdated(LocalDateTime.now());
+            inventoryRepository.save(inventory);
+        }
         req.setStatus(ShipmentRequestStatus.CANCELLED);
         req.setUpdatedAt(LocalDateTime.now());
         requestRepository.save(req);
+        log.info("Shipment request {} cancelled, released reservation on {} items", requestId, items.size());
     }
 
     private List<UUID> generateShipmentDocuments(
@@ -310,32 +398,178 @@ public class ShipmentRequestService {
             List<ShipmentRequestItem> items,
             DocumentLayout layout,
             String currency) {
+        return buildPayload(req, items, layout, currency, false);
+    }
+
+    private Map<String, Object> buildPickingListPayload(
+            ShipmentRequest req,
+            List<ShipmentRequestItem> items,
+            DocumentLayout layout,
+            String currency) {
+        return buildPayload(req, items, layout, currency, true);
+    }
+
+    private Map<String, Object> buildPayload(
+            ShipmentRequest req,
+            List<ShipmentRequestItem> items,
+            DocumentLayout layout,
+            String currency,
+            boolean forPickingList) {
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("requestId", req.getRequestId().toString());
+        payload.put("shipmentNumber", "ЗО-" + String.valueOf(req.getRequestId()).substring(0, 8).toUpperCase());
+        payload.put("documentDate", java.time.LocalDate.now().toString());
+        payload.put("senderOrganizationId",
+                req.getOrganizationId() != null ? req.getOrganizationId().toString() : null);
         payload.put("warehouseId", req.getWarehouseId() != null ? req.getWarehouseId().toString() : null);
         payload.put("recipientName", req.getRecipientName());
         payload.put("recipientAddress", req.getRecipientAddress());
         payload.put("recipientInn", req.getRecipientInn());
+        payload.put("consigneeName", req.getRecipientName());
+        payload.put("consigneeAddress", req.getRecipientAddress());
+        payload.put("consigneeInn", req.getRecipientInn());
+        payload.put("payerName", req.getRecipientName());
+        payload.put("payerInn", req.getRecipientInn());
         payload.put("recipientCountry", req.getRecipientCountry());
         payload.put("recipientGln", req.getRecipientGln());
         payload.put("plannedDate", req.getPlannedDate() != null ? req.getPlannedDate().toString() : null);
+        payload.put("shipmentDate", LocalDateTime.now().toLocalDate().toString());
         payload.put("layout", layout.name().toLowerCase());
         payload.put("currency", currency);
         payload.put("shipmentType", req.getShipmentType() != null ? req.getShipmentType().name() : "DOMESTIC");
+        payload.put("strategy", req.getStrategy() != null ? req.getStrategy().name() : "AUTO");
         payload.put("comment", req.getComment());
 
-        List<Map<String, Object>> itemPayloads = items.stream().map(i -> {
+        BigDecimal subtotal = BigDecimal.ZERO;
+        BigDecimal totalVat = BigDecimal.ZERO;
+        BigDecimal grandTotal = BigDecimal.ZERO;
+        BigDecimal totalWeightKg = BigDecimal.ZERO;
+        int totalLines = 0;
+
+        Map<UUID, Map<String, String>> locationCache = new HashMap<>();
+
+        List<Map<String, Object>> itemPayloads = new ArrayList<>();
+        for (ShipmentRequestItem i : items) {
+            ProductReadModel product = i.getProductId() != null
+                    ? productRepository.findById(i.getProductId()).orElse(null) : null;
+            ProductBatch batch = i.getBatchId() != null
+                    ? batchRepository.findById(i.getBatchId()).orElse(null) : null;
+
+            BigDecimal qty = forPickingList
+                    ? (i.getExpectedQty() != null ? i.getExpectedQty() : BigDecimal.ZERO)
+                    : (i.getPickedQty() != null && i.getPickedQty().compareTo(BigDecimal.ZERO) > 0
+                            ? i.getPickedQty() : i.getExpectedQty());
+            BigDecimal unitPrice = batch != null && batch.getPurchasePrice() != null
+                    ? batch.getPurchasePrice() : BigDecimal.ZERO;
+            BigDecimal vatRate = new BigDecimal("20");
+            BigDecimal lineNet = qty.multiply(unitPrice).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal lineVat = lineNet.multiply(vatRate)
+                    .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+            BigDecimal lineGross = lineNet.add(lineVat);
+            BigDecimal lineWeight = (batch != null && batch.getPackageWeightKg() != null
+                    && batch.getUnitsPerPackage() != null && batch.getUnitsPerPackage() > 0)
+                    ? batch.getPackageWeightKg()
+                        .multiply(qty)
+                        .divide(BigDecimal.valueOf(batch.getUnitsPerPackage()), 3, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
+
+            Map<String, String> loc = resolveLocation(i.getCellId(), locationCache);
+            String unitLabel = product != null && product.getUnitOfMeasure() != null
+                    ? product.getUnitOfMeasure() : "шт";
+
             Map<String, Object> m = new HashMap<>();
-            m.put("productId", i.getProductId().toString());
+            m.put("lineNo", ++totalLines);
+            m.put("productId", i.getProductId() != null ? i.getProductId().toString() : null);
+            m.put("productName", product != null ? product.getName() : null);
+            m.put("name", product != null ? product.getName() : null);
+            m.put("productSku", product != null ? product.getSku() : null);
+            m.put("sku", product != null ? product.getSku() : null);
+            m.put("barcode", product != null ? product.getBarcode() : null);
+            m.put("unitOfMeasure", unitLabel);
+            m.put("unit", unitLabel);
             m.put("batchId", i.getBatchId() != null ? i.getBatchId().toString() : null);
-            m.put("quantity", i.getPickedQty());
+            m.put("batchNumber", batch != null ? batch.getBatchNumber() : null);
+            m.put("expiryDate", batch != null && batch.getExpiryDate() != null
+                    ? batch.getExpiryDate().toString() : null);
+            m.put("quantity", qty != null ? qty.stripTrailingZeros().toPlainString() : "0");
+            m.put("unitPrice", unitPrice);
+            m.put("price", unitPrice);
+            m.put("vatRate", vatRate);
+            m.put("lineNet", lineNet);
+            m.put("lineVat", lineVat);
+            m.put("lineGross", lineGross);
+            m.put("totalPrice", lineNet);
+            m.put("vatAmount", lineVat);
+            m.put("totalWithVat", lineGross);
+            m.put("amount", lineGross);
+            m.put("weightKg", lineWeight);
+            m.put("grossWeight", lineWeight);
+            m.put("cellId", i.getCellId() != null ? i.getCellId().toString() : null);
+            m.put("rackName", loc.get("rackName"));
+            m.put("cellCode", loc.get("cellCode"));
+            m.put("location", loc.get("location"));
             m.put("unitSku", i.getUnitSku());
-            return m;
-        }).collect(Collectors.toList());
+            itemPayloads.add(m);
+
+            subtotal = subtotal.add(lineNet);
+            totalVat = totalVat.add(lineVat);
+            grandTotal = grandTotal.add(lineGross);
+            totalWeightKg = totalWeightKg.add(lineWeight);
+        }
         payload.put("items", itemPayloads);
 
+        BigDecimal totalQty = items.stream()
+                .map(it -> forPickingList
+                        ? (it.getExpectedQty() != null ? it.getExpectedQty() : BigDecimal.ZERO)
+                        : (it.getPickedQty() != null && it.getPickedQty().compareTo(BigDecimal.ZERO) > 0
+                                ? it.getPickedQty() : it.getExpectedQty()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        payload.put("totalQuantity", totalQty.stripTrailingZeros().toPlainString());
+        payload.put("totalAmount", subtotal);
+        payload.put("totalVat", totalVat);
+        payload.put("totalAmountWithVat", grandTotal);
+        payload.put("totalGrossWeight", totalWeightKg);
+        payload.put("totalNetWeight", totalWeightKg);
+        payload.put("totalLines", totalLines);
+        payload.put("totalSeats", totalLines);
+
+        Map<String, Object> totals = new HashMap<>();
+        totals.put("lines", totalLines);
+        totals.put("subtotal", subtotal);
+        totals.put("vatTotal", totalVat);
+        totals.put("grandTotal", grandTotal);
+        totals.put("totalWeightKg", totalWeightKg);
+        totals.put("currency", currency);
+        payload.put("totals", totals);
+
         return payload;
+    }
+
+    private Map<String, String> resolveLocation(UUID cellId, Map<UUID, Map<String, String>> cache) {
+        Map<String, String> empty = Map.of("rackName", "—", "cellCode", "—", "location", "— / —");
+        if (cellId == null) return empty;
+        if (cache.containsKey(cellId)) return cache.get(cellId);
+
+        String rackName = "—";
+        String cellCode = String.valueOf(cellId).substring(0, 8).toUpperCase();
+        try {
+            Map<String, Object> info = warehouseClient.getCellInfo(cellId, "WORKER");
+            if (info != null && info.get("rackId") != null) {
+                UUID rackId = UUID.fromString(info.get("rackId").toString());
+                var rack = warehouseClient.getRack(rackId, "WORKER");
+                if (rack != null && rack.name() != null) rackName = rack.name();
+            }
+        } catch (Exception ex) {
+            log.debug("resolveLocation: failed for cell {}: {}", cellId, ex.getMessage());
+        }
+        Map<String, String> result = Map.of(
+                "rackName", rackName,
+                "cellCode", cellCode,
+                "location", rackName + " / " + cellCode);
+        cache.put(cellId, result);
+        return result;
     }
 
     private ShipmentRequestItem findItemByInventorySku(UUID requestId, String unitSku) {
@@ -375,9 +609,22 @@ public class ShipmentRequestService {
                 : BigDecimal.ZERO;
 
         List<ShipmentRequestResponse.Item> itemDtos = items.stream()
-                .map(i -> new ShipmentRequestResponse.Item(
-                        i.getItemId(), i.getProductId(), i.getBatchId(),
-                        i.getExpectedQty(), i.getPickedQty(), i.getUnitSku(), i.getStatus()))
+                .map(i -> {
+                    ProductBatch b = i.getBatchId() != null
+                            ? batchRepository.findById(i.getBatchId()).orElse(null)
+                            : null;
+                    ProductReadModel p = i.getProductId() != null
+                            ? productRepository.findById(i.getProductId()).orElse(null)
+                            : null;
+                    return new ShipmentRequestResponse.Item(
+                            i.getItemId(), i.getProductId(), i.getBatchId(),
+                            i.getInventoryId(), i.getCellId(),
+                            i.getExpectedQty(), i.getPickedQty(), i.getUnitSku(), i.getStatus(),
+                            b != null ? b.getBatchNumber() : null,
+                            b != null ? b.getExpiryDate() : null,
+                            p != null ? p.getName() : null,
+                            p != null ? p.getSku() : null);
+                })
                 .collect(Collectors.toList());
 
         return new ShipmentRequestResponse(

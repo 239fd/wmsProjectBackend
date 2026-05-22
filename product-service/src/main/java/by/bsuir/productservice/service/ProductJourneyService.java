@@ -15,11 +15,14 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,59 +94,76 @@ public class ProductJourneyService {
         return result;
     }
 
+    private static final String[] OP_HEADERS = { "Дата и время", "Операция", "Склад", "Кол-во" };
+    private static final float[] OP_COL_WIDTHS = { 140f, 130f, 160f, 85f };
+
     public byte[] generateJourneyPdf(UUID productId, UUID batchId, UUID inventoryId, UUID organizationId) {
         Map<String, Object> journey = getJourney(productId, batchId, inventoryId, organizationId);
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            PDFont regular;
+            PDFont bold;
+            try (InputStream regStream = new ClassPathResource("fonts/DejaVuSans.ttf").getInputStream();
+                 InputStream boldStream = new ClassPathResource("fonts/DejaVuSans-Bold.ttf").getInputStream()) {
+                regular = PDType0Font.load(doc, regStream, true);
+                bold = PDType0Font.load(doc, boldStream, true);
+            }
+
             PDPage page = new PDPage(PDRectangle.A4);
             doc.addPage(page);
             PDPageContentStream cs = new PDPageContentStream(doc, page);
 
+            float marginLeft = 40f;
             float y = page.getMediaBox().getHeight() - 60f;
-            cs.beginText();
-            cs.setFont(PDType1Font.HELVETICA_BOLD, 14);
-            cs.newLineAtOffset(40, y);
-            cs.showText("Product Journey: " + journey.get("productName"));
-            cs.endText();
-            y -= 25;
 
             cs.beginText();
-            cs.setFont(PDType1Font.HELVETICA, 10);
-            cs.newLineAtOffset(40, y);
-            cs.showText("ProductId: " + productId);
-            cs.newLineAtOffset(0, -14);
-            cs.showText("SKU: " + journey.get("sku"));
-            cs.newLineAtOffset(0, -14);
-            cs.showText("ABC: " + journey.get("abcClass"));
+            cs.setFont(bold, 14);
+            cs.newLineAtOffset(marginLeft, y);
+            cs.showText("Карточка товара: " + String.valueOf(journey.get("productName")));
             cs.endText();
-            y -= 60;
+            y -= 22;
 
             cs.beginText();
-            cs.setFont(PDType1Font.HELVETICA_BOLD, 11);
-            cs.newLineAtOffset(40, y);
-            cs.showText("Operations:");
+            cs.setFont(regular, 10);
+            cs.newLineAtOffset(marginLeft, y);
+            cs.showText("ID товара: " + productId);
+            cs.newLineAtOffset(0, -14);
+            cs.showText("Артикул (SKU): " + String.valueOf(journey.get("sku")));
+            cs.newLineAtOffset(0, -14);
+            cs.showText("ABC-класс: " + String.valueOf(journey.get("abcClass")));
             cs.endText();
+            y -= 56;
+
+            cs.beginText();
+            cs.setFont(bold, 12);
+            cs.newLineAtOffset(marginLeft, y);
+            cs.showText("История операций");
+            cs.endText();
+            y -= 16;
+
+            drawTableHeader(cs, bold, marginLeft, y);
             y -= 18;
 
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operations = (List<Map<String, Object>>) journey.get("operations");
             for (Map<String, Object> op : operations) {
-                if (y < 80) {
+                if (y < 60) {
                     cs.close();
                     page = new PDPage(PDRectangle.A4);
                     doc.addPage(page);
                     cs = new PDPageContentStream(doc, page);
                     y = page.getMediaBox().getHeight() - 60f;
+                    drawTableHeader(cs, bold, marginLeft, y);
+                    y -= 18;
                 }
-                cs.beginText();
-                cs.setFont(PDType1Font.HELVETICA, 9);
-                cs.newLineAtOffset(40, y);
-                String line = String.format("%s | %s | wh=%s | qty=%s",
-                        op.get("operationDate"), op.get("operationType"),
-                        op.get("warehouseId"), op.get("quantity"));
-                cs.showText(line.length() > 110 ? line.substring(0, 110) : line);
-                cs.endText();
-                y -= 12;
+                String[] cells = new String[] {
+                        formatDate(op.get("operationDate")),
+                        translateOperation(String.valueOf(op.get("operationType"))),
+                        shortenId(op.get("warehouseId")),
+                        formatQty(op.get("quantity"))
+                };
+                drawTableRow(cs, regular, marginLeft, y, cells);
+                y -= 16;
             }
 
             cs.close();
@@ -152,6 +172,79 @@ public class ProductJourneyService {
         } catch (Exception e) {
             log.error("Failed to generate journey PDF: {}", e.getMessage(), e);
             throw AppException.internalError("Ошибка генерации PDF карточки товара: " + e.getMessage());
+        }
+    }
+
+    private void drawTableHeader(PDPageContentStream cs, PDFont bold, float x, float y) throws java.io.IOException {
+        float totalWidth = 0f;
+        for (float w : OP_COL_WIDTHS) totalWidth += w;
+        cs.setLineWidth(0.5f);
+        cs.addRect(x, y - 2, totalWidth, 16);
+        cs.stroke();
+        drawCells(cs, bold, 10, x, y + 2, OP_HEADERS);
+    }
+
+    private void drawTableRow(PDPageContentStream cs, PDFont regular, float x, float y, String[] cells)
+            throws java.io.IOException {
+        float totalWidth = 0f;
+        for (float w : OP_COL_WIDTHS) totalWidth += w;
+        cs.setLineWidth(0.25f);
+        cs.addRect(x, y - 2, totalWidth, 14);
+        cs.stroke();
+        drawCells(cs, regular, 9, x, y + 2, cells);
+    }
+
+    private void drawCells(PDPageContentStream cs, PDFont font, float fontSize, float x, float y, String[] cells)
+            throws java.io.IOException {
+        float colX = x + 4;
+        for (int i = 0; i < cells.length; i++) {
+            String txt = cells[i] == null ? "" : cells[i];
+            int maxChars = (int) ((OP_COL_WIDTHS[i] - 8) / (fontSize * 0.55));
+            if (txt.length() > maxChars && maxChars > 0) txt = txt.substring(0, maxChars);
+            cs.beginText();
+            cs.setFont(font, fontSize);
+            cs.newLineAtOffset(colX, y);
+            cs.showText(txt);
+            cs.endText();
+            colX += OP_COL_WIDTHS[i];
+        }
+    }
+
+    private String translateOperation(String type) {
+        if (type == null) return "—";
+        return switch (type) {
+            case "RECEIPT" -> "Приёмка";
+            case "SHIPMENT" -> "Отгрузка";
+            case "STAGING" -> "Размещение";
+            case "TRANSFER" -> "Перемещение";
+            case "WRITE_OFF" -> "Списание";
+            case "REVALUATION" -> "Переоценка";
+            case "INVENTORY" -> "Инвентаризация";
+            default -> type;
+        };
+    }
+
+    private String formatDate(Object dt) {
+        if (dt == null) return "";
+        String s = dt.toString();
+        int dot = s.indexOf('.');
+        if (dot > 0) s = s.substring(0, dot);
+        return s.replace('T', ' ');
+    }
+
+    private String shortenId(Object id) {
+        if (id == null) return "—";
+        String s = id.toString();
+        return s.length() > 8 ? s.substring(0, 8) : s;
+    }
+
+    private String formatQty(Object q) {
+        if (q == null) return "0";
+        try {
+            java.math.BigDecimal bd = new java.math.BigDecimal(q.toString()).stripTrailingZeros();
+            return bd.scale() < 0 ? bd.setScale(0, java.math.RoundingMode.HALF_UP).toPlainString() : bd.toPlainString();
+        } catch (NumberFormatException e) {
+            return q.toString();
         }
     }
 

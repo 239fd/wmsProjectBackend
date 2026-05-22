@@ -81,10 +81,10 @@ public class RevaluationService {
                 .build();
         operationRepository.save(operation);
 
-        List<Inventory> affected = inventoryRepository
-                .findByProductIdAndWarehouseId(request.productId(), request.warehouseId())
-                .map(List::of)
-                .orElseGet(() -> inventoryRepository.findByProductId(request.productId()));
+        List<Inventory> affected = (request.warehouseId() != null)
+                ? inventoryRepository.findAllByProductIdAndWarehouseId(
+                        request.productId(), request.warehouseId())
+                : inventoryRepository.findByProductId(request.productId());
         for (Inventory inv : affected) {
             Map<String, Object> payload = new HashMap<>();
             payload.put("productId", request.productId());
@@ -99,13 +99,49 @@ public class RevaluationService {
 
         log.info("Revaluation completed. Operation ID: {}", operation.getOperationId());
 
+        BigDecimal totalQty = affected.stream()
+                .map(Inventory::getQuantity)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal effectiveOldPrice = oldPrice != null ? oldPrice : BigDecimal.ZERO;
+        BigDecimal oldTotal = effectiveOldPrice.multiply(totalQty);
+        BigDecimal newTotal = request.newPrice().multiply(totalQty);
+        BigDecimal priceDiff = request.newPrice().subtract(effectiveOldPrice);
+        BigDecimal totalDiff = newTotal.subtract(oldTotal);
+
+        Map<String, Object> item = new HashMap<>();
+        item.put("lineNo", 1);
+        item.put("productId", product.getProductId().toString());
+        item.put("productName", product.getName());
+        item.put("name", product.getName());
+        item.put("sku", product.getSku());
+        item.put("productSku", product.getSku());
+        item.put("unitOfMeasure", product.getUnitOfMeasure() != null ? product.getUnitOfMeasure() : "шт");
+        item.put("unit", product.getUnitOfMeasure() != null ? product.getUnitOfMeasure() : "шт");
+        item.put("quantity", totalQty.stripTrailingZeros().toPlainString());
+        item.put("oldPrice", effectiveOldPrice);
+        item.put("newPrice", request.newPrice());
+        item.put("priceDiff", priceDiff);
+        item.put("oldValue", oldTotal);
+        item.put("newValue", newTotal);
+        item.put("oldTotal", oldTotal);
+        item.put("newTotal", newTotal);
+        item.put("totalDiff", totalDiff);
+
         Map<String, Object> result = new HashMap<>();
         result.put("operationId", operation.getOperationId());
         result.put("productId", product.getProductId());
-        result.put("oldPrice", oldPrice);
+        result.put("oldPrice", effectiveOldPrice);
         result.put("newPrice", request.newPrice());
         result.put("responsibleUserId", request.responsibleUserId());
         result.put("commissionMembers", request.commissionMembers());
+        result.put("items", List.of(item));
+        result.put("totalQuantity", totalQty.stripTrailingZeros().toPlainString());
+        result.put("totalOldValue", oldTotal);
+        result.put("totalNewValue", newTotal);
+        result.put("totalDifference", totalDiff);
+        result.put("priceDifference", priceDiff);
+        result.put("reason", request.reason());
+        result.put("basis", request.basis());
         return result;
     }
 }

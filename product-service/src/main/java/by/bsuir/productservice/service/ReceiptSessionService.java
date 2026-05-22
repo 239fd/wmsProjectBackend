@@ -111,6 +111,19 @@ public class ReceiptSessionService {
                         item.packageLengthCm(), item.packageWidthCm(),
                         item.packageHeightCm(), item.packageWeightKg(),
                         "WORKER");
+                if (effectiveCellId == null) {
+                    throw AppException.conflict(
+                            "Не удалось подобрать ячейку/паллет-место для товара "
+                                    + item.productId()
+                                    + ": проверьте условия хранения, габариты, вес и доступность стеллажей");
+                }
+            } else {
+                placementService.validateReceiptCellFit(
+                        req.warehouseId(), effectiveCellId,
+                        item.packageLengthCm(), item.packageWidthCm(),
+                        item.packageHeightCm(), item.packageWeightKg(),
+                        item.unitsPerPackage(), item.quantity(),
+                        item.packagingType(), "WORKER");
             }
             ReceiveProductRequest rpr = new ReceiveProductRequest(
                     item.productId(),

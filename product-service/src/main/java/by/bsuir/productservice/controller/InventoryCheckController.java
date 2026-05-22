@@ -42,14 +42,15 @@ public class InventoryCheckController {
             @Parameter(description = "ID склада", required = true) @RequestParam UUID warehouseId,
             @Parameter(description = "ID пользователя", required = true) @RequestParam UUID userId,
             @Parameter(description = "Примечания") @RequestParam(required = false) String notes,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
 
         userRole = SecurityUtils.resolveRole(userRole);
         if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        UUID sessionId = inventoryCheckService.startInventory(warehouseId, userId, notes);
+        UUID sessionId = inventoryCheckService.startInventory(warehouseId, userId, organizationId, notes);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "sessionId", sessionId.toString(),

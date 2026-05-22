@@ -8,9 +8,11 @@ import by.bsuir.productservice.model.entity.InventorySession;
 import by.bsuir.productservice.model.entity.ProductOperation;
 import by.bsuir.productservice.model.entity.ProductReadModel;
 import by.bsuir.productservice.model.enums.InventoryEventType;
+import by.bsuir.productservice.model.entity.ProductBatch;
 import by.bsuir.productservice.repository.InventoryCountRepository;
 import by.bsuir.productservice.repository.InventoryRepository;
 import by.bsuir.productservice.repository.InventorySessionRepository;
+import by.bsuir.productservice.repository.ProductBatchRepository;
 import by.bsuir.productservice.repository.ProductOperationRepository;
 import by.bsuir.productservice.repository.ProductReadModelRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -35,6 +37,7 @@ public class InventoryCheckService {
     private final InventoryRepository inventoryRepository;
     private final ProductOperationRepository operationRepository;
     private final ProductReadModelRepository productReadModelRepository;
+    private final ProductBatchRepository productBatchRepository;
     private final ObjectMapper objectMapper;
     private final InventoryEventService inventoryEventService;
     private final DocumentRegistryService documentRegistryService;
@@ -42,6 +45,11 @@ public class InventoryCheckService {
     @Transactional
     public UUID startInventory(UUID warehouseId, UUID userId, String notes) {
         return startInventoryInternal(warehouseId, userId, null, null, null, null, notes);
+    }
+
+    @Transactional
+    public UUID startInventory(UUID warehouseId, UUID userId, UUID organizationId, String notes) {
+        return startInventoryInternal(warehouseId, userId, organizationId, null, null, null, notes);
     }
 
     @Transactional
@@ -198,8 +206,13 @@ public class InventoryCheckService {
         sessionRepository.save(session);
 
         List<Map<String, Object>> discrepancyRows = discrepancies.stream().map(d -> {
+            ProductReadModel product = d.getProductId() != null
+                    ? productReadModelRepository.findById(d.getProductId()).orElse(null)
+                    : null;
             Map<String, Object> row = new HashMap<>();
             row.put("productId", d.getProductId() != null ? d.getProductId().toString() : null);
+            row.put("productName", product != null ? product.getName() : null);
+            row.put("sku", product != null ? product.getSku() : null);
             row.put("cellId", d.getCellId() != null ? d.getCellId().toString() : "N/A");
             row.put("expected", d.getExpectedQuantity() != null ? d.getExpectedQuantity().toString() : null);
             row.put("actual", d.getActualQuantity() != null ? d.getActualQuantity().toString() : null);
@@ -249,24 +262,92 @@ public class InventoryCheckService {
                 ? session.getStartedAt().toLocalDate().toString()
                 : LocalDateTime.now().toLocalDate().toString());
         payload.put("organizationId", session.getOrganizationId() != null ? session.getOrganizationId().toString() : null);
+        payload.put("senderOrganizationId", session.getOrganizationId() != null ? session.getOrganizationId().toString() : null);
         payload.put("warehouseId", session.getWarehouseId().toString());
         payload.put("reason", session.getReason() != null ? session.getReason() : "Плановая инвентаризация");
-        payload.put("totalRecords", counts.size());
-        payload.put("discrepanciesCount", discrepancyRows.size());
+        payload.put("responsiblePerson", session.getResponsibleUserId() != null
+                ? session.getResponsibleUserId().toString() : "");
+        payload.put("chairmanName", session.getStartedBy() != null ? session.getStartedBy().toString() : "");
+
+        java.math.BigDecimal totalExpectedQty = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal totalActualQty = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal totalBookValue = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal totalActualValue = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal totalSurplus = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal totalShortage = java.math.BigDecimal.ZERO;
+
         List<Map<String, Object>> items = new ArrayList<>();
         int idx = 1;
         for (InventoryCount c : counts) {
+            ProductReadModel product = c.getProductId() != null
+                    ? productReadModelRepository.findById(c.getProductId()).orElse(null)
+                    : null;
+            ProductBatch batch = c.getBatchId() != null
+                    ? productBatchRepository.findById(c.getBatchId()).orElse(null) : null;
+
+            java.math.BigDecimal unitPrice = batch != null && batch.getPurchasePrice() != null
+                    ? batch.getPurchasePrice()
+                    : (product != null && product.getPrice() != null
+                            ? product.getPrice() : java.math.BigDecimal.ZERO);
+            java.math.BigDecimal expQty = c.getExpectedQuantity() != null
+                    ? c.getExpectedQuantity() : java.math.BigDecimal.ZERO;
+            java.math.BigDecimal actQty = c.getActualQuantity() != null
+                    ? c.getActualQuantity() : java.math.BigDecimal.ZERO;
+            java.math.BigDecimal expValue = unitPrice.multiply(expQty);
+            java.math.BigDecimal actValue = unitPrice.multiply(actQty);
+            java.math.BigDecimal diff = actQty.subtract(expQty);
+            java.math.BigDecimal surplus = diff.signum() > 0 ? diff : java.math.BigDecimal.ZERO;
+            java.math.BigDecimal shortage = diff.signum() < 0 ? diff.abs() : java.math.BigDecimal.ZERO;
+
+            totalExpectedQty = totalExpectedQty.add(expQty);
+            totalActualQty = totalActualQty.add(actQty);
+            totalBookValue = totalBookValue.add(expValue);
+            totalActualValue = totalActualValue.add(actValue);
+            totalSurplus = totalSurplus.add(surplus);
+            totalShortage = totalShortage.add(shortage);
+
             Map<String, Object> item = new HashMap<>();
-            item.put("rowNumber", idx++);
+            item.put("rowNumber", idx);
+            item.put("lineNo", idx++);
             item.put("productId", c.getProductId() != null ? c.getProductId().toString() : null);
+            item.put("productName", product != null ? product.getName() : null);
+            item.put("name", product != null ? product.getName() : null);
+            item.put("sku", product != null ? product.getSku() : null);
+            item.put("productSku", product != null ? product.getSku() : null);
+            item.put("batchId", c.getBatchId() != null ? c.getBatchId().toString() : null);
+            item.put("batchNumber", batch != null ? batch.getBatchNumber() : null);
+            item.put("expiryDate", batch != null && batch.getExpiryDate() != null
+                    ? batch.getExpiryDate().toString() : null);
+            item.put("unitOfMeasure", product != null && product.getUnitOfMeasure() != null
+                    ? product.getUnitOfMeasure() : "шт");
+            item.put("unit", product != null && product.getUnitOfMeasure() != null
+                    ? product.getUnitOfMeasure() : "шт");
             item.put("cellId", c.getCellId() != null ? c.getCellId().toString() : null);
-            item.put("expectedQuantity", c.getExpectedQuantity() != null ? c.getExpectedQuantity().toString() : "0");
-            item.put("actualQuantity", c.getActualQuantity() != null ? c.getActualQuantity().toString() : "0");
-            item.put("discrepancy", c.getDiscrepancy() != null ? c.getDiscrepancy().toString() : "0");
+            item.put("unitPrice", unitPrice);
+            item.put("price", unitPrice);
+            item.put("expectedQty", expQty.stripTrailingZeros().toPlainString());
+            item.put("expectedQuantity", expQty.stripTrailingZeros().toPlainString());
+            item.put("actualQty", actQty.stripTrailingZeros().toPlainString());
+            item.put("actualQuantity", actQty.stripTrailingZeros().toPlainString());
+            item.put("expectedValue", expValue);
+            item.put("actualValue", actValue);
+            item.put("surplus", surplus.signum() > 0 ? surplus.stripTrailingZeros().toPlainString() : "");
+            item.put("shortage", shortage.signum() > 0 ? shortage.stripTrailingZeros().toPlainString() : "");
+            item.put("discrepancy", diff.signum() == 0 ? "0" : diff.stripTrailingZeros().toPlainString());
             items.add(item);
         }
         payload.put("items", items);
         payload.put("discrepancies", discrepancyRows);
+        payload.put("totalItems", counts.size());
+        payload.put("totalRecords", counts.size());
+        payload.put("discrepancyCount", discrepancyRows.size());
+        payload.put("discrepanciesCount", discrepancyRows.size());
+        payload.put("totalExpectedQty", totalExpectedQty.stripTrailingZeros().toPlainString());
+        payload.put("totalActualQty", totalActualQty.stripTrailingZeros().toPlainString());
+        payload.put("totalBookValue", totalBookValue);
+        payload.put("totalActualValue", totalActualValue);
+        payload.put("totalSurplus", totalSurplus.signum() > 0 ? totalSurplus.stripTrailingZeros().toPlainString() : "");
+        payload.put("totalShortage", totalShortage.signum() > 0 ? totalShortage.stripTrailingZeros().toPlainString() : "");
         return payload;
     }
 

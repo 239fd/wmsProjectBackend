@@ -38,10 +38,16 @@ public record ShipmentRequestResponse(
             UUID itemId,
             UUID productId,
             UUID batchId,
+            UUID inventoryId,
+            UUID cellId,
             BigDecimal expectedQty,
             BigDecimal pickedQty,
             String unitSku,
-            String status
+            String status,
+            String batchNumber,
+            LocalDate expiryDate,
+            String productName,
+            String productSku
     ) {
     }
 }

@@ -4,12 +4,16 @@ import by.bsuir.productservice.dto.request.WriteOffRequest;
 import by.bsuir.productservice.exception.AppException;
 import by.bsuir.productservice.model.entity.Inventory;
 import by.bsuir.productservice.model.entity.InventoryCount;
+import by.bsuir.productservice.model.entity.ProductBatch;
 import by.bsuir.productservice.model.entity.ProductOperation;
+import by.bsuir.productservice.model.entity.ProductReadModel;
 import by.bsuir.productservice.model.enums.InventoryEventType;
 import by.bsuir.productservice.model.enums.OperationType;
 import by.bsuir.productservice.repository.InventoryCountRepository;
 import by.bsuir.productservice.repository.InventoryRepository;
+import by.bsuir.productservice.repository.ProductBatchRepository;
 import by.bsuir.productservice.repository.ProductOperationRepository;
+import by.bsuir.productservice.repository.ProductReadModelRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -34,34 +38,50 @@ public class WriteOffService {
     private final ProductOperationRepository operationRepository;
     private final InventoryCountRepository countRepository;
     private final InventoryEventService inventoryEventService;
+    private final ProductReadModelRepository productRepository;
+    private final ProductBatchRepository batchRepository;
+    private final FEFOService fefoService;
 
     @Transactional
     public Map<String, Object> writeOff(WriteOffRequest request, UUID organizationId) {
-        log.info("Writing off product {} qty {} from warehouse {} (org: {})",
-                request.productId(), request.quantity(), request.warehouseId(), organizationId);
+        log.info("Writing off product {} qty {} from warehouse {} (cell={}, batch={}, org={})",
+                request.productId(), request.quantity(), request.warehouseId(),
+                request.cellId(), request.batchId(), organizationId);
 
-        Inventory inventory = inventoryRepository
-                .findByProductIdAndWarehouseIdForUpdate(request.productId(), request.warehouseId())
-                .orElseThrow(() -> AppException.notFound("Запасы товара на складе не найдены"));
-
-        if (organizationId != null && inventory.getOrganizationId() != null
-                && !organizationId.equals(inventory.getOrganizationId())) {
-            throw AppException.forbidden("Запасы принадлежат другой организации");
+        List<Inventory> targets = new java.util.ArrayList<>();
+        if (request.cellId() != null) {
+            Inventory inv = inventoryRepository.findExactInventoryForUpdate(
+                    request.productId(), request.batchId(),
+                    request.warehouseId(), request.cellId())
+                    .orElseThrow(() -> AppException.notFound(
+                            "Запасы товара не найдены в указанной ячейке"));
+            targets.add(inv);
+        } else {
+            var allocations = fefoService.selectInventory(
+                    request.productId(), request.warehouseId(), request.quantity(),
+                    by.bsuir.productservice.model.enums.AllocationStrategy.FEFO);
+            for (var alloc : allocations) {
+                Inventory inv = inventoryRepository.findByIdForUpdate(alloc.getInventoryId())
+                        .orElseThrow(() -> AppException.notFound(
+                                "Inventory не найден при списании: " + alloc.getInventoryId()));
+                targets.add(inv);
+            }
         }
 
-        BigDecimal available = inventory.getQuantity().subtract(inventory.getReservedQuantity());
-        if (available.compareTo(request.quantity()) < 0) {
-            throw AppException.badRequest(
-                    String.format("Недостаточно товара для списания. Доступно: %s, запрошено: %s",
-                            available, request.quantity()));
+        UUID effectiveOrgId = organizationId != null
+                ? organizationId
+                : targets.stream().map(Inventory::getOrganizationId)
+                        .filter(java.util.Objects::nonNull).findFirst().orElse(null);
+
+        BigDecimal totalAvailable = targets.stream()
+                .map(inv -> inv.getQuantity().subtract(
+                        inv.getReservedQuantity() != null ? inv.getReservedQuantity() : BigDecimal.ZERO))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (totalAvailable.compareTo(request.quantity()) < 0) {
+            throw AppException.badRequest(String.format(
+                    "Недостаточно товара для списания. Доступно: %s, запрошено: %s",
+                    totalAvailable, request.quantity()));
         }
-
-        UUID effectiveOrgId = organizationId != null ? organizationId : inventory.getOrganizationId();
-
-        BigDecimal qtyBefore = inventory.getQuantity();
-        inventory.setQuantity(qtyBefore.subtract(request.quantity()));
-        inventory.setLastUpdated(LocalDateTime.now());
-        inventoryRepository.save(inventory);
 
         StringBuilder notes = new StringBuilder();
         notes.append("reason=").append(request.reason()).append("; ");
@@ -88,19 +108,93 @@ public class WriteOffService {
                 .build();
         operationRepository.save(operation);
 
-        Map<String, Object> writeOffMeta = new HashMap<>();
-        writeOffMeta.put("reason", request.reason());
-        writeOffMeta.put("basis", request.basis());
-        inventoryEventService.recordQuantityChange(inventory, InventoryEventType.WRITTEN_OFF,
-                qtyBefore, request.quantity().negate(), operation.getOperationId(), request.userId(), writeOffMeta);
+        Map<UUID, BigDecimal> takenByInv = new java.util.LinkedHashMap<>();
+        BigDecimal remaining = request.quantity();
+        for (Inventory inv : targets) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
+            BigDecimal avail = inv.getQuantity().subtract(
+                    inv.getReservedQuantity() != null ? inv.getReservedQuantity() : BigDecimal.ZERO);
+            BigDecimal take = remaining.min(avail);
+            if (take.compareTo(BigDecimal.ZERO) <= 0) continue;
 
-        log.info("Write-off completed. Operation ID: {}", operation.getOperationId());
+            takenByInv.put(inv.getInventoryId(), take);
+            BigDecimal qtyBefore = inv.getQuantity();
+            inv.setQuantity(qtyBefore.subtract(take));
+            inv.setLastUpdated(LocalDateTime.now());
+            inventoryRepository.save(inv);
+
+            Map<String, Object> writeOffMeta = new HashMap<>();
+            writeOffMeta.put("reason", request.reason());
+            writeOffMeta.put("basis", request.basis());
+            inventoryEventService.recordQuantityChange(inv, InventoryEventType.WRITTEN_OFF,
+                    qtyBefore, take.negate(), operation.getOperationId(), request.userId(), writeOffMeta);
+
+            if (inv.getQuantity().compareTo(BigDecimal.ZERO) <= 0
+                    && (inv.getReservedQuantity() == null
+                        || inv.getReservedQuantity().compareTo(BigDecimal.ZERO) <= 0)) {
+                inventoryRepository.delete(inv);
+                log.info("Inventory {} списан полностью → удалён (ячейка освобождена)", inv.getInventoryId());
+            }
+
+            remaining = remaining.subtract(take);
+        }
+
+        log.info("Write-off completed. Operation ID: {}, разнесено по {} inventory-строкам",
+                operation.getOperationId(), targets.size());
+
+        ProductReadModel product = productRepository.findById(request.productId()).orElse(null);
+        BigDecimal productPriceFallback = product != null && product.getPrice() != null
+                ? product.getPrice() : BigDecimal.ZERO;
+
+        List<Map<String, Object>> itemRows = new java.util.ArrayList<>();
+        BigDecimal grandTotal = BigDecimal.ZERO;
+        int idx = 1;
+        for (Inventory inv : targets) {
+            BigDecimal line = takenByInv.getOrDefault(inv.getInventoryId(), BigDecimal.ZERO);
+            if (line.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            ProductBatch b = inv.getBatchId() != null
+                    ? batchRepository.findById(inv.getBatchId()).orElse(null) : null;
+            BigDecimal unitPrice = b != null && b.getPurchasePrice() != null
+                    ? b.getPurchasePrice() : productPriceFallback;
+            BigDecimal lineTotal = unitPrice.multiply(line);
+            grandTotal = grandTotal.add(lineTotal);
+
+            Map<String, Object> item = new HashMap<>();
+            item.put("lineNo", idx++);
+            item.put("productId", request.productId().toString());
+            item.put("productName", product != null ? product.getName() : null);
+            item.put("name", product != null ? product.getName() : null);
+            item.put("sku", product != null ? product.getSku() : null);
+            item.put("productSku", product != null ? product.getSku() : null);
+            item.put("unitOfMeasure", product != null && product.getUnitOfMeasure() != null
+                    ? product.getUnitOfMeasure() : "шт");
+            item.put("unit", product != null && product.getUnitOfMeasure() != null
+                    ? product.getUnitOfMeasure() : "шт");
+            item.put("batchId", inv.getBatchId() != null ? inv.getBatchId().toString() : null);
+            item.put("batchNumber", b != null ? b.getBatchNumber() : null);
+            item.put("expiryDate", b != null && b.getExpiryDate() != null
+                    ? b.getExpiryDate().toString() : null);
+            item.put("quantity", line.stripTrailingZeros().toPlainString());
+            item.put("unitPrice", unitPrice);
+            item.put("price", unitPrice);
+            item.put("totalPrice", lineTotal);
+            item.put("totalAmount", lineTotal);
+            item.put("amount", lineTotal);
+            item.put("cellId", inv.getCellId() != null ? inv.getCellId().toString() : null);
+            item.put("reason", request.reason());
+            itemRows.add(item);
+        }
 
         Map<String, Object> result = new HashMap<>();
         result.put("operationId", operation.getOperationId());
         result.put("productId", request.productId());
-        result.put("quantity", request.quantity());
+        result.put("quantity", request.quantity().stripTrailingZeros().toPlainString());
         result.put("reason", request.reason());
+        result.put("basis", request.basis());
+        result.put("items", itemRows);
+        result.put("totalQuantity", request.quantity().stripTrailingZeros().toPlainString());
+        result.put("totalAmount", grandTotal);
         return result;
     }
 

@@ -31,6 +31,15 @@
     <td class="small muted">Плановая дата</td>
     <td colspan="3" th:text="${plannedDate}">—</td>
   </tr>
+  <tr th:if="${strategy}">
+    <td class="small muted">Стратегия подбора</td>
+    <td colspan="3">
+      <span th:text="${strategy}">AUTO</span>
+      <span class="small muted" th:if="${strategy == 'FEFO'}"> — first expired first out</span>
+      <span class="small muted" th:if="${strategy == 'FIFO'}"> — first in first out</span>
+      <span class="small muted" th:if="${strategy == 'AUTO'}"> — авто-выбор (FEFO при наличии expiry, иначе FIFO)</span>
+    </td>
+  </tr>
 </table>
 
 <table class="grid items mb-4">

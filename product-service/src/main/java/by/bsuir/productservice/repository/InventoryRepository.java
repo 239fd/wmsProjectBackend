@@ -55,6 +55,8 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     Optional<Inventory> findByProductIdAndWarehouseIdForUpdate(
             @Param("productId") UUID productId, @Param("warehouseId") UUID warehouseId);
 
+    List<Inventory> findAllByProductIdAndWarehouseId(UUID productId, UUID warehouseId);
+
     @Query("SELECT i.cellId AS cellId, COUNT(i) AS itemsCount, COALESCE(SUM(i.quantity), 0) AS totalQuantity "
             + "FROM Inventory i WHERE i.cellId IN :cellIds GROUP BY i.cellId")
     List<CellLoadProjection> aggregateLoadByCellIds(@Param("cellIds") List<UUID> cellIds);
@@ -80,4 +82,14 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
             @Param("batchId") UUID batchId,
             @Param("warehouseId") UUID warehouseId,
             @Param("cellId") UUID cellId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM Inventory i WHERE i.quantity <= 0 "
+            + "AND (i.reservedQuantity IS NULL OR i.reservedQuantity <= 0)")
+    int deleteEmptyInventory();
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM Inventory i WHERE i.cellId IS NULL "
+            + "AND (i.reservedQuantity IS NULL OR i.reservedQuantity <= 0)")
+    int deleteOrphanedInventoryWithoutCell();
 }

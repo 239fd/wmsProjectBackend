@@ -28,6 +28,12 @@ public class ShipmentRequestItem {
     @Column(name = "batch_id")
     private UUID batchId;
 
+    @Column(name = "inventory_id")
+    private UUID inventoryId;
+
+    @Column(name = "cell_id")
+    private UUID cellId;
+
     @Column(name = "expected_qty", nullable = false, precision = 12, scale = 3)
     private BigDecimal expectedQty;
 

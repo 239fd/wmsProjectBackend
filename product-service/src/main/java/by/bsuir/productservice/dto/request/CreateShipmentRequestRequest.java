@@ -4,8 +4,10 @@ import by.bsuir.productservice.model.enums.AllocationStrategy;
 import by.bsuir.productservice.model.enums.DocumentLayout;
 import by.bsuir.productservice.model.enums.DomesticDocumentKind;
 import by.bsuir.productservice.model.enums.ShipmentType;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
@@ -17,9 +19,17 @@ public record CreateShipmentRequestRequest(
         @NotNull(message = "Warehouse ID обязателен")
         UUID warehouseId,
 
+        @NotBlank(message = "Получатель обязателен")
         String recipientName,
+
+        @NotBlank(message = "Адрес получателя обязателен")
         String recipientAddress,
+
+        @NotBlank(message = "УНП/ИНН получателя обязателен")
+        @Pattern(regexp = "^\\d{9}$|^\\d{10}$|^\\d{12}$",
+                message = "УНП — 9 цифр (РБ) или ИНН — 10/12 цифр (РФ)")
         String recipientInn,
+
         LocalDate plannedDate,
         String comment,
 

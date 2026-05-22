@@ -40,93 +40,115 @@ public class FEFOService {
         log.info("Selecting inventory ({}) for product {} at warehouse {}, qty {}",
                 strategy, productId, warehouseId, requiredQuantity);
 
+        // 1. ПУЛ КАНДИДАТОВ: только этот склад, этот товар, статус AVAILABLE, есть свободный остаток.
         List<Inventory> availableInventory = inventoryRepository.findByWarehouseId(warehouseId).stream()
                 .filter(inv -> productId.equals(inv.getProductId()))
+                .filter(inv -> inv.getStatus() == null
+                        || inv.getStatus() == by.bsuir.productservice.model.enums.InventoryStatus.AVAILABLE)
+                .filter(inv -> inv.getQuantity() != null
+                        && inv.getQuantity().subtract(
+                                inv.getReservedQuantity() != null ? inv.getReservedQuantity() : BigDecimal.ZERO)
+                                .compareTo(BigDecimal.ZERO) > 0)
                 .toList();
 
         if (availableInventory.isEmpty()) {
-            throw AppException.notFound("Товар отсутствует на складе");
+            throw AppException.notFound("Товар отсутствует на складе или весь остаток зарезервирован");
         }
 
-        List<InventoryWithBatch> inventoryWithBatches = enrichWithBatchInfo(availableInventory);
+        List<InventoryWithBatch> pool = enrichWithBatchInfo(availableInventory);
 
+        // 2. РЕЗОЛВ AUTO. AUTO = FEFO с FIFO-tiebreaker. FIFO выбирается только если ни у одной партии нет expiry.
         AllocationStrategy effective = strategy;
-        if (strategy == AllocationStrategy.AUTO) {
-            boolean anyExpiry = inventoryWithBatches.stream()
+        if (strategy == null || strategy == AllocationStrategy.AUTO) {
+            boolean anyExpiry = pool.stream()
                     .anyMatch(iwb -> iwb.batch != null && iwb.batch.getExpiryDate() != null);
             effective = anyExpiry ? AllocationStrategy.FEFO : AllocationStrategy.FIFO;
-            log.info("AUTO resolved to {} (anyExpiry={})", effective, anyExpiry);
+            log.info("AUTO стратегия → {} (anyExpiry={})", effective, anyExpiry);
         }
 
+        // 3. СОРТИРОВКА.
+        //    FEFO: expiryDate ASC, NULL в конец, тай-брейк по batch.createdAt ASC.
+        //    FIFO: batch.createdAt ASC, тай-брейк по inventory.lastUpdated.
         Comparator<InventoryWithBatch> sorter = switch (effective) {
-            case FEFO -> Comparator.comparing(iwb ->
-                    iwb.batch != null && iwb.batch.getExpiryDate() != null
-                            ? iwb.batch.getExpiryDate()
-                            : LocalDate.MAX);
-            case FIFO -> Comparator.comparing((InventoryWithBatch iwb) ->
-                    iwb.batch != null && iwb.batch.getCreatedAt() != null
-                            ? iwb.batch.getCreatedAt()
-                            : LocalDateTime.MAX);
-            default -> Comparator.comparing(iwb ->
-                    iwb.batch != null && iwb.batch.getExpiryDate() != null
-                            ? iwb.batch.getExpiryDate()
-                            : LocalDate.MAX);
+            case FEFO -> Comparator
+                    .<InventoryWithBatch, LocalDate>comparing(
+                            iwb -> iwb.batch != null && iwb.batch.getExpiryDate() != null
+                                    ? iwb.batch.getExpiryDate() : LocalDate.MAX)
+                    .thenComparing(
+                            iwb -> iwb.batch != null && iwb.batch.getCreatedAt() != null
+                                    ? iwb.batch.getCreatedAt() : LocalDateTime.MAX);
+            case FIFO -> Comparator
+                    .<InventoryWithBatch, LocalDateTime>comparing(
+                            iwb -> iwb.batch != null && iwb.batch.getCreatedAt() != null
+                                    ? iwb.batch.getCreatedAt() : LocalDateTime.MAX)
+                    .thenComparing(
+                            iwb -> iwb.inventory.getLastUpdated() != null
+                                    ? iwb.inventory.getLastUpdated() : LocalDateTime.MAX);
+            default -> Comparator.comparing(
+                    iwb -> iwb.batch != null && iwb.batch.getExpiryDate() != null
+                            ? iwb.batch.getExpiryDate() : LocalDate.MAX);
         };
-        inventoryWithBatches.sort(sorter);
+        pool = new ArrayList<>(pool);
+        pool.sort(sorter);
 
+        // 4. ФИЛЬТР ПРОСРОЧЕНЫХ. Просрочка не уходит покупателю — выбрасываем и кидаем 409 если без неё не хватает.
         LocalDate today = LocalDate.now();
-        for (InventoryWithBatch iwb : inventoryWithBatches) {
-            if (iwb.batch != null && iwb.batch.getExpiryDate() != null) {
-                if (iwb.batch.getExpiryDate().isBefore(today)) {
-                    log.warn("Found expired batch: {} with expiry date: {}",
-                            iwb.batch.getBatchId(), iwb.batch.getExpiryDate());
-
-                }
+        List<InventoryWithBatch> expired = new ArrayList<>();
+        List<InventoryWithBatch> usable = new ArrayList<>();
+        for (InventoryWithBatch iwb : pool) {
+            if (iwb.batch != null && iwb.batch.getExpiryDate() != null
+                    && iwb.batch.getExpiryDate().isBefore(today)) {
+                expired.add(iwb);
+            } else {
+                usable.add(iwb);
             }
         }
+        if (!expired.isEmpty()) {
+            log.warn("Стратегия {}: пропущено {} просроченных партий: {}",
+                    effective, expired.size(),
+                    expired.stream().map(iwb -> iwb.batch.getBatchId() + "(до " + iwb.batch.getExpiryDate() + ")").toList());
+        }
 
+        // 5. АЛЛОКАЦИЯ.
         List<InventoryAllocation> allocations = new ArrayList<>();
         BigDecimal remaining = requiredQuantity;
 
-        for (InventoryWithBatch iwb : inventoryWithBatches) {
+        for (InventoryWithBatch iwb : usable) {
             Inventory inv = iwb.inventory;
+            BigDecimal reserved = inv.getReservedQuantity() != null ? inv.getReservedQuantity() : BigDecimal.ZERO;
+            BigDecimal available = inv.getQuantity().subtract(reserved);
+            if (available.compareTo(BigDecimal.ZERO) <= 0) continue;
 
-            BigDecimal available = inv.getQuantity().subtract(inv.getReservedQuantity());
+            BigDecimal toAllocate = remaining.min(available);
+            allocations.add(new InventoryAllocation(
+                    inv.getInventoryId(), inv.getProductId(), inv.getBatchId(),
+                    inv.getWarehouseId(), inv.getCellId(),
+                    toAllocate,
+                    iwb.batch != null ? iwb.batch.getExpiryDate() : null));
+            log.info("[{}] +{} из inv={} (batch={}, cell={}, expiry={}, createdAt={})",
+                    effective, toAllocate, inv.getInventoryId(),
+                    iwb.batch != null ? iwb.batch.getBatchNumber() : null,
+                    inv.getCellId(),
+                    iwb.batch != null ? iwb.batch.getExpiryDate() : null,
+                    iwb.batch != null ? iwb.batch.getCreatedAt() : null);
 
-            if (available.compareTo(BigDecimal.ZERO) > 0) {
-
-                BigDecimal toAllocate = remaining.min(available);
-
-                InventoryAllocation allocation = new InventoryAllocation(
-                        inv.getInventoryId(),
-                        inv.getProductId(),
-                        inv.getBatchId(),
-                        inv.getWarehouseId(),
-                        inv.getCellId(),
-                        toAllocate,
-                        iwb.batch != null ? iwb.batch.getExpiryDate() : null
-                );
-                allocations.add(allocation);
-
-                remaining = remaining.subtract(toAllocate);
-
-                log.debug("Allocated {} from inventory {} (batch: {})",
-                        toAllocate, inv.getInventoryId(), inv.getBatchId());
-
-                if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-                    break;
-                }
-            }
+            remaining = remaining.subtract(toAllocate);
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
         }
 
         if (remaining.compareTo(BigDecimal.ZERO) > 0) {
-            throw AppException.badRequest(
-                    String.format("Недостаточно товара на складе. Доступно: %s, требуется: %s",
-                            requiredQuantity.subtract(remaining), requiredQuantity)
-            );
+            BigDecimal usableTotal = usable.stream()
+                    .map(iwb -> iwb.inventory.getQuantity().subtract(
+                            iwb.inventory.getReservedQuantity() != null ? iwb.inventory.getReservedQuantity() : BigDecimal.ZERO))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            String hint = expired.isEmpty() ? "" :
+                    " (исключено " + expired.size() + " просроченных партий)";
+            throw AppException.badRequest(String.format(
+                    "Недостаточно товара на складе. Доступно: %s, требуется: %s%s",
+                    usableTotal, requiredQuantity, hint));
         }
 
-        log.info("FEFO selection completed. Total allocations: {}", allocations.size());
+        log.info("Стратегия {} выбрала {} позиций", effective, allocations.size());
         return allocations;
     }
 

@@ -205,7 +205,7 @@ public class UserService {
     public void logout(String refreshToken) {
         try {
             if (refreshToken == null || refreshToken.isBlank()) {
-                throw AppException.badRequest("Refresh token обязателен");
+                throw AppException.badRequest("Токен обновления обязателен");
             }
 
             UUID userId = refreshTokenService.getUserIdByRefreshToken(refreshToken);

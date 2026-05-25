@@ -52,7 +52,7 @@ public class SupplierService {
                     ? supplierRepository.existsByOrganizationIdAndUnpAndIsActiveTrue(organizationId, request.unp())
                     : supplierRepository.existsByUnpAndIsActiveTrue(request.unp());
             if (conflict) {
-                throw AppException.conflict("Поставщик с таким ИНН уже существует");
+                throw AppException.conflict("Поставщик с таким УНП уже существует");
             }
         }
 
@@ -83,7 +83,7 @@ public class SupplierService {
                     ? supplierRepository.existsByOrganizationIdAndUnpAndIsActiveTrue(organizationId, request.unp())
                     : supplierRepository.existsByUnpAndIsActiveTrue(request.unp());
             if (conflict) {
-                throw AppException.conflict("Поставщик с таким ИНН уже существует");
+                throw AppException.conflict("Поставщик с таким УНП уже существует");
             }
         }
 

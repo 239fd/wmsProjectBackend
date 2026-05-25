@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -220,6 +221,22 @@ public class RackController {
             @Parameter(description = "ID ячейки", required = true) @PathVariable UUID cellId) {
         Object response = rackService.getCellInfo(cellId);
         return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "Найти ячейку по человеко-читаемому коду",
+            description = "Резолвит slotCode (например «A1-3») в slotId+slotType+rackId на указанном складе. "
+                    + "Используется при сканировании ярлыка/ручном вводе кода."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Ячейка найдена"),
+            @ApiResponse(responseCode = "404", description = "Ячейка с таким кодом не найдена")
+    })
+    @GetMapping("/cells/by-code/{slotCode}")
+    public ResponseEntity<Map<String, Object>> getCellByCode(
+            @Parameter(description = "ID склада", required = true) @RequestParam UUID warehouseId,
+            @Parameter(description = "Код ячейки", required = true) @PathVariable String slotCode) {
+        return ResponseEntity.ok(rackService.resolveSlotByCode(warehouseId, slotCode));
     }
 
     @Operation(

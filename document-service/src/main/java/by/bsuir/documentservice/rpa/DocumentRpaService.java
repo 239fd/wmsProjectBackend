@@ -105,7 +105,7 @@ public class DocumentRpaService {
             setCellValue(sheet, 2, 1, "Акт переоценки №" + data.getDocumentNumber());
             setCellValue(sheet, 3, 1, "от " + formatDate(data.getDocumentDate()));
             setCellValue(sheet, 5, 1, data.getOrganizationName());
-            setCellValue(sheet, 6, 1, "ИНН: " + data.getInn());
+            setCellValue(sheet, 6, 1, "УНП: " + data.getInn());
 
             setCellValue(sheet, 8, 1, "Причина: " + data.getReason());
             setCellValue(sheet, 9, 1, data.getReasonDescription());
@@ -413,12 +413,12 @@ public class DocumentRpaService {
 
             setCellValue(sheet, 5, 0, "Организация:");
             setCellValue(sheet, 5, 2, safe(data.getOrganizationName()));
-            setCellValue(sheet, 6, 2, "ИНН/УНП: " + safe(data.getInn()));
+            setCellValue(sheet, 6, 2, "УНП: " + safe(data.getInn()));
             setCellValue(sheet, 7, 2, "Склад: " + safe(data.getWarehouseName()));
 
             setCellValue(sheet, 9, 0, "Поставщик:");
             setCellValue(sheet, 9, 2, safe(data.getSupplierName()));
-            setCellValue(sheet, 10, 2, "ИНН/УНП: " + safe(data.getSupplierInn()));
+            setCellValue(sheet, 10, 2, "УНП: " + safe(data.getSupplierInn()));
 
             setCellValue(sheet, 12, 0, "Договор:");
             setCellValue(sheet, 12, 2,
@@ -668,12 +668,12 @@ public class DocumentRpaService {
 
             setCellValue(sheet, 4, 0, "Грузоотправитель:");
             setCellValue(sheet, 4, 2, safe(data.getShipperName()));
-            setCellValue(sheet, 5, 2, "ИНН/УНП: " + safe(data.getShipperInn()));
+            setCellValue(sheet, 5, 2, "УНП: " + safe(data.getShipperInn()));
             setCellValue(sheet, 6, 2, safe(data.getShipperAddress()));
 
             setCellValue(sheet, 8, 0, "Грузополучатель:");
             setCellValue(sheet, 8, 2, safe(data.getConsigneeName()));
-            setCellValue(sheet, 9, 2, "ИНН/УНП: " + safe(data.getConsigneeInn()));
+            setCellValue(sheet, 9, 2, "УНП: " + safe(data.getConsigneeInn()));
             setCellValue(sheet, 10, 2, safe(data.getConsigneeAddress()));
 
             setCellValue(sheet, 12, 0, "Склад отгрузки:");

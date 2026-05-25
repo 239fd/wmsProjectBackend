@@ -1,5 +1,6 @@
 package by.bsuir.productservice.service;
 
+import by.bsuir.productservice.dto.request.CompleteShipmentRequest;
 import by.bsuir.productservice.dto.request.CreateShipmentRequestRequest;
 import by.bsuir.productservice.dto.request.PickRequest;
 import by.bsuir.productservice.dto.response.ShipmentRequestResponse;
@@ -75,28 +76,14 @@ public class ShipmentRequestService {
         if (shipmentType == ShipmentType.EXPORT && "BYN".equals(currency)) {
             throw AppException.badRequest("Для экспортной отгрузки укажите валюту контракта (USD/EUR/RUB)");
         }
-
-        Map<UUID, BigDecimal> aggregatedByProduct = new HashMap<>();
-        for (CreateShipmentRequestRequest.Item itemReq : request.items()) {
-            aggregatedByProduct.merge(itemReq.productId(), itemReq.expectedQty(), BigDecimal::add);
+        if (shipmentType == ShipmentType.EXPORT
+                && (request.recipientCountry() == null || request.recipientCountry().isBlank())) {
+            throw AppException.badRequest("Для экспортной отгрузки укажите страну получателя");
         }
+        verifyWarehouseBelongsToOrg(request.warehouseId(), organizationId);
 
-        Map<UUID, List<FEFOService.InventoryAllocation>> allocationsByProduct = new HashMap<>();
-        for (Map.Entry<UUID, BigDecimal> entry : aggregatedByProduct.entrySet()) {
-            UUID productId = entry.getKey();
-            BigDecimal needed = entry.getValue();
-            List<FEFOService.InventoryAllocation> allocations;
-            try {
-                allocations = fefoService.selectInventory(
-                        productId, request.warehouseId(), needed, strategy);
-            } catch (AppException e) {
-                ProductReadModel p = productRepository.findById(productId).orElse(null);
-                String prodName = p != null ? p.getName() : productId.toString();
-                throw AppException.badRequest(
-                        "Невозможно создать заявку: товар «" + prodName + "» — " + e.getMessage());
-            }
-            allocationsByProduct.put(productId, allocations);
-        }
+        Map<UUID, List<FEFOService.InventoryAllocation>> allocationsByProduct =
+                allocate(request.items(), request.warehouseId(), strategy, "создать заявку");
 
         ShipmentRequest entity = ShipmentRequest.builder()
                 .requestId(UUID.randomUUID())
@@ -121,6 +108,105 @@ public class ShipmentRequestService {
                 .build();
         requestRepository.save(entity);
 
+        reserveAndPersistItems(entity.getRequestId(), allocationsByProduct);
+
+        try {
+            List<ShipmentRequestItem> all = itemRepository.findByRequestId(entity.getRequestId());
+            Map<String, Object> pickingPayload = buildPickingListPayload(entity, all,
+                    documentLayout, currency);
+            GeneratedDocument picking = documentRegistryService.register(null, "picking-list", pickingPayload,
+                    organizationId, userId != null ? userId : entity.getCreatedBy());
+            entity.setPickingListDocId(picking.getId());
+            requestRepository.save(entity);
+        } catch (Exception ex) {
+            log.warn("Не удалось сгенерировать picking-list для заявки {}: {}",
+                    entity.getRequestId(), ex.getMessage());
+            entity.setDocumentError("Не удалось сгенерировать лист подбора — перевыпустите позже");
+            requestRepository.save(entity);
+        }
+
+        log.info("Shipment request {} created with {} items (strategy={})",
+                entity.getRequestId(),
+                allocationsByProduct.values().stream().mapToInt(List::size).sum(),
+                strategy);
+        return mapToResponse(entity, List.of());
+    }
+
+    @Transactional
+    public ShipmentRequestResponse addItems(UUID requestId,
+                                            by.bsuir.productservice.dto.request.AddShipmentItemsRequest request,
+                                            UUID userId, UUID organizationId) {
+        ShipmentRequest entity = findOwned(requestId, organizationId);
+        if (entity.getStatus() == ShipmentRequestStatus.COMPLETED
+                || entity.getStatus() == ShipmentRequestStatus.CANCELLED) {
+            throw AppException.badRequest(
+                    "Нельзя добавлять позиции в завершённую или отменённую заявку");
+        }
+
+        AllocationStrategy strategy = entity.getStrategy() != null
+                ? entity.getStrategy() : AllocationStrategy.AUTO;
+
+        Map<UUID, List<FEFOService.InventoryAllocation>> allocationsByProduct =
+                allocate(request.items(), entity.getWarehouseId(), strategy, "добавить позиции");
+
+        reserveAndPersistItems(entity.getRequestId(), allocationsByProduct);
+
+        entity.setUpdatedAt(LocalDateTime.now());
+        requestRepository.save(entity);
+
+        try {
+            List<ShipmentRequestItem> all = itemRepository.findByRequestId(entity.getRequestId());
+            DocumentLayout layout = entity.getDocumentLayout() != null
+                    ? entity.getDocumentLayout() : DocumentLayout.HORIZONTAL;
+            String currency = entity.getCurrency() != null ? entity.getCurrency() : "BYN";
+            Map<String, Object> pickingPayload = buildPickingListPayload(entity, all, layout, currency);
+            UUID prevPicking = entity.getPickingListDocId();
+            GeneratedDocument picking = documentRegistryService.register(null, "picking-list", pickingPayload,
+                    organizationId, userId != null ? userId : entity.getCreatedBy());
+            entity.setPickingListDocId(picking.getId());
+            requestRepository.save(entity);
+            documentRegistryService.markSuperseded(prevPicking, picking.getId(), organizationId);
+        } catch (Exception ex) {
+            log.warn("Не удалось пересоздать picking-list для заявки {}: {}",
+                    entity.getRequestId(), ex.getMessage());
+        }
+
+        log.info("Added {} new line(s) to shipment request {} (strategy={})",
+                allocationsByProduct.values().stream().mapToInt(List::size).sum(),
+                entity.getRequestId(), strategy);
+        return mapToResponse(entity, List.of());
+    }
+
+    private Map<UUID, List<FEFOService.InventoryAllocation>> allocate(
+            List<CreateShipmentRequestRequest.Item> items,
+            UUID warehouseId,
+            AllocationStrategy strategy,
+            String actionLabel) {
+        Map<UUID, BigDecimal> aggregatedByProduct = new HashMap<>();
+        for (CreateShipmentRequestRequest.Item itemReq : items) {
+            aggregatedByProduct.merge(itemReq.productId(), itemReq.expectedQty(), BigDecimal::add);
+        }
+
+        Map<UUID, List<FEFOService.InventoryAllocation>> allocationsByProduct = new HashMap<>();
+        for (Map.Entry<UUID, BigDecimal> entry : aggregatedByProduct.entrySet()) {
+            UUID productId = entry.getKey();
+            BigDecimal needed = entry.getValue();
+            List<FEFOService.InventoryAllocation> allocations;
+            try {
+                allocations = fefoService.selectInventory(productId, warehouseId, needed, strategy);
+            } catch (AppException e) {
+                ProductReadModel p = productRepository.findById(productId).orElse(null);
+                String prodName = p != null ? p.getName() : productId.toString();
+                throw AppException.badRequest(
+                        "Невозможно " + actionLabel + ": товар «" + prodName + "» — " + e.getMessage());
+            }
+            allocationsByProduct.put(productId, allocations);
+        }
+        return allocationsByProduct;
+    }
+
+    private void reserveAndPersistItems(UUID requestId,
+                                        Map<UUID, List<FEFOService.InventoryAllocation>> allocationsByProduct) {
         for (Map.Entry<UUID, List<FEFOService.InventoryAllocation>> e : allocationsByProduct.entrySet()) {
             UUID productId = e.getKey();
             for (FEFOService.InventoryAllocation alloc : e.getValue()) {
@@ -138,7 +224,7 @@ public class ShipmentRequestService {
 
                 ShipmentRequestItem item = ShipmentRequestItem.builder()
                         .itemId(UUID.randomUUID())
-                        .requestId(entity.getRequestId())
+                        .requestId(requestId)
                         .productId(productId)
                         .batchId(alloc.getBatchId())
                         .inventoryId(alloc.getInventoryId())
@@ -151,23 +237,6 @@ public class ShipmentRequestService {
                 itemRepository.save(item);
             }
         }
-
-        try {
-            List<ShipmentRequestItem> all = itemRepository.findByRequestId(entity.getRequestId());
-            Map<String, Object> pickingPayload = buildPickingListPayload(entity, all,
-                    documentLayout, currency);
-            documentRegistryService.register(null, "picking-list", pickingPayload,
-                    organizationId, userId != null ? userId : entity.getCreatedBy());
-        } catch (Exception ex) {
-            log.warn("Не удалось сгенерировать picking-list для заявки {}: {}",
-                    entity.getRequestId(), ex.getMessage());
-        }
-
-        log.info("Shipment request {} created with {} items (strategy={})",
-                entity.getRequestId(),
-                allocationsByProduct.values().stream().mapToInt(List::size).sum(),
-                strategy);
-        return mapToResponse(entity, List.of());
     }
 
     @Transactional(readOnly = true)
@@ -208,6 +277,9 @@ public class ShipmentRequestService {
         if (pick.unitSku() != null) {
             item = itemRepository.findByRequestIdAndUnitSku(requestId, pick.unitSku())
                     .orElseGet(() -> findItemByInventorySku(requestId, pick.unitSku()));
+            if (item == null) {
+                item = findItemByProductBarcode(requestId, pick.unitSku());
+            }
         } else {
             throw AppException.badRequest("Требуется unitSku");
         }
@@ -263,6 +335,12 @@ public class ShipmentRequestService {
 
     @Transactional
     public ShipmentRequestResponse complete(UUID requestId, UUID userId, UUID organizationId) {
+        return complete(requestId, userId, organizationId, null);
+    }
+
+    @Transactional
+    public ShipmentRequestResponse complete(UUID requestId, UUID userId, UUID organizationId,
+                                            CompleteShipmentRequest manual) {
         ShipmentRequest req = findOwned(requestId, organizationId);
         if (req.getStatus() == ShipmentRequestStatus.COMPLETED) {
             throw AppException.badRequest("Заявка уже завершена");
@@ -323,10 +401,17 @@ public class ShipmentRequestService {
                     qtyBefore, qty.negate(),
                     operation.getOperationId(), req.getCreatedBy(),
                     Map.of("requestId", requestId, "strategy", strategy.name()));
+
+            if (item.getCellId() != null && item.getBatchId() != null) {
+                BigDecimal heightDelta = computeHeightDelta(item.getBatchId(), qty);
+                if (heightDelta.signum() > 0) {
+                    warehouseClient.adjustSlotHeight(item.getCellId(), heightDelta);
+                }
+            }
         }
 
         List<UUID> generatedIds = generateShipmentDocuments(req, items, primaryOperationId,
-                userId != null ? userId : req.getCreatedBy(), organizationId);
+                userId != null ? userId : req.getCreatedBy(), organizationId, manual);
 
         req.setStatus(ShipmentRequestStatus.COMPLETED);
         req.setUpdatedAt(LocalDateTime.now());
@@ -367,7 +452,8 @@ public class ShipmentRequestService {
             List<ShipmentRequestItem> items,
             UUID operationId,
             UUID userId,
-            UUID organizationId) {
+            UUID organizationId,
+            CompleteShipmentRequest manual) {
 
         ShipmentType shipmentType = req.getShipmentType() != null ? req.getShipmentType() : ShipmentType.DOMESTIC;
         DocumentLayout layout = req.getDocumentLayout() != null ? req.getDocumentLayout() : DocumentLayout.HORIZONTAL;
@@ -376,6 +462,7 @@ public class ShipmentRequestService {
         String currency = req.getCurrency() != null ? req.getCurrency() : "BYN";
 
         Map<String, Object> basePayload = buildBasePayload(req, items, layout, currency);
+        mergeManualFields(basePayload, manual);
         List<UUID> result = new ArrayList<>();
 
         if (shipmentType == ShipmentType.EXPORT) {
@@ -445,6 +532,7 @@ public class ShipmentRequestService {
         BigDecimal totalVat = BigDecimal.ZERO;
         BigDecimal grandTotal = BigDecimal.ZERO;
         BigDecimal totalWeightKg = BigDecimal.ZERO;
+        BigDecimal totalVolumeM3 = BigDecimal.ZERO;
         int totalLines = 0;
 
         Map<UUID, Map<String, String>> locationCache = new HashMap<>();
@@ -473,6 +561,18 @@ public class ShipmentRequestService {
                         .multiply(qty)
                         .divide(BigDecimal.valueOf(batch.getUnitsPerPackage()), 3, RoundingMode.HALF_UP)
                     : BigDecimal.ZERO;
+            BigDecimal lineVolume = BigDecimal.ZERO;
+            if (batch != null && batch.getPackageLengthCm() != null && batch.getPackageWidthCm() != null
+                    && batch.getPackageHeightCm() != null
+                    && batch.getUnitsPerPackage() != null && batch.getUnitsPerPackage() > 0) {
+                BigDecimal pkgVolM3 = batch.getPackageLengthCm()
+                        .multiply(batch.getPackageWidthCm())
+                        .multiply(batch.getPackageHeightCm())
+                        .divide(new BigDecimal("1000000"), 6, RoundingMode.HALF_UP);
+                BigDecimal numPkgs = qty.divide(
+                        BigDecimal.valueOf(batch.getUnitsPerPackage()), 6, RoundingMode.HALF_UP);
+                lineVolume = pkgVolM3.multiply(numPkgs).setScale(4, RoundingMode.HALF_UP);
+            }
 
             Map<String, String> loc = resolveLocation(i.getCellId(), locationCache);
             String unitLabel = product != null && product.getUnitOfMeasure() != null
@@ -505,6 +605,12 @@ public class ShipmentRequestService {
             m.put("amount", lineGross);
             m.put("weightKg", lineWeight);
             m.put("grossWeight", lineWeight);
+            m.put("grossWeightKg", lineWeight);
+            m.put("volumeM3", lineVolume);
+            m.put("declaredValue", lineGross);
+            m.put("packagingType", batch != null && batch.getPackagingType() != null
+                    ? batch.getPackagingType().name() : null);
+            m.put("marks", batch != null ? batch.getBatchNumber() : null);
             m.put("cellId", i.getCellId() != null ? i.getCellId().toString() : null);
             m.put("rackName", loc.get("rackName"));
             m.put("cellCode", loc.get("cellCode"));
@@ -516,6 +622,7 @@ public class ShipmentRequestService {
             totalVat = totalVat.add(lineVat);
             grandTotal = grandTotal.add(lineGross);
             totalWeightKg = totalWeightKg.add(lineWeight);
+            totalVolumeM3 = totalVolumeM3.add(lineVolume);
         }
         payload.put("items", itemPayloads);
 
@@ -530,8 +637,13 @@ public class ShipmentRequestService {
         payload.put("totalAmount", subtotal);
         payload.put("totalVat", totalVat);
         payload.put("totalAmountWithVat", grandTotal);
+        payload.put("totalAmountInWords",
+                by.bsuir.productservice.util.MoneyToWordsRu.rubles(grandTotal));
         payload.put("totalGrossWeight", totalWeightKg);
         payload.put("totalNetWeight", totalWeightKg);
+        payload.put("totalWeight", totalWeightKg);
+        payload.put("totalVolume", totalVolumeM3);
+        payload.put("cargoDeclaredValue", grandTotal);
         payload.put("totalLines", totalLines);
         payload.put("totalSeats", totalLines);
 
@@ -556,10 +668,15 @@ public class ShipmentRequestService {
         String cellCode = String.valueOf(cellId).substring(0, 8).toUpperCase();
         try {
             Map<String, Object> info = warehouseClient.getCellInfo(cellId, "WORKER");
-            if (info != null && info.get("rackId") != null) {
-                UUID rackId = UUID.fromString(info.get("rackId").toString());
-                var rack = warehouseClient.getRack(rackId, "WORKER");
-                if (rack != null && rack.name() != null) rackName = rack.name();
+            if (info != null) {
+                if (info.get("slotCode") != null) {
+                    cellCode = info.get("slotCode").toString();
+                }
+                if (info.get("rackId") != null) {
+                    UUID rackId = UUID.fromString(info.get("rackId").toString());
+                    var rack = warehouseClient.getRack(rackId, "WORKER");
+                    if (rack != null && rack.name() != null) rackName = rack.name();
+                }
             }
         } catch (Exception ex) {
             log.debug("resolveLocation: failed for cell {}: {}", cellId, ex.getMessage());
@@ -570,6 +687,21 @@ public class ShipmentRequestService {
                 "location", rackName + " / " + cellCode);
         cache.put(cellId, result);
         return result;
+    }
+
+    private ShipmentRequestItem findItemByProductBarcode(UUID requestId, String scanned) {
+        ProductReadModel product = productRepository.findByBarcode(scanned)
+                .or(() -> productRepository.findBySku(scanned))
+                .orElse(null);
+        if (product == null) {
+            return null;
+        }
+        return itemRepository.findByRequestId(requestId).stream()
+                .filter(it -> product.getProductId().equals(it.getProductId()))
+                .filter(it -> !"PICKED".equals(it.getStatus()))
+                .min(java.util.Comparator.comparing(
+                        it -> it.getExpectedQty() != null ? it.getExpectedQty() : BigDecimal.ZERO))
+                .orElse(null);
     }
 
     private ShipmentRequestItem findItemByInventorySku(UUID requestId, String unitSku) {
@@ -584,6 +716,27 @@ public class ShipmentRequestService {
         return itemRepository
                 .findFirstByRequestIdAndProductIdAndBatchIdIsNull(requestId, inv.getProductId())
                 .orElse(null);
+    }
+
+    private void verifyWarehouseBelongsToOrg(UUID warehouseId, UUID organizationId) {
+        if (warehouseId == null || organizationId == null) {
+            return;
+        }
+        try {
+            Map<String, Object> wh = warehouseClient.getWarehouse(warehouseId, "WORKER");
+            if (wh == null) {
+                throw AppException.notFound("Склад не найден");
+            }
+            Object whOrg = wh.get("orgId");
+            if (whOrg != null && !organizationId.toString().equals(whOrg.toString())) {
+                throw AppException.forbidden("Склад принадлежит другой организации");
+            }
+        } catch (AppException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("verifyWarehouseBelongsToOrg: не удалось проверить склад {}: {}",
+                    warehouseId, e.getMessage());
+        }
     }
 
     private ShipmentRequest findOwned(UUID requestId, UUID organizationId) {
@@ -650,5 +803,77 @@ public class ShipmentRequestService {
                 documentIds != null ? documentIds : List.of(),
                 itemDtos
         );
+    }
+
+    private BigDecimal computeHeightDelta(UUID batchId, BigDecimal quantityUnits) {
+        if (batchId == null || quantityUnits == null || quantityUnits.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        ProductBatch batch = batchRepository.findById(batchId).orElse(null);
+        if (batch == null || batch.getPackageHeightCm() == null) return BigDecimal.ZERO;
+        int upp = (batch.getUnitsPerPackage() != null && batch.getUnitsPerPackage() > 0)
+                ? batch.getUnitsPerPackage() : 1;
+        BigDecimal numPackages = quantityUnits.divide(
+                BigDecimal.valueOf(upp), 0, java.math.RoundingMode.CEILING);
+        return batch.getPackageHeightCm().multiply(numPackages);
+    }
+
+    private void mergeManualFields(Map<String, Object> payload, CompleteShipmentRequest manual) {
+        if (manual == null) return;
+
+        putIfNonBlank(payload, "vehicleMake", manual.vehicleMake());
+        putIfNonBlank(payload, "vehicleNumber", manual.vehicleNumber());
+        putIfNonBlank(payload, "vehiclePlate", manual.vehicleNumber());
+        putIfNonBlank(payload, "trailerNumber", manual.trailerNumber());
+        putIfNonBlank(payload, "trailerPlate", manual.trailerNumber());
+        putIfNonBlank(payload, "driverName", manual.driverName());
+        putIfNonBlank(payload, "driverFullName", manual.driverName());
+        putIfNonBlank(payload, "proxyNumber", manual.proxyNumber());
+        if (manual.proxyDate() != null) {
+            payload.put("proxyDate", manual.proxyDate().toString());
+        }
+        putIfNonBlank(payload, "proxyIssuedBy", manual.proxyIssuedBy());
+        putIfNonBlank(payload, "sealNumber", manual.sealNumber());
+        putIfNonBlank(payload, "contractNumber", manual.contractNumber());
+        if (manual.contractDate() != null) {
+            payload.put("contractDate", manual.contractDate().toString());
+        }
+        putIfNonBlank(payload, "accompanyingDocs", manual.accompanyingDocs());
+
+        putIfNonBlank(payload, "carrierName", manual.carrierName());
+        putIfNonBlank(payload, "carrierInn", manual.carrierInn());
+        putIfNonBlank(payload, "carrierUnp", manual.carrierInn());
+        putIfNonBlank(payload, "carrierAddress", manual.carrierAddress());
+        putIfNonBlank(payload, "carrierPhone", manual.carrierPhone());
+        putIfNonBlank(payload, "countryOfManufacture", manual.countryOfManufacture());
+
+        putIntPair(payload, "loadingArrivalHour", "loading_arrival_hour", manual.loadingArrivalHour());
+        putIntPair(payload, "loadingArrivalMin", "loading_arrival_min", manual.loadingArrivalMin());
+        putIntPair(payload, "loadingDepartureHour", "loading_departure_hour", manual.loadingDepartureHour());
+        putIntPair(payload, "loadingDepartureMin", "loading_departure_min", manual.loadingDepartureMin());
+        putIntPair(payload, "unloadingArrivalHour", "unloading_arrival_hour", manual.unloadingArrivalHour());
+        putIntPair(payload, "unloadingArrivalMin", "unloading_arrival_min", manual.unloadingArrivalMin());
+        putIntPair(payload, "unloadingDepartureHour", "unloading_departure_hour", manual.unloadingDepartureHour());
+        putIntPair(payload, "unloadingDepartureMin", "unloading_departure_min", manual.unloadingDepartureMin());
+
+        putIfNonBlank(payload, "paymentTerms", manual.paymentTerms());
+        putIfNonBlank(payload, "paymentInstructions", manual.paymentTerms());
+        putIfNonBlank(payload, "specialTerms", manual.specialTerms());
+        putIfNonBlank(payload, "specialInstructions", manual.specialTerms());
+        putIfNonBlank(payload, "shipperInstructions", manual.shipperInstructions());
+        putIfNonBlank(payload, "carrierRemarks", manual.carrierRemarks());
+    }
+
+    private static void putIfNonBlank(Map<String, Object> payload, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            payload.put(key, value);
+        }
+    }
+
+    private static void putIntPair(Map<String, Object> payload, String camelKey, String snakeKey, Integer value) {
+        if (value != null) {
+            payload.put(camelKey, value);
+            payload.put(snakeKey, value);
+        }
     }
 }

@@ -40,8 +40,8 @@ public class GlobalExceptionHandler {
             errors.put(fieldName, errorMessage);
         });
 
-        String combined = errors.entrySet().stream()
-                .map(e -> e.getKey() + ": " + e.getValue())
+        String combined = errors.values().stream()
+                .filter(java.util.Objects::nonNull)
                 .collect(Collectors.joining("; "));
 
         Map<String, Object> body = new HashMap<>();

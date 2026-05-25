@@ -53,8 +53,8 @@ class WordTableWrite:
 
 @dataclass(frozen=True, slots=True)
 class CellRule:
-    # post_items=True shifts row by the number of items rows inserted (for
-    # totals/footer rows that move after items area expands).
+                                                                          
+                                                             
     table_index: int
     row: int
     col: int
@@ -74,8 +74,8 @@ class WordItemsTable:
 
 @dataclass(frozen=True, slots=True)
 class CellAppend:
-    # Used instead of F&R when the replacement needs a paragraph break: Word's
-    # Find.Replacement silently strips `\r`, so we Range.InsertAfter the value.
+                                                                              
+                                                                               
     table_index: int
     row: int
     col: int
@@ -92,8 +92,8 @@ class WordSpec:
     items_table: WordItemsTable | None = None
     cell_rules: list[CellRule] = field(default_factory=list)
     cell_appends: list[CellAppend] = field(default_factory=list)
-    # Sequential placeholder fills: same find-text appearing N times, each
-    # replaced by the next value (e.g. chairman + 3 commission members).
+                                                                          
+                                                                        
     ordered_rules: list[tuple[str, list[str]]] = field(default_factory=list)
     font_size: float | None = None
 
@@ -107,37 +107,37 @@ EXCEL_SPECS: list[ExcelSpec] = [
         name="Приходной ордер.XLS",
         output_suffix="ПриходныйОрдер",
         header={
-            # Header (top of стр1)
-            "doc_number":         "BN5",     # «ПРИХОДНЫЙ ОРДЕР № …»
-            "organization":       "M8",      # «Организация»
-            "structural_unit":    "Z9",      # «Структурное подразделение»
-            # Row 13 — data row beneath the two-level header (rows 11-12 labels)
-            "date":               "A13",     # Дата составления
-            "operation_code":     "I13",     # Код вида операции
-            "warehouse":          "Q13",     # Склад
-            "supplier":           "Y13",     # Поставщик — наименование (one-liner)
-            "insurance_company":  "AR13",    # Страховая компания
-            "account_corr":       "BC13",    # Корреспондирующий счёт — счёт, субсчёт
-            "account_code":       "BL13",    # Корреспондирующий счёт — код анал. учёта
-            "doc_accompanying":   "BV13",    # Номер документа — сопроводительный
-            "doc_payment":        "CN13",    # Номер документа — платёжный
+                                  
+            "doc_number":         "BN5",                            
+            "organization":       "M8",                     
+            "structural_unit":    "Z9",                                   
+                                                                                
+            "date":               "A13",                       
+            "operation_code":     "I13",                        
+            "warehouse":          "Q13",            
+            "supplier":           "Y13",                                           
+            "insurance_company":  "AR13",                        
+            "account_corr":       "BC13",                                            
+            "account_code":       "BL13",                                              
+            "doc_accompanying":   "BV13",                                        
+            "doc_payment":        "CN13",                                 
         },
         items_start_row=18,
-        items_capacity=8,        # rows 18-25 on стр1
-        items_max_rows=8,        # do NOT expand стр1 — overflow goes to стр2
+        items_capacity=8,                            
+        items_max_rows=8,                                                    
         items_columns={
-            "nomenclature":  "A",     # Материальные ценности — наименование
-            "unit":          "AG",    # Единица измерения — наименование
-            "qty_accepted":  "BB",    # Количество — принято
-            "price":         "BJ",    # Цена
-            "cost":          "BR",    # Сумма без учёта НДС
-            "vat_amount":    "CA",    # Сумма НДС
-            "cost_with_vat": "CJ",    # Всего с учётом НДС
+            "nomenclature":  "A",                                           
+            "unit":          "AG",                                      
+            "qty_accepted":  "BB",                          
+            "price":         "BJ",          
+            "cost":          "BR",                         
+            "vat_amount":    "CA",               
+            "cost_with_vat": "CJ",                        
         },
-        # Continuation page стр2 — Итого row 20, signer at row 23
+                                                                 
         continuation_sheet="стр2",
         continuation_items_start_row=6,
-        continuation_items_capacity=14,    # rows 6-19; expanded via Rows.Insert if more
+        continuation_items_capacity=14,                                                 
         continuation_items_columns={
             "nomenclature":  "A",
             "unit":          "AG",
@@ -154,8 +154,8 @@ EXCEL_SPECS: list[ExcelSpec] = [
             "total_cost_with_vat": "CJ20",
         },
         continuation_header={
-            # Pre-expansion addresses — _fill_continuation_sheet shifts them
-            # down by N rows after Rows.Insert expansion.
+                                                                            
+                                                         
             "receiver_position":   "J23",
             "receiver_name":       "AN23",
         },
@@ -165,35 +165,35 @@ EXCEL_SPECS: list[ExcelSpec] = [
         name="ttn-gor.xls",
         output_suffix="ТТН-горизонт",
         header={
-            # Top mini-table — Грузоотправитель / Грузополучатель / Заказчик (УНП)
+                                                                                  
             "shipper_inn_top":     "AY4",
             "recipient_inn_top":   "BL4",
             "payer_inn_top":       "BY4",
-            # Date row 14
+                         
             "date_day":            "C14",
             "date_month_name":     "J14",
             "date_year_2":         "AJ14",
-            # Vehicle / trailer / waybill / driver
+                                                  
             "vehicle_make_plate":  "N15",
             "trailer_make_plate":  "CJ15",
             "waybill_no":          "EK15",
             "driver_full_name":    "K18",
-            # Address block
+                           
             "payer":               "A22",
             "shipper":             "R24",
             "recipient":           "R26",
             "basis":               "Q28",
             "loading_point":       "BX28",
-            "delivery_point":      "DQ28",   # Пункт разгрузки
+            "delivery_point":      "DQ28",                    
             "redirection":         "P30",
-            # ИТОГО row 38
+                          
             "total_qty":           "AW38",
             "total_cost":          "BS38",
             "total_vat":           "CO38",
             "total_cost_with_vat": "DB38",
             "total_package_count": "DP38",
             "total_weight":        "DZ38",
-            # Прописью / цифрами for VAT (row 41) and Total (row 44)
+                                                                    
             "vat_words":           "S41",
             "vat_digits":          "DD41",
             "total_words":         "W44",
@@ -215,7 +215,7 @@ EXCEL_SPECS: list[ExcelSpec] = [
             "package_count": "DP",
             "weight":        "DZ",
         },
-        # Wipe «руб.»/«коп.» labels (we write the digit form to wide DD merges).
+                                                                                
         cells_to_clear=("CX41", "DX41", "CX44", "DX44"),
         secondary_sheet="Горизонтальная_2",
         secondary_header={
@@ -231,7 +231,7 @@ EXCEL_SPECS: list[ExcelSpec] = [
             "receiver_signer":           "CU9",
             "accompanying_docs":         "AE54",
         },
-        # Appendix sheet 3
+                          
         appendix_sheet="Приложение (при необходимости)",
         appendix_items_start_row=6,
         appendix_items_capacity=25,
@@ -266,20 +266,20 @@ EXCEL_SPECS: list[ExcelSpec] = [
         name="ttn-vert.xls",
         output_suffix="ТТН-вертикаль",
         header={
-            # Top mini-table — ИНН-cells under AL1/AY1/BL1 headers
+                                                                  
             "shipper_inn_top":     "AL4",
             "recipient_inn_top":   "AY4",
             "payer_inn_top":       "BL4",
-            # Date row 16
+                         
             "date_day":            "C16",
             "date_month_name":     "J16",
             "date_year_2":         "AJ16",
-            # Vehicle / trailer / waybill / driver
+                                                  
             "vehicle_make_plate":  "N17",
             "trailer_make_plate":  "BY17",
             "waybill_no":          "DW17",
             "driver_full_name":    "K19",
-            # Address block (rows 22-31)
+                                        
             "payer":               "AS22",
             "shipper":             "R25",
             "recipient":           "R27",
@@ -287,33 +287,33 @@ EXCEL_SPECS: list[ExcelSpec] = [
             "loading_point":       "BZ29",
             "delivery_point":      "DL29",
             "redirection":         "P31",
-            # ИТОГО row 38
+                          
             "total_qty":           "AO38",
             "total_cost":          "BK38",
             "total_vat":           "CD38",
             "total_cost_with_vat": "CO38",
             "total_package_count": "DA38",
             "total_weight":        "DJ38",
-            # Прописью / цифрами for VAT (row 40) and Total (row 43)
+                                                                    
             "vat_words":           "S40",
             "vat_digits":          "DD40",
             "total_words":         "W43",
             "total_digits":        "DD43",
-            # Row 45 — Всего масса / Всего кол-во грузовых мест
+                                                               
             "total_weight_words":        "O45",
             "total_package_count_words": "CI45",
-            # Row 47 — Отпуск разрешил / Товар к перевозке принял
+                                                                 
             "released_by":               "O47",
             "carrier_signer":            "CE47",
-            # Row 50 — Сдал грузоотправитель / №пломбы / по доверенности / выданной
+                                                                                   
             "handed_over_by":            "S50",
             "shipper_seal":              "BG50",
             "proxy_number_date":         "BX50",
             "proxy_issued_by":           "DC50",
-            # Row 53 — Принял грузополучатель + № пломбы
+                                                        
             "receiver_signer":           "CG53",
             "receiver_seal":             "DY53",
-            # Row 96 — С товаром переданы документы
+                                                   
             "accompanying_docs":         "AE96",
         },
         items_start_row=37,
@@ -367,36 +367,36 @@ EXCEL_SPECS: list[ExcelSpec] = [
         name="tn-gor.xls",
         output_suffix="ТН-горизонт",
         header={
-            # Top mini-table (рядом с шапкой бланка)
+                                                    
             "shipper_inn_top":     "AY4",
             "recipient_inn_top":   "BS4",
-            # Date placeholder row 12: " __ " ____ 20 __ г.
+                                                           
             "date_day":            "BA12",
             "date_month_name":     "BH12",
             "date_year_2":         "CH12",
-            # Full-width Грузоотправитель / Грузополучатель / Основание
+                                                                       
             "shipper":             "T14",
             "recipient":           "T17",
             "basis":               "U20",
-            # ИТОГО row 29 — totals computed from items
+                                                       
             "total_qty":           "BH29",
             "total_cost":          "CH29",
             "total_vat":           "DD29",
             "total_cost_with_vat": "DQ29",
-            # «Всего сумма НДС» row 31, «Всего стоимость с НДС» row 34 —
-            # digit form goes into wide DP merges, narrow single cells beside
-            # them clip and are cleared via cells_to_clear.
+                                                                        
+                                                                             
+                                                           
             "vat_words":           "S31",
             "vat_digits":          "DP31",
             "total_words":         "Y34",
             "total_digits":        "DP34",
-            "released_by":         "R37",       # Отпуск разрешил
-            "handed_over_by":      "V40",       # Сдал грузоотправитель
-            "carrier_signer":      "AV43",      # Товар к доставке принял
-            "proxy_number_date":   "CY43",      # по доверенности № N от …
-            "proxy_issued_by":     "DU43",      # выданной [организация]
-            "receiver_signer":     "X48",       # Принял грузополучатель
-            "accompanying_docs":   "AE51",      # С товаром переданы документы
+            "released_by":         "R37",                        
+            "handed_over_by":      "V40",                              
+            "carrier_signer":      "AV43",                               
+            "proxy_number_date":   "CY43",                                
+            "proxy_issued_by":     "DU43",                              
+            "receiver_signer":     "X48",                               
+            "accompanying_docs":   "AE51",                                    
         },
         items_start_row=26,
         items_capacity=3,
@@ -530,17 +530,17 @@ EXCEL_SPECS: list[ExcelSpec] = [
         items_max_rows=200,
         print_title_rows="$15:$16",
         items_columns={
-            "row_number":      "A",   # № п/п
-            "doc_series":      "B",   # Серия накладной (mock: "ПН")
-            "doc_number":      "C",   # Номер накладной (mock: order.number)
-            "item_code":       "D",   # Код товара (артикул)
-            "nomenclature":    "E",   # Наименование товара (merged E:F)
-            "unit":            "G",   # Ед. измерения
-            "qty_expected":    "H",   # Количество по документам
-            "qty_actual":      "I",   # Количество фактически (qty ±1 за счёт расхождения)
-            "qty_diff_plus":   "J",   # Расхождение +
-            "qty_diff_minus":  "K",   # Расхождение -
-            "note":            "L",   # Примечание
+            "row_number":      "A",          
+            "doc_series":      "B",                                 
+            "doc_number":      "C",                                         
+            "item_code":       "D",                         
+            "nomenclature":    "E",                                     
+            "unit":            "G",                  
+            "qty_expected":    "H",                             
+            "qty_actual":      "I",                                                       
+            "qty_diff_plus":   "J",                  
+            "qty_diff_minus":  "K",                  
+            "note":            "L",               
         },
     ),
     ExcelSpec(
@@ -575,8 +575,8 @@ EXCEL_SPECS: list[ExcelSpec] = [
         items_columns={
             "nomenclature":    "C",
             "qty_accepted":    "K",
-            "amount":          "R",      # Сумма до переоценки
-            "amount_revalued": "Y",      # Сумма после переоценки
+            "amount":          "R",                           
+            "amount_revalued": "Y",                              
         },
     ),
     ExcelSpec(
@@ -592,7 +592,7 @@ EXCEL_SPECS: list[ExcelSpec] = [
             "order_number":            "AM19",
             "inventory_start":         "AM21",
             "inventory_end":           "AM23",
-            # МО-лицо дублируется в верхнем (row 34) и нижнем (row 112) блоках.
+                                                                               
             "mo_top_position":         "C34",
             "mo_top_name":             "W34",
             "total_qty_fact":          "X86",
@@ -659,12 +659,12 @@ WORD_SPECS: list[WordSpec] = [
              "Валюта:  {currency_or_default}"),
         ],
         cell_rules=[
-            # Cell-scoped so the "ООО" find doesn't double-match after a
-            # neighbouring "Получатель ООO …" replacement.
+                                                                        
+                                                          
             CellRule(1, 2, 1, "ООО",   "{supplier_in_quotes}"),
             CellRule(1, 2, 1, "VAT №", "VAT №   {supplier_vat}"),
             CellRule(1, 9, 2, "кол-во",          "кол-во:   {total_qty} {primary_unit}",   post_items=True),
-            CellRule(1, 9, 5, "Общий вес",       "Общий вес:   —",                          post_items=True),
+            CellRule(1, 9, 5, "Общий вес",       "Общий вес:   {total_weight_value} кг",    post_items=True),
             CellRule(1, 9, 7, "Общая стоимость", "Общая стоимость:   {total_amount}",       post_items=True),
             CellRule(1, 10, 1,
                      "_____________________________________",
@@ -693,62 +693,62 @@ WORD_SPECS: list[WordSpec] = [
             },
         ),
     ),
-    # CMR: same data writes apply to all 3 language variants (RU+DE, RU+EN, RU).
+                                                                                
     *(WordSpec(
         name=name,
         output_suffix=suffix,
         rules=[],
-        # Layout: rows 2-6/8-12/22-23 have 2 cells (LEFT/RIGHT halves);
-        # rows 14, 18-20 have 3 cells (sub-label, LEFT, RIGHT).
+                                                                       
+                                                               
         table_writes=[
-            # § 1 Отправитель — data cells [2..6, 1] (LEFT half under the label)
+                                                                                
             WordTableWrite(1, 2,  1, "{supplier_in_quotes}"),
             WordTableWrite(1, 3,  1, "{supplier_address}"),
             WordTableWrite(1, 4,  1, "ИНН {supplier_vat}"),
             WordTableWrite(1, 5,  1, "тел.: {supplier_phone}"),
             WordTableWrite(1, 6,  1, "{country_of_export}"),
-            # § 2 Получатель — data cells [8..12, 1] (LEFT half)
+                                                                
             WordTableWrite(1, 8,  1, "{organization}"),
             WordTableWrite(1, 9,  1, "{organization_address}"),
             WordTableWrite(1, 10, 1, "ИНН {organization_unp}"),
             WordTableWrite(1, 11, 1, "тел.: {organization_phone}"),
             WordTableWrite(1, 12, 1, "{country_of_destination}"),
-            # § 16 Перевозчик — data cells [8..12, 2] (RIGHT half, mirrors §2)
+                                                                              
             WordTableWrite(1, 8,  2, "{carrier}"),
             WordTableWrite(1, 9,  2, "{carrier_address}"),
             WordTableWrite(1, 10, 2, "ИНН {carrier_unp}"),
             WordTableWrite(1, 11, 2, "тел.: {carrier_phone}"),
             WordTableWrite(1, 12, 2, "{country_of_export}"),
-            # § 3 Место разгрузки — [14,2], [15,2]  (row has 3 cells, col 2 = LEFT data)
+                                                                                        
             WordTableWrite(1, 14, 2, "{delivery_place}"),
             WordTableWrite(1, 15, 2, "{country_of_destination}"),
-            # § 17 Последующий перевозчик — [16,2]
+                                                  
             WordTableWrite(1, 16, 2, "{next_carrier}"),
-            # § 4 Место и дата погрузки — [18,2] / [19,2] / [20,2]
+                                                                  
             WordTableWrite(1, 18, 2, "{loading_place}"),
             WordTableWrite(1, 19, 2, "{country_of_export}"),
             WordTableWrite(1, 20, 2, "{date}"),
-            # § 5 Прилагаемые документы — [22,1], [23,1] (LEFT half, 2-cell rows)
+                                                                                 
             WordTableWrite(1, 22, 1, "Заказ поставщику №{doc_number} от {date}"),
             WordTableWrite(1, 23, 1, "Счёт-фактура"),
-            # § 18 Оговорки и замечания перевозчика — [20,3]
+                                                            
             WordTableWrite(1, 20, 3, "{carrier_remarks}"),
-            # § 19 ставка/итого — Валюта column (col 6, width 34) instead of the
-            # narrow filler col 4 (width 16) which wraps "120,00" into "12 / 0, / 00".
+                                                                                
+                                                                                      
             WordTableWrite(1, 34, 6, "{transport_rate}"),
             WordTableWrite(1, 40, 6, "{transport_total}"),
-            # § 13 Указания отправителя — [34,1]
+                                                
             WordTableWrite(1, 34, 1, "{shipper_instructions}"),
-            # § 15 Условия оплаты — [43,2] (under "Франко")
+                                                           
             WordTableWrite(1, 43, 2, "{payment_terms}"),
-            # § 20 Особые условия — [43,3]
+                                          
             WordTableWrite(1, 43, 3, "{special_terms}"),
-            # § 21 Составлен в — [45,3] place; [45,5] date
+                                                          
             WordTableWrite(1, 45, 3, "{loading_place}"),
             WordTableWrite(1, 45, 5, "{date}"),
-            # § 25-26 Регистрационный номер / Марка ТС — row 52 has 3 cells:
-            # [52,1] under §25 (truck + trailer plates, 2 lines), [52,2] under §26
-            # (truck make only — trailer_make not exposed in mock), [52,3] right side.
+                                                                            
+                                                                                  
+                                                                                      
             WordTableWrite(1, 52, 1, "{vehicle_plate}\r{trailer_plate}"),
             WordTableWrite(1, 52, 2, "{vehicle_make}"),
         ],
@@ -758,19 +758,19 @@ WORD_SPECS: list[WordSpec] = [
             max_rows=7,
             insert_rows_if_overflow=True,
             columns={
-                "row_number":    1,   # § 6  Знаки и номера
-                "package_count": 2,   # § 7  Количество мест
-                "packaging":     3,   # § 8  Род упаковки
-                "nomenclature":  4,   # § 9  Наименование груза
-                "stat_no":       5,   # § 10 Статист №
-                "weight":        6,   # § 11 Вес брутто, кг
-                "volume":        7,   # § 12 Объём, м³
+                "row_number":    1,                        
+                "package_count": 2,                         
+                "packaging":     3,                      
+                "nomenclature":  4,                            
+                "stat_no":       5,                   
+                "weight":        6,                        
+                "volume":        7,                   
             },
         ),
-        # § 22/23/24 time placeholders. Cell-scoped so the same Russian/DE/EN
-        # label found in multiple blocks resolves to the correct side.
+                                                                             
+                                                                      
         cell_rules=[
-            # § 22 Отправитель — arrival + departure at loading point [47,1]
+                                                                            
             CellRule(1, 47, 1,
                      "Прибытие под погрузку                    час                  мин.",
                      "Прибытие под погрузку  {loading_arrival_hour} час  {loading_arrival_min} мин.",
@@ -779,7 +779,7 @@ WORD_SPECS: list[WordSpec] = [
                      "Убытие                         час                  мин.",
                      "Убытие  {loading_departure_hour} час  {loading_departure_min} мин.",
                      post_items=True),
-            # § 24 Получатель — arrival in [47,3], departure in [48,3]
+                                                                      
             CellRule(1, 47, 3,
                      "Прибытие под погрузку                    час                  мин.",
                      "Прибытие под погрузку  {unloading_arrival_hour} час  {unloading_arrival_min} мин.",
@@ -788,15 +788,15 @@ WORD_SPECS: list[WordSpec] = [
                      "Убытие                         час                  мин.",
                      "Убытие  {unloading_departure_hour} час  {unloading_departure_min} мин.",
                      post_items=True),
-            # § 24 received-date — substring works for RU + EN variants.
+                                                                        
             CellRule(1, 46, 3,
                      "„ _____ “ ______________20",
                      "{received_date}",
                      post_items=True),
 
-            # Bilingual time labels (DE original, EN after variant gen).
-            # Each variant's other-language label is a no-op (0 hits).
-            # § 22 DE [47,1]
+                                                                        
+                                                                      
+                            
             CellRule(1, 47, 1,
                      "Ankunft für Beladung                         Uhr                  Min.",
                      "Ankunft für Beladung  {loading_arrival_hour} Uhr  {loading_arrival_min} Min.",
@@ -805,7 +805,7 @@ WORD_SPECS: list[WordSpec] = [
                      "Abfahrt                         Uhr                  Min.",
                      "Abfahrt  {loading_departure_hour} Uhr  {loading_departure_min} Min.",
                      post_items=True),
-            # § 22 EN [47,1]
+                            
             CellRule(1, 47, 1,
                      "Arrival for loading                         H                  Min.",
                      "Arrival for loading  {loading_arrival_hour} H  {loading_arrival_min} Min.",
@@ -814,7 +814,7 @@ WORD_SPECS: list[WordSpec] = [
                      "Departure                         H                  Min.",
                      "Departure  {loading_departure_hour} H  {loading_departure_min} Min.",
                      post_items=True),
-            # § 24 DE [47,3] + [48,3]
+                                     
             CellRule(1, 47, 3,
                      "Ankunft für Beladung                         Uhr                  Min.",
                      "Ankunft für Beladung  {unloading_arrival_hour} Uhr  {unloading_arrival_min} Min.",
@@ -823,7 +823,7 @@ WORD_SPECS: list[WordSpec] = [
                      "Abfahrt                         Uhr                  Min.",
                      "Abfahrt  {unloading_departure_hour} Uhr  {unloading_departure_min} Min.",
                      post_items=True),
-            # § 24 EN [47,3] + [48,3]
+                                     
             CellRule(1, 47, 3,
                      "Arrival for loading                         H                  Min.",
                      "Arrival for loading  {unloading_arrival_hour} H  {unloading_arrival_min} Min.",
@@ -833,8 +833,8 @@ WORD_SPECS: list[WordSpec] = [
                      "Departure  {unloading_departure_hour} H  {unloading_departure_min} Min.",
                      post_items=True),
         ],
-        # Signatory lines appended (not replaced) so the bilingual sibling
-        # label (EN / DE) stays intact above.
+                                                                          
+                                             
         cell_appends=[
             CellAppend(1, 50, 1, "\r/{signer_sender}/",   post_items=True),
             CellAppend(1, 50, 2, "\r/{signer_carrier}/",  post_items=True),
@@ -842,9 +842,9 @@ WORD_SPECS: list[WordSpec] = [
         ],
         font_size=5.5,
     ) for name, suffix in (
-        ("CMR Международная товарно-транспортная накладная.doc", "CMR"),     # RU + DE (original)
-        ("CMR_EN.doc",                                            "CMR-EN"),  # RU + EN
-        ("CMR_RU.doc",                                            "CMR-RU"),  # RU only
+        ("CMR Международная товарно-транспортная накладная.doc", "CMR"),                         
+        ("CMR_EN.doc",                                            "CMR-EN"),           
+        ("CMR_RU.doc",                                            "CMR-RU"),           
     )),
     WordSpec(
         name="Акт приемки.RTF",
@@ -897,9 +897,9 @@ WORD_SPECS: list[WordSpec] = [
              "следует отнести на затраты по реализации {organization}"),
             ('"___" __________ ____ г.',                '"{date_day}" {date_month_name} 20{date_year_2} г.'),
         ],
-        # Order: LONGEST first — REPLACE_ONE on the 31-underscore director
-        # line BEFORE the 29-rule, otherwise the 29-rule eats the first 29
-        # chars of the 31 and corrupts the 55-runs further down.
+                                                                          
+                                                                          
+                                                                
         ordered_rules=[
             ("_______________________________", ["{director_name}"]),
             ("_____________________________", [

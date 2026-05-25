@@ -113,7 +113,7 @@ class OrganizationServiceTest {
 
         assertThatThrownBy(() -> organizationService.createOrganization(req, directorUserId))
                 .isInstanceOf(AppException.class)
-                .hasMessageContaining("ИНН");
+                .hasMessageContaining("УНП");
 
         AppException ex = catchAppException(
                 () -> organizationService.createOrganization(req, directorUserId));

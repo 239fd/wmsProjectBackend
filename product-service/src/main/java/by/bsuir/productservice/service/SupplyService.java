@@ -112,7 +112,7 @@ public class SupplyService {
         }
         UUID createdBy = request.createdBy() != null ? request.createdBy() : userFallback;
         if (createdBy == null) {
-            throw AppException.badRequest("User ID обязателен");
+            throw AppException.badRequest("Пользователь обязателен");
         }
         log.info("Creating supply for warehouse: {} by user: {}", warehouseId, createdBy);
 

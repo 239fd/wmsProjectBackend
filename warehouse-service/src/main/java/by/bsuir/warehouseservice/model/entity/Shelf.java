@@ -24,6 +24,11 @@ public class Shelf {
     @Column(name = "rack_id", nullable = false)
     private UUID rackId;
 
+    @Column(name = "warehouse_id", nullable = false)
+    private UUID warehouseId;
+
+    @Column(name = "slot_code", nullable = false, length = 32)
+    private String slotCode;
 
     @Column(name = "organization_id")
     private UUID organizationId;
@@ -40,10 +45,19 @@ public class Shelf {
     @Column(name = "height_cm", nullable = false, precision = 8, scale = 2)
     private BigDecimal heightCm;
 
+    @Column(name = "remaining_height_cm", precision = 8, scale = 2)
+    private BigDecimal remainingHeightCm;
+
     @PrePersist
     protected void onCreate() {
         if (shelfId == null) {
             shelfId = UUID.randomUUID();
+        }
+        if (remainingHeightCm == null) {
+            remainingHeightCm = heightCm;
+        }
+        if (slotCode == null) {
+            slotCode = "SLOT-" + shelfId.toString().substring(0, 8).toUpperCase();
         }
     }
 }

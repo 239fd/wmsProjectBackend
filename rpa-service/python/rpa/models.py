@@ -13,6 +13,16 @@ class OrderItem:
     quantity: Decimal
     price: Decimal
     amount: Decimal
+    vat_rate: Decimal | None = None
+    vat_amount: Decimal | None = None
+    weight: Decimal | None = None
+    volume: Decimal | None = None
+    hs_code: str = ""
+    package_count: Decimal | None = None
+    old_price: Decimal | None = None
+    new_price: Decimal | None = None
+    qty_expected: Decimal | None = None
+    qty_actual: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,7 +31,7 @@ class Counterparty:
     parser leaves most fields empty (partner cards aren't reachable)."""
     name: str = ""
     full_name: str = ""
-    inn: str = ""           # labelled «ИНН» on forms (project preference)
+    inn: str = ""
     address: str = ""
     phone: str = ""
     email: str = ""
@@ -34,7 +44,6 @@ class Transport:
     vehicle_plate: str = ""
     trailer_plate: str = ""
     trailer_make: str = ""
-    # HH/MM split — cell rules place them in «... час ... мин.» gaps.
     loading_arrival_hour: str = ""
     loading_arrival_min: str = ""
     loading_departure_hour: str = ""
@@ -83,7 +92,6 @@ class DeliveryContext:
     proxy_issued_by: str = ""
     accompanying_docs: str = ""
     redirection: str = ""
-    # Приходный ордер М-4 accounting fields
     structural_unit: str = ""
     operation_code: str = ""
     insurance_company: str = ""
@@ -110,7 +118,6 @@ class PurchaseOrder:
     receipt_pct: Decimal | None = None
     debt_pct: Decimal | None = None
     operation: str = ""
-    # Rich details — populated by fixtures or API; 1С UI parser leaves None.
     supplier_details: Counterparty | None = None
     organization_details: Counterparty | None = None
     carrier: Counterparty | None = None

@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public record CreateBatchRequest(
-        @NotNull(message = "Product ID обязателен")
+        @NotNull(message = "Товар обязателен")
         UUID productId,
 
         String batchNumber,

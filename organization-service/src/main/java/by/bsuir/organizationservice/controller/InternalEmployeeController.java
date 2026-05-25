@@ -3,6 +3,9 @@ package by.bsuir.organizationservice.controller;
 import by.bsuir.organizationservice.dto.AddEmployeeRequest;
 import by.bsuir.organizationservice.dto.EmployeeResponse;
 import by.bsuir.organizationservice.dto.response.OrganizationResponse;
+import by.bsuir.organizationservice.exception.AppException;
+import by.bsuir.organizationservice.model.entity.OrganizationEmployee;
+import by.bsuir.organizationservice.repository.OrganizationEmployeeRepository;
 import by.bsuir.organizationservice.service.EmployeeManagementService;
 import by.bsuir.organizationservice.service.OrganizationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,6 +23,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -31,6 +36,7 @@ public class InternalEmployeeController {
 
     private final EmployeeManagementService employeeManagementService;
     private final OrganizationService organizationService;
+    private final OrganizationEmployeeRepository employeeRepository;
 
     @Operation(summary = "Добавить сотрудника (inter-service)")
     @PostMapping("/{orgId}/employees")
@@ -52,6 +58,22 @@ public class InternalEmployeeController {
 
         log.debug("Internal API: fetching organization {}", orgId);
         OrganizationResponse response = organizationService.getOrganization(orgId);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Получить активного заведующего организации (inter-service)")
+    @GetMapping("/{orgId}/director")
+    public ResponseEntity<Map<String, String>> getDirector(
+            @Parameter(description = "ID организации", required = true) @PathVariable UUID orgId) {
+
+        OrganizationEmployee director = employeeRepository
+                .findFirstByOrgIdAndRoleAndIsActiveTrue(orgId, "DIRECTOR")
+                .orElseThrow(() -> AppException.notFound("Активный заведующий организации не найден"));
+
+        Map<String, String> response = new HashMap<>();
+        response.put("userId", director.getUserId().toString());
+        response.put("orgId", director.getOrgId().toString());
+        response.put("role", director.getRole());
         return ResponseEntity.ok(response);
     }
 }

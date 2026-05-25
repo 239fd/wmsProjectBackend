@@ -57,7 +57,6 @@ class DocumentNumberServiceTest {
         assertThat(saved.getOrganizationId()).isEqualTo(orgId);
         assertThat(saved.getDocumentType()).isEqualTo("receipt-order");
         assertThat(saved.getYear()).isEqualTo(currentYear);
-        // counter incremented in-place after saveAndFlush; verify final saved value is 1
         assertThat(saved.getCounter()).isEqualTo(1L);
     }
 

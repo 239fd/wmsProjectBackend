@@ -45,8 +45,23 @@ public class ReceiptSession {
     @Column(name = "placement_list_doc_id")
     private UUID placementListDocId;
 
+    @Column(name = "document_error", columnDefinition = "TEXT")
+    private String documentError;
+
     @Column(name = "general_notes", columnDefinition = "TEXT")
     private String generalNotes;
+
+    @Column(name = "contract_number", length = 100)
+    private String contractNumber;
+
+    @Column(name = "contract_date")
+    private java.time.LocalDate contractDate;
+
+    @Column(name = "responsible_user_id")
+    private UUID responsibleUserId;
+
+    @Column(name = "commission_members", columnDefinition = "TEXT")
+    private String commissionMembers;
 
     @Column(name = "created_by", nullable = false)
     private UUID createdBy;

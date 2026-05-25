@@ -80,8 +80,7 @@ public class ProductService {
                 .category(request.category())
                 .description(request.description())
                 .unitOfMeasure(request.unitOfMeasure())
-                .weightKg(request.weightKg())
-                .volumeM3(request.volumeM3())
+                .price(request.price())
                 .requiredStorageCondition(request.requiredStorageCondition())
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -200,8 +199,7 @@ public class ProductService {
         if (request.category() != null) eventData.put("category", request.category());
         if (request.description() != null) eventData.put("description", request.description());
         if (request.unitOfMeasure() != null) eventData.put("unitOfMeasure", request.unitOfMeasure());
-        if (request.weightKg() != null) eventData.put("weightKg", request.weightKg());
-        if (request.volumeM3() != null) eventData.put("volumeM3", request.volumeM3());
+        if (request.price() != null) eventData.put("price", request.price());
         if (request.requiredStorageCondition() != null) eventData.put("requiredStorageCondition", request.requiredStorageCondition().name());
 
         ProductEvent productEvent = ProductEvent.builder()
@@ -219,8 +217,7 @@ public class ProductService {
         if (request.category() != null) product.setCategory(request.category());
         if (request.description() != null) product.setDescription(request.description());
         if (request.unitOfMeasure() != null) product.setUnitOfMeasure(request.unitOfMeasure());
-        if (request.weightKg() != null) product.setWeightKg(request.weightKg());
-        if (request.volumeM3() != null) product.setVolumeM3(request.volumeM3());
+        if (request.price() != null) product.setPrice(request.price());
         if (request.requiredStorageCondition() != null) product.setRequiredStorageCondition(request.requiredStorageCondition());
         product.setUpdatedAt(LocalDateTime.now());
 
@@ -262,8 +259,7 @@ public class ProductService {
                 model.getCategory(),
                 model.getDescription(),
                 model.getUnitOfMeasure(),
-                model.getWeightKg(),
-                model.getVolumeM3(),
+                model.getPrice(),
                 model.getRequiredStorageCondition(),
                 model.getCreatedAt(),
                 model.getUpdatedAt()

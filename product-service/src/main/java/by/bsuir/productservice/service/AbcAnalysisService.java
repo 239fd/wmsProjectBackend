@@ -1,12 +1,15 @@
 package by.bsuir.productservice.service;
 
+import by.bsuir.productservice.model.entity.ProductBatch;
 import by.bsuir.productservice.model.entity.ProductOperation;
 import by.bsuir.productservice.model.entity.ProductReadModel;
 import by.bsuir.productservice.model.enums.OperationType;
+import by.bsuir.productservice.repository.ProductBatchRepository;
 import by.bsuir.productservice.repository.ProductOperationRepository;
 import by.bsuir.productservice.repository.ProductReadModelRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,9 +36,11 @@ public class AbcAnalysisService {
 
     private final ProductOperationRepository operationRepository;
     private final ProductReadModelRepository productRepository;
+    private final ProductBatchRepository batchRepository;
 
     @Scheduled(cron = "0 0 2 * * *")
     @Transactional
+    @CacheEvict(value = "abcDistribution", allEntries = true)
     public void runDailyAbcAnalysis() {
         log.info("Запуск ежедневного ABC-анализа товаров");
         calculateAndSave();
@@ -43,6 +48,7 @@ public class AbcAnalysisService {
     }
 
     @Transactional
+    @CacheEvict(value = "abcDistribution", allEntries = true)
     public Map<String, Object> runManually() {
         log.info("Ручной запуск ABC-анализа");
         Map<String, Long> classCounts = calculateAndSave();
@@ -78,23 +84,31 @@ public class AbcAnalysisService {
         List<ProductOperation> operations = operationRepository
                 .findByOperationDateBetween(from, to);
 
-        Map<UUID, BigDecimal> turnoverByProduct = new HashMap<>();
+        Map<UUID, BigDecimal> batchPriceCache = new HashMap<>();
+        Map<UUID, BigDecimal> productPriceCache = new HashMap<>();
+
+        Map<UUID, BigDecimal> revenueByProduct = new HashMap<>();
         for (ProductOperation op : operations) {
-            if (op.getOperationType() == OperationType.SHIPMENT
-                    || op.getOperationType() == OperationType.WRITE_OFF) {
-                turnoverByProduct.merge(op.getProductId(), op.getQuantity(), BigDecimal::add);
-            }
+            if (op.getOperationType() != OperationType.SHIPMENT) continue;
+            if (op.getProductId() == null || op.getQuantity() == null) continue;
+
+            BigDecimal unitPrice = resolveUnitPrice(op, batchPriceCache, productPriceCache);
+            if (unitPrice == null || unitPrice.signum() <= 0) continue;
+
+            BigDecimal lineRevenue = op.getQuantity().multiply(unitPrice);
+            revenueByProduct.merge(op.getProductId(), lineRevenue, BigDecimal::add);
         }
 
-        if (turnoverByProduct.isEmpty()) {
-            log.info("Нет операций за последние {} дней, ABC-классы не пересчитываются", LOOKBACK_DAYS);
+        if (revenueByProduct.isEmpty()) {
+            log.info("Нет отгрузок с ненулевой ценой за последние {} дней, ABC-классы не пересчитываются",
+                    LOOKBACK_DAYS);
             return Map.of();
         }
 
-        BigDecimal totalTurnover = turnoverByProduct.values().stream()
+        BigDecimal totalRevenue = revenueByProduct.values().stream()
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        List<Map.Entry<UUID, BigDecimal>> sorted = new ArrayList<>(turnoverByProduct.entrySet());
+        List<Map.Entry<UUID, BigDecimal>> sorted = new ArrayList<>(revenueByProduct.entrySet());
         sorted.sort(Map.Entry.<UUID, BigDecimal>comparingByValue().reversed());
 
         Map<UUID, String> abcClasses = new HashMap<>();
@@ -102,7 +116,7 @@ public class AbcAnalysisService {
 
         for (Map.Entry<UUID, BigDecimal> entry : sorted) {
             cumulative = cumulative.add(entry.getValue());
-            double share = cumulative.doubleValue() / totalTurnover.doubleValue();
+            double share = cumulative.doubleValue() / totalRevenue.doubleValue();
             String cls = share <= CLASS_A_THRESHOLD ? "A" : share <= CLASS_B_THRESHOLD ? "B" : "C";
             abcClasses.put(entry.getKey(), cls);
         }
@@ -116,10 +130,36 @@ public class AbcAnalysisService {
             classCounts.merge(e.getValue(), 1L, Long::sum);
         }
 
-        log.info("ABC-анализ: A={}, B={}, C={}",
+        log.info("ABC-анализ (выручка по отгрузкам, {} дней, total={}): A={}, B={}, C={}",
+                LOOKBACK_DAYS, totalRevenue,
                 classCounts.getOrDefault("A", 0L),
                 classCounts.getOrDefault("B", 0L),
                 classCounts.getOrDefault("C", 0L));
         return classCounts;
+    }
+
+    private BigDecimal resolveUnitPrice(ProductOperation op,
+                                        Map<UUID, BigDecimal> batchPriceCache,
+                                        Map<UUID, BigDecimal> productPriceCache) {
+        if (op.getBatchId() != null) {
+            BigDecimal cached = batchPriceCache.get(op.getBatchId());
+            if (cached != null) return cached;
+            ProductBatch batch = batchRepository.findById(op.getBatchId()).orElse(null);
+            if (batch != null && batch.getPurchasePrice() != null
+                    && batch.getPurchasePrice().signum() > 0) {
+                batchPriceCache.put(op.getBatchId(), batch.getPurchasePrice());
+                return batch.getPurchasePrice();
+            }
+        }
+        UUID productId = op.getProductId();
+        BigDecimal cached = productPriceCache.get(productId);
+        if (cached != null) return cached;
+        BigDecimal price = productRepository.findById(productId)
+                .map(ProductReadModel::getPrice)
+                .orElse(null);
+        if (price != null) {
+            productPriceCache.put(productId, price);
+        }
+        return price;
     }
 }

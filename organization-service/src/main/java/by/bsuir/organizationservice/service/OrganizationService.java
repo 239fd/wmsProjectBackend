@@ -55,10 +55,10 @@ public class OrganizationService {
         log.info("Creating organization: {}", request.name());
 
         if (readModelRepository.existsByUnp(request.unp())) {
-            throw AppException.conflict("Организация с таким ИНН уже существует");
+            throw AppException.conflict("Организация с таким УНП уже существует");
         }
 
-        if (readModelRepository.existsByName(request.name())) {
+        if (readModelRepository.existsByNameIgnoreCase(request.name())) {
             throw AppException.conflict("Организация с таким наименованием уже существует");
         }
 
@@ -154,7 +154,7 @@ public class OrganizationService {
 
         if (request.unp() != null && !request.unp().equals(organization.getUnp())) {
             if (readModelRepository.existsByUnp(request.unp())) {
-                throw AppException.conflict("Организация с таким ИНН уже существует");
+                throw AppException.conflict("Организация с таким УНП уже существует");
             }
         }
 

@@ -290,6 +290,9 @@ public class OperationController {
 
         Map<String, Object> docPayload = new HashMap<>(result);
         docPayload.put("date", LocalDate.now().toString());
+        if (request.warehouseId() != null) {
+            docPayload.put("warehouseId", request.warehouseId().toString());
+        }
         enrichProduct(docPayload, request.productId(), organizationId);
         UUID operationId = result.get("operationId") instanceof UUID id ? id : null;
         GeneratedDocument document = safeRegister(

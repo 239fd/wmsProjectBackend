@@ -124,8 +124,6 @@ class ProductControllerTest {
     @Test
     @DisplayName("getAllProducts: Should return all products")
     void getAllProducts_ShouldReturnAllProducts() {
-        // body removed: test asserted deprecated List<> return type; controller now returns Page<>.
-        // Restore with Page<> contract as part of HP-2 follow-up.
     }
 
     @Test
@@ -186,8 +184,6 @@ class ProductControllerTest {
     @Test
     @DisplayName("getProductsByCategory: Should return products by category")
     void getProductsByCategory_ShouldReturnProductsByCategory() {
-        // body removed: test asserted deprecated List<> return type; controller now returns Page<>.
-        // Restore with Page<> contract as part of HP-2 follow-up.
     }
 
     @Test

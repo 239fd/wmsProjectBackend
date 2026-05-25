@@ -44,6 +44,7 @@ public class SagaOrchestrator {
     private final InventoryRepository inventoryRepository;
     private final ProductOperationRepository operationRepository;
     private final InventoryEventService inventoryEventService;
+    private final by.bsuir.productservice.client.WarehouseClient warehouseClient;
 
     @Autowired(required = false)
     private DocumentRegistryService documentRegistryService;
@@ -253,6 +254,12 @@ public class SagaOrchestrator {
                                 qtyBefore, qty.negate(), saga.getOperationId(), null,
                                 Map.of("compensation", true, "sagaId", sagaId));
                     }
+                    if (inv.getCellId() != null && saga.getBatchId() != null) {
+                        BigDecimal heightDelta = computeHeightDelta(saga.getBatchId(), qty);
+                        if (heightDelta.signum() > 0) {
+                            warehouseClient.adjustSlotHeight(inv.getCellId(), heightDelta);
+                        }
+                    }
                 });
             }
 
@@ -306,6 +313,12 @@ public class SagaOrchestrator {
                     inventoryEventService.recordQuantityChange(inv, InventoryEventType.ITEM_ADDED,
                             qtyBefore, qty, saga.getOperationId(), null,
                             Map.of("compensation", true, "sagaId", sagaId));
+                    if (inv.getCellId() != null && inv.getBatchId() != null) {
+                        BigDecimal heightDelta = computeHeightDelta(inv.getBatchId(), qty);
+                        if (heightDelta.signum() > 0) {
+                            warehouseClient.adjustSlotHeight(inv.getCellId(), heightDelta.negate());
+                        }
+                    }
                 });
             }
 
@@ -455,6 +468,19 @@ public class SagaOrchestrator {
     public void cleanupShipSaga(UUID sagaId) {
         activeShipSagas.remove(sagaId);
         log.info("Cleaned up ship saga: {}", sagaId);
+    }
+
+    private BigDecimal computeHeightDelta(UUID batchId, BigDecimal quantityUnits) {
+        if (batchId == null || quantityUnits == null || quantityUnits.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        var batch = batchRepository.findById(batchId).orElse(null);
+        if (batch == null || batch.getPackageHeightCm() == null) return BigDecimal.ZERO;
+        int upp = (batch.getUnitsPerPackage() != null && batch.getUnitsPerPackage() > 0)
+                ? batch.getUnitsPerPackage() : 1;
+        BigDecimal numPackages = quantityUnits.divide(
+                BigDecimal.valueOf(upp), 0, java.math.RoundingMode.CEILING);
+        return batch.getPackageHeightCm().multiply(numPackages);
     }
 }
 

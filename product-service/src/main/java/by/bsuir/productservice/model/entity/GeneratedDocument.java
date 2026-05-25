@@ -56,6 +56,9 @@ public class GeneratedDocument {
     @Column(name = "payload", columnDefinition = "jsonb")
     private String payload;
 
+    @Column(name = "superseded_by")
+    private UUID supersededBy;
+
     @PrePersist
     void onCreate() {
         if (id == null) {

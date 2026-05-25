@@ -161,9 +161,7 @@ class DocumentRegistryServiceTest {
         GeneratedDocument document = service.register(
                 operationId, "invoice", payload, orgId, userId, "auto");
 
-        // Service generates a number anyway and uses it for the entity (putIfAbsent only enriches payload)
         assertThat(document.getDocumentNumber()).isEqualTo("И-2026-00005");
-        // But payload retains the original value
         assertThat(document.getPayload()).contains("preserved-number");
     }
 

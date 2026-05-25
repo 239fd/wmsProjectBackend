@@ -36,11 +36,11 @@ public class AuthController {
     private final JwtTokenService jwtTokenService;
 
     @Operation(
-            summary = "Регистрация директора",
+            summary = "Регистрация заведующего",
             description = "Создаёт учётную запись DIRECTOR без привязки к организации. Организация создаётся отдельным запросом"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Директор зарегистрирован",
+            @ApiResponse(responseCode = "201", description = "Заведующий зарегистрирован",
                     content = @Content(schema = @Schema(implementation = AuthResponse.class))),
             @ApiResponse(responseCode = "409", description = "Пользователь с таким email уже существует")
     })

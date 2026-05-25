@@ -41,12 +41,6 @@ public class ProductReadModel {
     @Column(name = "unit_of_measure", length = 50)
     private String unitOfMeasure;
 
-    @Column(name = "weight_kg", precision = 10, scale = 2)
-    private BigDecimal weightKg;
-
-    @Column(name = "volume_m3", precision = 10, scale = 3)
-    private BigDecimal volumeM3;
-
     @Column(name = "price", precision = 12, scale = 2)
     private BigDecimal price;
 

@@ -49,7 +49,7 @@ body { font-size: 8pt; }
       <div class="box-label">1. Отправитель / Sender (имя, адрес, страна)</div>
       <div class="box-data bold" th:text="${shipperName} ?: '—'">—</div>
       <div class="box-data" th:text="${shipperAddress} ?: '—'">—</div>
-      <div class="box-data small">ИНН/УНП: <span th:text="${shipperInn} ?: '—'">—</span></div>
+      <div class="box-data small">УНП: <span th:text="${shipperInn} ?: '—'">—</span></div>
       <div class="box-data small" th:text="${shipperCountry} ?: '—'">—</div>
     </div>
   </div>
@@ -68,7 +68,7 @@ body { font-size: 8pt; }
       <div class="box-label">2. Получатель / Consignee (имя, адрес, страна)</div>
       <div class="box-data bold" th:text="${consigneeName} ?: '—'">—</div>
       <div class="box-data" th:text="${consigneeAddress} ?: '—'">—</div>
-      <div class="box-data small">ИНН/УНП: <span th:text="${consigneeInn} ?: '—'">—</span></div>
+      <div class="box-data small">УНП/ИНН: <span th:text="${consigneeInn} ?: '—'">—</span></div>
       <div class="box-data small" th:text="${consigneeCountry} ?: '—'">—</div>
     </div>
   </div>

@@ -77,7 +77,7 @@ class DocumentServiceTest {
     @Test
     @DisplayName("generate(mode=rpa): Python отвечает → channel=rpa, body из Python")
     void generate_givenRpaModeSuccess_whenCalled_thenChannelIsRpa() {
-        byte[] pythonBytes = new byte[]{0x50, 0x4B, 0x03, 0x04};  // docx magic
+        byte[] pythonBytes = new byte[]{0x50, 0x4B, 0x03, 0x04};
         when(pythonRpaClient.fill(eq("invoice"), any()))
                 .thenReturn(new FillResponse(pythonBytes,
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

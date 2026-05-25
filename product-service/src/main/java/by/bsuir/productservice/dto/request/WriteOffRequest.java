@@ -10,11 +10,11 @@ import java.util.UUID;
 @Schema(description = "Запрос на списание товара")
 public record WriteOffRequest(
         @Schema(description = "ID товара")
-        @NotNull(message = "Product ID обязателен")
+        @NotNull(message = "Товар обязателен")
         UUID productId,
 
         @Schema(description = "ID склада")
-        @NotNull(message = "Warehouse ID обязателен")
+        @NotNull(message = "Склад обязателен")
         UUID warehouseId,
 
         @Schema(description = "ID партии")
@@ -42,8 +42,11 @@ public record WriteOffRequest(
         List<UUID> commissionMembers,
 
         @Schema(description = "ID сотрудника, выполняющего списание")
-        @NotNull(message = "User ID обязателен")
+        @NotNull(message = "Пользователь обязателен")
         UUID userId,
+
+        @Schema(description = "ID записи инвентаризации (если списание по результатам инвентаризации) — снимает markedForWriteoff")
+        UUID countId,
 
         @Schema(description = "Примечания")
         String notes

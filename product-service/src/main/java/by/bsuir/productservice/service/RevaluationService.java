@@ -132,7 +132,11 @@ public class RevaluationService {
         result.put("productId", product.getProductId());
         result.put("oldPrice", effectiveOldPrice);
         result.put("newPrice", request.newPrice());
-        result.put("responsibleUserId", request.responsibleUserId());
+        if (request.responsibleUserId() != null) {
+            result.put("responsibleUserId", request.responsibleUserId());
+            result.put("responsiblePerson", request.responsibleUserId());
+            result.put("chairmanName", request.responsibleUserId());
+        }
         result.put("commissionMembers", request.commissionMembers());
         result.put("items", List.of(item));
         result.put("totalQuantity", totalQty.stripTrailingZeros().toPlainString());

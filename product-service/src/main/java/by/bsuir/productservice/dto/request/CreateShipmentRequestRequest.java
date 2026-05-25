@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record CreateShipmentRequestRequest(
-        @NotNull(message = "Warehouse ID обязателен")
+        @NotNull(message = "Склад обязателен")
         UUID warehouseId,
 
         @NotBlank(message = "Получатель обязателен")
@@ -46,7 +46,7 @@ public record CreateShipmentRequestRequest(
         List<Item> items
 ) {
     public record Item(
-            @NotNull(message = "Product ID обязателен")
+            @NotNull(message = "Товар обязателен")
             UUID productId,
 
             UUID batchId,

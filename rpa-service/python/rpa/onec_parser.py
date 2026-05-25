@@ -51,7 +51,6 @@ _SUPPLY_CFG = _JournalConfig(
 _SALES_CFG = _JournalConfig(
     section="Продажи",
     journal="Заказы клиентов",
-    # Pane title uses родительный «Заказ клиента …», NOT the menu form «Заказ клиенту».
     document_pane_title="Заказ клиента",
     counterparty_column="Клиент",
     list_columns=(
@@ -79,8 +78,6 @@ def fetch_sales_orders() -> list[PurchaseOrder]:
 def _fetch_journal(main, cfg: _JournalConfig) -> list[PurchaseOrder]:
     _close_stale_panes(main, cfg.document_pane_title)
     _navigate(main, (cfg.section, cfg.journal))
-    # Force scroll to top: attaching to a session left scrolled to the bottom
-    # otherwise yields only the tail rows.
     _scroll_journal_to_top(main)
 
     orders: list[PurchaseOrder] = []
@@ -106,8 +103,6 @@ def _fetch_journal(main, cfg: _JournalConfig) -> list[PurchaseOrder]:
     no_new_scrolls = 0
     first_pass = True
     while len(orders) < ONEC.max_orders:
-        # The grid is UIA-virtualized and auto-scrolls after Ctrl+F4, so
-        # anchor coords are re-collected before every open.
         rows = _collect_journal_rows(main, cfg.list_columns, key_column="Номер")
         for r, _ in rows:
             num = r.get("Номер")
@@ -275,7 +270,6 @@ def _collect_journal_rows(
                     rect = el.rectangle()
                 except Exception:
                     break
-                # 5px bucket absorbs sub-pixel jitter; data rows are ~22px tall.
                 y_key = rect.top - (rect.top % 5)
                 by_y[y_key].append((rect.left, col, value, el))
                 break
@@ -499,7 +493,6 @@ def _find_tab_starting_with(main, prefix: str):
 
 
 def _read_form_field(main, label_candidates: tuple[str, ...]) -> str:
-    # In UT 11.2 the editor's UIA Name = its label; actual value is in ValuePattern.
     label_set = set(label_candidates)
     for el in main.descendants():
         try:

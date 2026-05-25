@@ -50,8 +50,6 @@ logging.basicConfig(
 log = logging.getLogger("rpa.api")
 
 
-# WMS document type → наш output_suffix. Для типов с layout/language вариантами
-# выбор делается в `_resolve_spec` по подсказкам из payload.
 _TYPE_MAP: dict[str, str] = {
     "receipt-order":         "ПриходныйОрдер",
     "inventory-report":      "ИнвентаризационнаяОпись",
@@ -59,7 +57,6 @@ _TYPE_MAP: dict[str, str] = {
     "write-off-act":         "Списание",
     "invoice":               "Инвойс",
     "discrepancy-act":       "АктРасхождения",
-    # type'ы с layout / language см. _resolve_spec
 }
 
 _UNSUPPORTED: set[str] = {"picking-list", "placement-list", "release-order", "shipment-order"}
@@ -105,6 +102,17 @@ def _dec(v: Any, default: str = "0") -> Decimal:
         return Decimal(default)
 
 
+def _dec_opt(v: Any) -> Decimal | None:
+    """Как _dec, но возвращает None для отсутствующих значений — чтобы филлер
+    отличал «нет данных» (fallback на мок) от настоящего нуля."""
+    if v is None or v == "":
+        return None
+    try:
+        return Decimal(str(v))
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def _parse_iso_date(v: Any) -> date | None:
     if not v:
         return None
@@ -137,7 +145,7 @@ def wms_payload_to_order(payload: dict[str, Any]) -> PurchaseOrder:
     for i, it in enumerate(raw_items, 1):
         if not isinstance(it, dict):
             continue
-        qty = _dec(it.get("quantity"))
+        qty = _dec(it.get("quantity") or it.get("actualQty") or it.get("qtyActual"))
         price = _dec(it.get("price") or it.get("unitPrice"))
         amount = _dec(it.get("amount") or it.get("totalPrice")) or (qty * price).quantize(Decimal("0.01"))
         items.append(OrderItem(
@@ -147,6 +155,16 @@ def wms_payload_to_order(payload: dict[str, Any]) -> PurchaseOrder:
             quantity=qty,
             price=price,
             amount=amount,
+            vat_rate=_dec_opt(it.get("vatRate")),
+            vat_amount=_dec_opt(it.get("vatAmount")),
+            weight=_dec_opt(it.get("weightKg") or it.get("grossWeightKg") or it.get("grossWeight")),
+            volume=_dec_opt(it.get("volumeM3")),
+            hs_code=str(it.get("hsCode") or ""),
+            package_count=_dec_opt(it.get("packageCount") or it.get("quantityPackages")),
+            old_price=_dec_opt(it.get("oldPrice")),
+            new_price=_dec_opt(it.get("newPrice")),
+            qty_expected=_dec_opt(it.get("expectedQty") or it.get("qtyExpected")),
+            qty_actual=_dec_opt(it.get("actualQty") or it.get("qtyActual")),
         ))
 
     supplier = Counterparty(
@@ -157,10 +175,10 @@ def wms_payload_to_order(payload: dict[str, Any]) -> PurchaseOrder:
         email=_first(payload.get("supplierEmail")),
     )
     organization = Counterparty(
-        name=_first(payload.get("organizationName"), payload.get("consigneeName"), payload.get("buyerName")),
-        inn=_first(payload.get("inn"), payload.get("consigneeInn"), payload.get("buyerInn")),
-        address=_first(payload.get("warehouseAddress"), payload.get("consigneeAddress"), payload.get("buyerAddress")),
-        phone=_first(payload.get("organizationPhone"), payload.get("consigneePhone")),
+        name=_first(payload.get("consigneeName"), payload.get("buyerName"), payload.get("organizationName")),
+        inn=_first(payload.get("consigneeInn"), payload.get("buyerInn"), payload.get("inn")),
+        address=_first(payload.get("consigneeAddress"), payload.get("buyerAddress"), payload.get("warehouseAddress")),
+        phone=_first(payload.get("consigneePhone"), payload.get("organizationPhone")),
         email=_first(payload.get("organizationEmail")),
     )
     carrier = Counterparty(

@@ -184,9 +184,6 @@ def _fill_items_table(doc, spec: WordItemsTable, order: PurchaseOrder,
         last_template_row = spec.start_row + capacity - 1
         log.info("  items_table: inserting %d extra Word row(s) after row %d",
                  inserted, last_template_row)
-        # InsertRowsBelow clones the SELECTED row's structure (correct column
-        # widths). Rows.Add clones the last table row (which is the Итого
-        # single-cell row) — wrong. Use Rows.Add only as a fallback.
         try:
             app = doc.Application
             tbl.Cell(last_template_row, 1).Select()
@@ -211,27 +208,28 @@ def _fill_items_table(doc, spec: WordItemsTable, order: PurchaseOrder,
                 cell_range = tbl.Cell(row, col).Range
                 cell_range.Text = str(value)
                 cell_range.Font.Size = font_size if font_size is not None else 9
-                cell_range.ParagraphFormat.Alignment = 0  # wdAlignParagraphLeft
+                cell_range.ParagraphFormat.Alignment = 0
             except Exception as e:
                 log.warning("  items_table cell(%d,%d) failed: %s", row, col, e)
     return inserted
 
 
 def _item_cell_text(item, field_name: str, i: int) -> str:
-    # Mock physical attributes derived from quantity — OrderItem has no weight/volume/HS code.
-    weight_kg = (item.quantity or Decimal("0")) * Decimal("5.0")
-    volume_m3 = (item.quantity or Decimal("0")) * Decimal("0.05")
+    weight_kg = item.weight if item.weight is not None else (item.quantity or Decimal("0")) * Decimal("5.0")
+    volume_m3 = item.volume if item.volume is not None else (item.quantity or Decimal("0")) * Decimal("0.05")
+    hs_code = item.hs_code or "8418102000"
+    package_count = item.package_count if item.package_count is not None else item.quantity
     mapping = {
         "row_number":    str(i + 1),
         "nomenclature":  item.nomenclature or "",
         "unit":          item.unit or "",
         "qty":           _decimal(item.quantity),
         "qty_accepted":  _decimal(item.quantity),
-        "package_count": _decimal(item.quantity),
+        "package_count": _decimal(package_count),
         "packaging":     "коробка",
         "weight":        _money(weight_kg),
         "volume":        _money(volume_m3),
-        "stat_no":       "8418102000",   # mock HS code (refrigerators)
+        "stat_no":       hs_code,
         "price":         _money(item.price),
         "amount":        _money(item.amount),
     }
@@ -299,6 +297,9 @@ def _context(order: PurchaseOrder) -> dict[str, str]:
     dlv = order.delivery or DeliveryContext()
 
     total_qty = sum((it.quantity for it in order.items), start=Decimal("0"))
+    total_weight = sum(
+        ((it.weight if it.weight is not None else (it.quantity or Decimal("0")) * Decimal("5.0"))
+         for it in order.items), start=Decimal("0"))
     items_line = "; ".join(it.nomenclature for it in order.items if it.nomenclature)
     total = order.total_amount or Decimal("0")
     rub = int(total)
@@ -316,6 +317,7 @@ def _context(order: PurchaseOrder) -> dict[str, str]:
         "total_amount_rub":        str(rub),
         "total_amount_kop":        f"{kop:02d}",
         "total_qty":               _decimal(total_qty),
+        "total_weight_value":      _money(total_weight),
         "items_line":              items_line,
         "primary_unit":            (order.items[0].unit if order.items else "шт."),
         "supplier_vat":            sup.inn,

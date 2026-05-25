@@ -114,7 +114,6 @@ class InternalUserControllerTest {
         UUID userId = UUID.randomUUID();
         when(userRepository.findAllById(any())).thenReturn(List.of(user(userId, null, null)));
 
-        // Mix of valid, empty and null
         java.util.List<String> raw = new java.util.ArrayList<>();
         raw.add(userId.toString());
         raw.add("");

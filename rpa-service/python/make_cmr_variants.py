@@ -28,9 +28,6 @@ EN_OUT = TEMPLATES / "CMR_EN.doc"
 RU_OUT = TEMPLATES / "CMR_RU.doc"
 
 
-# (German source, English replacement). For RU mode the replacement is "".
-# Sorted by source length (longest first) so substrings don't pre-match
-# ("Empfänger (Name, Anschrift, Land)" must fire before the bare "Empfänger").
 _RULES_RAW: list[tuple[str, str]] = [
     ("Unterschrift und Stempel des Absenders",      "Signature and stamp of the sender"),
     ("Unterschrift und Stempel des Frachtführers",  "Signature and stamp of the carrier"),
@@ -75,9 +72,6 @@ _RULES_RAW: list[tuple[str, str]] = [
     ("Unfrei",                                      "Carriage forward"),
     ("Klasse",                                      "Class"),
     ("Ziffer",                                      "Number"),
-    # Textbox title — two words split by a paragraph mark, so they must be matched
-    # individually. MUST precede the bare "Fracht" rule, otherwise it consumes
-    # "Fracht" out of "Frachtbrief" and leaves a "brief" fragment behind.
     ("Internationaler",                             "International"),
     ("Frachtbrief",                                 "consignment note"),
     ("Fracht",                                      "Carriage charges"),
@@ -88,43 +82,24 @@ _RULES_RAW: list[tuple[str, str]] = [
     ("Ort",                                         "Place"),
     ("Uhr",                                         "h"),
 
-    # --- Textbox content (story 5) — never reached before the textframe fix below ---
-    # The title "Internationaler / Frachtbrief" is handled earlier (split across
-    # two paragraphs in the textbox, and "Frachtbrief" must run before bare "Fracht").
-    # 5-line German preamble; Russian preamble already exists alongside it.
-    # Split per line so each paragraph mark in the textbox is preserved cleanly.
     ("Diese Beförderung unterliegt trotz",  "This carriage is subject"),
     ("einer gegenteiligen Abmachung den",   "notwithstanding any clause to the contrary"),
     ("Bestimmungen des Übereinkommens",     "to the Convention on the Contract"),
     ("über den Beförderungsvertrag im",     "for the International Carriage of"),
     ("intern. Straßengüterverkehr (CMR)",   "Goods by Road (CMR)"),
 
-    # --- Standalone short labels that the (Name, Anschrift, Land) rules above
-    # did not catch because they appear bare in adjacent cells / sub-labels.
-    # MUST come after the longer "X (Name, Anschrift, Land)" rules to avoid
-    # double-replacing the trailing "Sender" / "Consignee".
     ("Empfänger",   "Consignee"),
     ("Absender",    "Sender"),
 
-    # --- Bilingual sub-labels: the German half sits redundantly next to the
-    # Russian one (мин. / Min., ДОПОГ / ADR, Am „…“ for the date placeholder).
-    # In EN we leave the international abbreviations as-is; in RU they vanish.
     ("Min.",  "Min."),
     ("ADR",   "ADR"),
-    ("Am ",   "On "),   # only the German preposition, leaves the date underscores intact
-    # Lowercase "am" appears in § 21 "Составлен в … Дата am". Whole-word + case-
-    # sensitive — otherwise it eats letters out of words like "Datum"/"Amtliches".
+    ("Am ",   "On "),
     ("am", "on", True, True),
 ]
 
 
 WD_REPLACE_ALL = 2
 WD_FIND_STOP = 0
-# Story IDs that can contain user text:
-# 1 = MainTextStory, 5 = TextFrameStory, 6 = EvenPagesHeaderStory,
-# 7 = PrimaryHeaderStory, 8 = EvenPagesFooterStory, 9 = PrimaryFooterStory,
-# 10 = FirstPageHeaderStory, 11 = FirstPageFooterStory. We probe all of them
-# — non-existent stories silently raise and are skipped.
 _STORY_IDS = (1, 2, 3, 5, 6, 7, 8, 9, 10, 11)
 
 

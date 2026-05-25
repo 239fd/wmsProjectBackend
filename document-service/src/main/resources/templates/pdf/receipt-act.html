@@ -92,7 +92,18 @@
         <div class="small" th:text="${item.defectDescription} ?: ''"></div>
       </td>
     </tr>
-    <tr th:if="${discrepancies == null or #lists.isEmpty(discrepancies)}">
+    <tr th:each="item, it : ${items}"
+        th:if="${(discrepancies == null or #lists.isEmpty(discrepancies)) and items != null and !#lists.isEmpty(items)}">
+      <td class="text-center" th:text="${item.rowNumber != null ? item.rowNumber : it.count}">1</td>
+      <td th:text="${item.productName} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.sku} ?: '—'">—</td>
+      <td class="text-center" th:text="${item.unit} ?: 'шт'">шт</td>
+      <td class="text-right" th:text="${item.expectedQty} ?: '0'">0</td>
+      <td class="text-right" th:text="${item.actualQty} ?: '0'">0</td>
+      <td class="text-right">0</td>
+      <td class="text-center muted">Без расхождений</td>
+    </tr>
+    <tr th:if="${(discrepancies == null or #lists.isEmpty(discrepancies)) and (items == null or #lists.isEmpty(items))}">
       <td class="text-center">1</td>
       <td th:text="${productName} ?: '—'">—</td>
       <td class="text-center" th:text="${sku} ?: '—'">—</td>

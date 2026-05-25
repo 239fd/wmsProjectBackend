@@ -87,7 +87,7 @@ _SIGNATORIES = Signatories(
     receiver="Петров П.П., кладовщик",
     released_by="Сидорова О.А., начальник склада",
     director="Кравцов А.В.",
-    director_title="Генеральный директор",
+    director_title="Заведующий складом",
     commission_chairman="Морозова Е.П., главный бухгалтер",
     commission_members=(
         "Лебедев Д.С., нач. отдела закупок",
@@ -108,7 +108,6 @@ _DELIVERY = DeliveryContext(
     shipper_instructions="Доставка партии холодильников по заказу",
     transport_rate="120,00",
     transport_total="120,00",
-    # Short on purpose — ТН's «по доверенности № N от …» slot is ~13 chars wide.
     proxy_number="123",
     proxy_date="18.05.2026",
     proxy_issued_by='ООО «Торговый дом Комплексный»',

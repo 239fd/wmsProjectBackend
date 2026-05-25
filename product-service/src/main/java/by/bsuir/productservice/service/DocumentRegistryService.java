@@ -103,6 +103,22 @@ public class DocumentRegistryService {
         return repository.save(document);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markSuperseded(UUID oldDocumentId, UUID newDocumentId, UUID organizationId) {
+        if (oldDocumentId == null || newDocumentId == null || oldDocumentId.equals(newDocumentId)) {
+            return;
+        }
+        try {
+            repository.findByIdAndOrganizationId(oldDocumentId, organizationId).ifPresent(doc -> {
+                doc.setSupersededBy(newDocumentId);
+                repository.save(doc);
+                log.info("Document {} помечен superseded → {}", oldDocumentId, newDocumentId);
+            });
+        } catch (Exception e) {
+            log.warn("Не удалось пометить документ {} superseded: {}", oldDocumentId, e.getMessage());
+        }
+    }
+
     public byte[] downloadBytes(UUID documentId, UUID organizationId) {
         GeneratedDocument document = repository
                 .findByIdAndOrganizationId(documentId, organizationId)

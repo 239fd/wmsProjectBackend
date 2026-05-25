@@ -23,6 +23,8 @@ public interface OrganizationEmployeeRepository extends JpaRepository<Organizati
 
     List<OrganizationEmployee> findByOrgId(UUID orgId);
 
+    Optional<OrganizationEmployee> findFirstByOrgIdAndRoleAndIsActiveTrue(UUID orgId, String role);
+
     void deleteByOrgId(UUID orgId);
 }
 

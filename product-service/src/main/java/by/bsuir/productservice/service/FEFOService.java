@@ -40,7 +40,6 @@ public class FEFOService {
         log.info("Selecting inventory ({}) for product {} at warehouse {}, qty {}",
                 strategy, productId, warehouseId, requiredQuantity);
 
-        // 1. ПУЛ КАНДИДАТОВ: только этот склад, этот товар, статус AVAILABLE, есть свободный остаток.
         List<Inventory> availableInventory = inventoryRepository.findByWarehouseId(warehouseId).stream()
                 .filter(inv -> productId.equals(inv.getProductId()))
                 .filter(inv -> inv.getStatus() == null
@@ -57,7 +56,6 @@ public class FEFOService {
 
         List<InventoryWithBatch> pool = enrichWithBatchInfo(availableInventory);
 
-        // 2. РЕЗОЛВ AUTO. AUTO = FEFO с FIFO-tiebreaker. FIFO выбирается только если ни у одной партии нет expiry.
         AllocationStrategy effective = strategy;
         if (strategy == null || strategy == AllocationStrategy.AUTO) {
             boolean anyExpiry = pool.stream()
@@ -66,9 +64,6 @@ public class FEFOService {
             log.info("AUTO стратегия → {} (anyExpiry={})", effective, anyExpiry);
         }
 
-        // 3. СОРТИРОВКА.
-        //    FEFO: expiryDate ASC, NULL в конец, тай-брейк по batch.createdAt ASC.
-        //    FIFO: batch.createdAt ASC, тай-брейк по inventory.lastUpdated.
         Comparator<InventoryWithBatch> sorter = switch (effective) {
             case FEFO -> Comparator
                     .<InventoryWithBatch, LocalDate>comparing(
@@ -91,7 +86,6 @@ public class FEFOService {
         pool = new ArrayList<>(pool);
         pool.sort(sorter);
 
-        // 4. ФИЛЬТР ПРОСРОЧЕНЫХ. Просрочка не уходит покупателю — выбрасываем и кидаем 409 если без неё не хватает.
         LocalDate today = LocalDate.now();
         List<InventoryWithBatch> expired = new ArrayList<>();
         List<InventoryWithBatch> usable = new ArrayList<>();
@@ -109,7 +103,6 @@ public class FEFOService {
                     expired.stream().map(iwb -> iwb.batch.getBatchId() + "(до " + iwb.batch.getExpiryDate() + ")").toList());
         }
 
-        // 5. АЛЛОКАЦИЯ.
         List<InventoryAllocation> allocations = new ArrayList<>();
         BigDecimal remaining = requiredQuantity;
 

@@ -35,4 +35,18 @@ public class OrganizationClient {
             return new HashMap<>();
         }
     }
+
+    public Map<String, Object> getDirector(UUID organizationId) {
+        try {
+            return loadBalancedRestTemplate.exchange(
+                    BASE + "/api/internal/organizations/" + organizationId + "/director",
+                    HttpMethod.GET,
+                    new HttpEntity<>(new HttpHeaders()),
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
+            ).getBody();
+        } catch (Exception e) {
+            log.debug("Не удалось получить директора организации {}: {}", organizationId, e.getMessage());
+            return null;
+        }
+    }
 }

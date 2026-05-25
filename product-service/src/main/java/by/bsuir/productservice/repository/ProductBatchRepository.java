@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -37,4 +38,6 @@ public interface ProductBatchRepository extends JpaRepository<ProductBatch, UUID
     Page<ProductBatch> findByOrganizationIdAndProductId(UUID organizationId, UUID productId, Pageable pageable);
 
     List<ProductBatch> findBySupplyId(UUID supplyId);
+
+    Optional<ProductBatch> findFirstByOrganizationIdAndBatchNumber(UUID organizationId, String batchNumber);
 }

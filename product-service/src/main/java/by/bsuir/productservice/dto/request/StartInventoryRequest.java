@@ -6,10 +6,10 @@ import java.util.List;
 import java.util.UUID;
 
 public record StartInventoryRequest(
-        @NotNull(message = "Warehouse ID обязателен")
+        @NotNull(message = "Склад обязателен")
         UUID warehouseId,
 
-        @NotNull(message = "User ID обязателен")
+        @NotNull(message = "Пользователь обязателен")
         UUID userId,
 
         @NotNull(message = "Ответственное лицо обязательно")

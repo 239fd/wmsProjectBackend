@@ -11,8 +11,7 @@ public record UpdateProductRequest(
         String category,
         String description,
         String unitOfMeasure,
-        BigDecimal weightKg,
-        BigDecimal volumeM3,
+        BigDecimal price,
         StorageConditions requiredStorageCondition
 ) {
 }

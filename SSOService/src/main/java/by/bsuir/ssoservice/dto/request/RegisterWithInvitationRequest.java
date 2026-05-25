@@ -10,7 +10,7 @@ import java.util.UUID;
 @Schema(description = "Регистрация по приглашению")
 public record RegisterWithInvitationRequest(
         @Schema(description = "UUID токена приглашения из письма", example = "550e8400-e29b-41d4-a716-446655440000")
-        @NotNull(message = "Invitation token обязателен")
+        @NotNull(message = "Токен приглашения обязателен")
         UUID invitationToken,
 
         @Schema(description = "Email (должен совпадать с email в приглашении)", example = "worker@company.by")

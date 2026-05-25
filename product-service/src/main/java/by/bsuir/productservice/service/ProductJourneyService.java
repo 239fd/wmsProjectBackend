@@ -38,6 +38,7 @@ public class ProductJourneyService {
     private final ProductBatchRepository batchRepository;
     private final InventoryRepository inventoryRepository;
     private final ProductOperationRepository operationRepository;
+    private final by.bsuir.productservice.client.WarehouseClient warehouseClient;
 
     @Transactional(readOnly = true)
     public Map<String, Object> getJourney(UUID productId, UUID batchId, UUID inventoryId, UUID organizationId) {
@@ -146,6 +147,7 @@ public class ProductJourneyService {
 
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operations = (List<Map<String, Object>>) journey.get("operations");
+            Map<String, String> warehouseNameCache = new HashMap<>();
             for (Map<String, Object> op : operations) {
                 if (y < 60) {
                     cs.close();
@@ -159,7 +161,7 @@ public class ProductJourneyService {
                 String[] cells = new String[] {
                         formatDate(op.get("operationDate")),
                         translateOperation(String.valueOf(op.get("operationType"))),
-                        shortenId(op.get("warehouseId")),
+                        warehouseLabel(op.get("warehouseId"), warehouseNameCache),
                         formatQty(op.get("quantity"))
                 };
                 drawTableRow(cs, regular, marginLeft, y, cells);
@@ -224,18 +226,45 @@ public class ProductJourneyService {
         };
     }
 
+    private static final java.time.format.DateTimeFormatter PDF_DATE_FMT =
+            java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+
     private String formatDate(Object dt) {
         if (dt == null) return "";
-        String s = dt.toString();
-        int dot = s.indexOf('.');
-        if (dot > 0) s = s.substring(0, dot);
-        return s.replace('T', ' ');
+        try {
+            if (dt instanceof java.time.LocalDateTime ldt) {
+                return ldt.format(PDF_DATE_FMT);
+            }
+            if (dt instanceof java.time.OffsetDateTime odt) {
+                return odt.format(PDF_DATE_FMT);
+            }
+            String s = dt.toString();
+            int dot = s.indexOf('.');
+            if (dot > 0) s = s.substring(0, dot);
+            java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(s.replace(' ', 'T'));
+            return ldt.format(PDF_DATE_FMT);
+        } catch (Exception e) {
+            String s = dt.toString();
+            int dot = s.indexOf('.');
+            if (dot > 0) s = s.substring(0, dot);
+            return s.replace('T', ' ');
+        }
     }
 
-    private String shortenId(Object id) {
-        if (id == null) return "—";
-        String s = id.toString();
-        return s.length() > 8 ? s.substring(0, 8) : s;
+    private String warehouseLabel(Object idObj, Map<String, String> cache) {
+        if (idObj == null) return "—";
+        String key = idObj.toString();
+        return cache.computeIfAbsent(key, k -> {
+            try {
+                Map<String, Object> wh = warehouseClient.getWarehouse(UUID.fromString(k), "WORKER");
+                if (wh != null) {
+                    Object name = wh.get("name");
+                    if (name != null) return name.toString();
+                }
+            } catch (Exception ignored) {
+            }
+            return k.length() > 8 ? k.substring(0, 8) : k;
+        });
     }
 
     private String formatQty(Object q) {
@@ -257,6 +286,8 @@ public class ProductJourneyService {
         m.put("supplier", b.getSupplier());
         m.put("supplyId", b.getSupplyId());
         m.put("storageConditions", b.getStorageConditions());
+        m.put("packagingType", b.getPackagingType());
+        m.put("unitsPerPackage", b.getUnitsPerPackage());
         m.put("purchasePrice", b.getPurchasePrice());
         m.put("createdAt", b.getCreatedAt());
         return m;
@@ -273,6 +304,16 @@ public class ProductJourneyService {
         m.put("reservedQuantity", inv.getReservedQuantity());
         m.put("status", inv.getStatus());
         m.put("lastUpdated", inv.getLastUpdated());
+        if (inv.getBatchId() != null) {
+            batchRepository.findById(inv.getBatchId()).ifPresent(b -> {
+                m.put("batchNumber", b.getBatchNumber());
+                m.put("expiryDate", b.getExpiryDate());
+                m.put("packagingType", b.getPackagingType());
+                m.put("batchPackagingType", b.getPackagingType());
+                m.put("unitsPerPackage", b.getUnitsPerPackage());
+                m.put("storageConditions", b.getStorageConditions());
+            });
+        }
         return m;
     }
 

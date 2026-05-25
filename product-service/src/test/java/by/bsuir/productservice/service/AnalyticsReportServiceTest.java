@@ -46,7 +46,6 @@ class AnalyticsReportServiceTest {
         byte[] pdf = service.generateReport("week");
 
         assertThat(pdf).isNotEmpty();
-        // PDF magic header %PDF-
         assertThat(new String(pdf, 0, 4)).isEqualTo("%PDF");
     }
 

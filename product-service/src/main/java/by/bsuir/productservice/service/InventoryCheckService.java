@@ -41,6 +41,7 @@ public class InventoryCheckService {
     private final ObjectMapper objectMapper;
     private final InventoryEventService inventoryEventService;
     private final DocumentRegistryService documentRegistryService;
+    private final by.bsuir.productservice.client.WarehouseClient warehouseClient;
 
     @Transactional
     public UUID startInventory(UUID warehouseId, UUID userId, String notes) {
@@ -74,7 +75,7 @@ public class InventoryCheckService {
 
         for (InventorySession session : activeSessions) {
             if (session.getWarehouseId().equals(warehouseId)) {
-                throw AppException.conflict("На складе уже идёт инвентаризация. Session ID: "
+                throw AppException.conflict("На складе уже идёт инвентаризация. Сессия: "
                         + session.getSessionId());
             }
         }
@@ -143,13 +144,43 @@ public class InventoryCheckService {
             throw AppException.badRequest("Сессия инвентаризации уже завершена");
         }
 
-        List<InventoryCount> counts = countRepository.findBySessionId(sessionId);
-        InventoryCount targetCount = counts.stream()
-                .filter(c -> c.getProductId().equals(productId) &&
-                            (cellId == null || cellId.equals(c.getCellId())))
-                .findFirst()
-                .orElseThrow(() -> AppException.notFound("Запись подсчёта не найдена"));
+        List<InventoryCount> matches = countRepository.findBySessionId(sessionId).stream()
+                .filter(c -> c.getProductId().equals(productId)
+                        && (cellId == null || cellId.equals(c.getCellId())))
+                .collect(Collectors.toList());
+        if (matches.isEmpty()) {
+            throw AppException.notFound("Запись подсчёта не найдена");
+        }
+        if (matches.size() > 1) {
+            throw AppException.conflict(
+                    "Несколько партий товара в этой ячейке — укажите countId конкретной строки");
+        }
 
+        applyActualCount(matches.get(0), actualQuantity, notes);
+    }
+
+    @Transactional
+    public void recordActualCountById(UUID sessionId, UUID countId,
+                                      BigDecimal actualQuantity, String notes) {
+        log.info("Recording actual count by countId={} for session: {}, quantity: {}",
+                countId, sessionId, actualQuantity);
+
+        InventorySession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> AppException.notFound("Сессия инвентаризации не найдена"));
+        if (session.getStatus() != InventorySession.SessionStatus.IN_PROGRESS) {
+            throw AppException.badRequest("Сессия инвентаризации уже завершена");
+        }
+
+        InventoryCount targetCount = countRepository.findById(countId)
+                .orElseThrow(() -> AppException.notFound("Запись подсчёта не найдена"));
+        if (!sessionId.equals(targetCount.getSessionId())) {
+            throw AppException.badRequest("Запись подсчёта принадлежит другой сессии");
+        }
+
+        applyActualCount(targetCount, actualQuantity, notes);
+    }
+
+    private void applyActualCount(InventoryCount targetCount, BigDecimal actualQuantity, String notes) {
         targetCount.setActualQuantity(actualQuantity);
         targetCount.setDiscrepancy(actualQuantity.subtract(targetCount.getExpectedQuantity()));
         if (notes != null) {
@@ -265,9 +296,26 @@ public class InventoryCheckService {
         payload.put("senderOrganizationId", session.getOrganizationId() != null ? session.getOrganizationId().toString() : null);
         payload.put("warehouseId", session.getWarehouseId().toString());
         payload.put("reason", session.getReason() != null ? session.getReason() : "Плановая инвентаризация");
-        payload.put("responsiblePerson", session.getResponsibleUserId() != null
-                ? session.getResponsibleUserId().toString() : "");
-        payload.put("chairmanName", session.getStartedBy() != null ? session.getStartedBy().toString() : "");
+        if (session.getResponsibleUserId() != null) {
+            payload.put("responsiblePerson", session.getResponsibleUserId().toString());
+            payload.put("responsibleUserId", session.getResponsibleUserId().toString());
+        }
+        if (session.getStartedBy() != null) {
+            payload.put("chairmanName", session.getStartedBy().toString());
+        }
+        if (session.getCommissionMembers() != null && !session.getCommissionMembers().isBlank()) {
+            try {
+                List<UUID> members = objectMapper.readValue(
+                        session.getCommissionMembers(),
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, UUID.class));
+                if (members != null && !members.isEmpty()) {
+                    payload.put("commissionMembers", members);
+                }
+            } catch (Exception e) {
+                log.warn("Не удалось распарсить commissionMembers сессии {}: {}",
+                        session.getSessionId(), e.getMessage());
+            }
+        }
 
         java.math.BigDecimal totalExpectedQty = java.math.BigDecimal.ZERO;
         java.math.BigDecimal totalActualQty = java.math.BigDecimal.ZERO;
@@ -346,6 +394,9 @@ public class InventoryCheckService {
         payload.put("totalActualQty", totalActualQty.stripTrailingZeros().toPlainString());
         payload.put("totalBookValue", totalBookValue);
         payload.put("totalActualValue", totalActualValue);
+        payload.put("total_amount_fact", totalActualValue);
+        payload.put("total_amount_accounted", totalBookValue);
+        payload.put("totalAmount", totalActualValue);
         payload.put("totalSurplus", totalSurplus.signum() > 0 ? totalSurplus.stripTrailingZeros().toPlainString() : "");
         payload.put("totalShortage", totalShortage.signum() > 0 ? totalShortage.stripTrailingZeros().toPlainString() : "");
         return payload;
@@ -358,7 +409,8 @@ public class InventoryCheckService {
             return;
         }
         Optional<Inventory> inventoryOpt = inventoryRepository
-                .findByProductIdAndWarehouseIdForUpdate(count.getProductId(), warehouseId);
+                .findExactInventoryForUpdate(
+                        count.getProductId(), count.getBatchId(), warehouseId, count.getCellId());
 
         if (inventoryOpt.isPresent()) {
             Inventory inventory = inventoryOpt.get();
@@ -392,6 +444,14 @@ public class InventoryCheckService {
             inventoryEventService.recordQuantityChange(inventory, eventType,
                     oldQuantity, delta, operation.getOperationId(), userId, extra);
 
+            if (count.getCellId() != null && count.getBatchId() != null && delta.signum() != 0) {
+                BigDecimal heightDelta = computeHeightDelta(count.getBatchId(), delta.abs());
+                if (heightDelta.signum() > 0) {
+                    BigDecimal applied = delta.signum() > 0 ? heightDelta.negate() : heightDelta;
+                    warehouseClient.adjustSlotHeight(count.getCellId(), applied);
+                }
+            }
+
             log.info("Adjusted inventory for product {} from {} to {}",
                     count.getProductId(), oldQuantity, count.getActualQuantity());
         }
@@ -413,6 +473,18 @@ public class InventoryCheckService {
         sessionRepository.save(session);
 
         log.info("Inventory session cancelled: {}", sessionId);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> findActiveSessionForOrg(UUID organizationId) {
+        if (organizationId == null) return null;
+        List<InventorySession> active = sessionRepository.findByOrganizationIdAndStatus(
+                organizationId, InventorySession.SessionStatus.IN_PROGRESS);
+        if (active.isEmpty()) return null;
+        InventorySession session = active.stream()
+                .max((a, b) -> a.getStartedAt().compareTo(b.getStartedAt()))
+                .orElse(active.get(0));
+        return getInventorySession(session.getSessionId());
     }
 
     @Transactional(readOnly = true)
@@ -461,5 +533,18 @@ public class InventoryCheckService {
         result.put("records", records);
 
         return result;
+    }
+
+    private BigDecimal computeHeightDelta(UUID batchId, BigDecimal quantityUnits) {
+        if (batchId == null || quantityUnits == null || quantityUnits.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        ProductBatch batch = productBatchRepository.findById(batchId).orElse(null);
+        if (batch == null || batch.getPackageHeightCm() == null) return BigDecimal.ZERO;
+        int upp = (batch.getUnitsPerPackage() != null && batch.getUnitsPerPackage() > 0)
+                ? batch.getUnitsPerPackage() : 1;
+        BigDecimal numPackages = quantityUnits.divide(
+                BigDecimal.valueOf(upp), 0, java.math.RoundingMode.CEILING);
+        return batch.getPackageHeightCm().multiply(numPackages);
     }
 }

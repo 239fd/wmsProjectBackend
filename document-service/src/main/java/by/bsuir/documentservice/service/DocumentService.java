@@ -43,6 +43,11 @@ public class DocumentService {
         String effectiveFormat = format != null ? format : "pdf";
         Map<String, Object> enriched = enrichmentService.enrich(data, organizationId);
 
+        if (isPdfOnly(type, enriched) && "rpa".equalsIgnoreCase(mode)) {
+            log.info("Тип {} поддерживается только программным каналом — игнорируем mode=rpa", type);
+            mode = "auto";
+        }
+
         if ("rpa".equalsIgnoreCase(mode)) {
             try {
                 PythonRpaClient.FillResponse rpa = pythonRpaClient.fill(type, enriched);
@@ -67,6 +72,21 @@ public class DocumentService {
         if (name == null) return fallback;
         int idx = name.lastIndexOf('.');
         return idx > 0 ? name.substring(idx + 1).toLowerCase() : fallback;
+    }
+
+    private static boolean isPdfOnly(String type, Map<String, Object> data) {
+        if ("picking-list".equalsIgnoreCase(type)
+                || "placement-list".equalsIgnoreCase(type)
+                || "analytics-report".equalsIgnoreCase(type)
+                || "revaluation-act".equalsIgnoreCase(type)) {
+            return true;
+        }
+        if ("receipt-act".equalsIgnoreCase(type)) {
+            Object d = data != null ? data.get("discrepancies") : null;
+            boolean hasDiscrepancies = d instanceof java.util.List<?> list && !list.isEmpty();
+            return !hasDiscrepancies;
+        }
+        return false;
     }
 
     private byte[] generateViaPdf(String type, Map<String, Object> data) {
@@ -179,8 +199,8 @@ public class DocumentService {
                 Map<String, Object> item = (Map<String, Object>) map;
                 discrepancies.add(ReceiptActData.DiscrepancyItem.builder()
                         .rowNumber(idx++)
-                        .productName(getString(item, "productName", "—"))
-                        .sku(getString(item, "sku", "—"))
+                        .productName(getString(item, "productName", ""))
+                        .sku(getString(item, "sku", ""))
                         .unit(getString(item, "unit", "шт"))
                         .expectedQty(toDecimal(item.get("expectedQty")))
                         .actualQty(toDecimal(item.get("actualQty")))
@@ -195,18 +215,18 @@ public class DocumentService {
                 .documentNumber(getString(data, "documentNumber", "АП-001"))
                 .documentDate(getDate(data, "documentDate", LocalDate.now()))
                 .organizationName(getString(data, "organizationName", "ООО Компания"))
-                .inn(getString(data, "inn", "—"))
-                .warehouseName(getString(data, "warehouseName", "—"))
-                .supplierName(getString(data, "supplierName", "—"))
-                .supplierInn(getString(data, "supplierInn", "—"))
-                .contractNumber(getString(data, "contractNumber", "—"))
-                .contractDate(getString(data, "contractDate", "—"))
-                .waybillNumber(getString(data, "waybillNumber", "—"))
-                .waybillDate(getString(data, "waybillDate", "—"))
-                .chairmanName(getString(data, "chairmanName", "—"))
+                .inn(getString(data, "inn", ""))
+                .warehouseName(getString(data, "warehouseName", ""))
+                .supplierName(getString(data, "supplierName", ""))
+                .supplierInn(getString(data, "supplierInn", ""))
+                .contractNumber(getString(data, "contractNumber", ""))
+                .contractDate(getString(data, "contractDate", ""))
+                .waybillNumber(getString(data, "waybillNumber", ""))
+                .waybillDate(getString(data, "waybillDate", ""))
+                .chairmanName(getString(data, "chairmanName", ""))
                 .commissionMembers((List<String>) data.getOrDefault("commissionMembers", new ArrayList<>()))
-                .acceptedBy(getString(data, "acceptedBy", "—"))
-                .approvedBy(getString(data, "approvedBy", "—"))
+                .acceptedBy(getString(data, "acceptedBy", ""))
+                .approvedBy(getString(data, "approvedBy", ""))
                 .generalNotes(getString(data, "generalNotes", ""))
                 .discrepancies(discrepancies)
                 .build();
@@ -243,8 +263,8 @@ public class DocumentService {
                         : qty.multiply(unitPrice);
                 items.add(InvoiceData.InvoiceItem.builder()
                         .rowNumber(idx++)
-                        .productName(getString(item, "productName", "—"))
-                        .sku(getString(item, "sku", "—"))
+                        .productName(getString(item, "productName", ""))
+                        .sku(getString(item, "sku", ""))
                         .unit(getString(item, "unit", "шт"))
                         .quantity(qty)
                         .unitPrice(unitPrice)
@@ -261,20 +281,20 @@ public class DocumentService {
                 .documentNumber(getString(data, "documentNumber", "И-001"))
                 .documentDate(getDate(data, "documentDate", LocalDate.now()))
                 .currency(getString(data, "currency", "BYN"))
-                .sellerName(getString(data, "sellerName", "—"))
-                .sellerInn(getString(data, "sellerInn", "—"))
-                .sellerAddress(getString(data, "sellerAddress", "—"))
-                .buyerName(getString(data, "buyerName", "—"))
-                .buyerInn(getString(data, "buyerInn", "—"))
-                .buyerAddress(getString(data, "buyerAddress", "—"))
-                .contractNumber(getString(data, "contractNumber", "—"))
-                .contractDate(getString(data, "contractDate", "—"))
+                .sellerName(getString(data, "sellerName", ""))
+                .sellerInn(getString(data, "sellerInn", ""))
+                .sellerAddress(getString(data, "sellerAddress", ""))
+                .buyerName(getString(data, "buyerName", ""))
+                .buyerInn(getString(data, "buyerInn", ""))
+                .buyerAddress(getString(data, "buyerAddress", ""))
+                .contractNumber(getString(data, "contractNumber", ""))
+                .contractDate(getString(data, "contractDate", ""))
                 .items(items)
                 .totalAmount(totalAmount)
                 .totalAmountInWords(getString(data, "totalAmountInWords", ""))
                 .vatRate(toDecimal(data.get("vatRate")))
                 .vatAmount(toDecimal(data.get("vatAmount")))
-                .responsiblePerson(getString(data, "responsiblePerson", "—"))
+                .responsiblePerson(getString(data, "responsiblePerson", ""))
                 .notes(getString(data, "notes", ""))
                 .build();
     }
@@ -295,8 +315,8 @@ public class DocumentService {
                         : qty.multiply(unitPrice);
                 items.add(TransportNoteData.TransportItem.builder()
                         .rowNumber(idx++)
-                        .productName(getString(item, "productName", "—"))
-                        .sku(getString(item, "sku", "—"))
+                        .productName(getString(item, "productName", ""))
+                        .sku(getString(item, "sku", ""))
                         .unit(getString(item, "unit", "шт"))
                         .quantity(qty)
                         .unitPrice(unitPrice)
@@ -322,22 +342,22 @@ public class DocumentService {
                 .documentNumber(getString(data, "documentNumber", "ТН-001"))
                 .documentDate(getDate(data, "documentDate", LocalDate.now()))
                 .currency(getString(data, "currency", "BYN"))
-                .shipperName(getString(data, "shipperName", "—"))
-                .shipperInn(getString(data, "shipperInn", "—"))
-                .shipperAddress(getString(data, "shipperAddress", "—"))
-                .consigneeName(getString(data, "consigneeName", "—"))
-                .consigneeInn(getString(data, "consigneeInn", "—"))
-                .consigneeAddress(getString(data, "consigneeAddress", "—"))
-                .warehouseName(getString(data, "warehouseName", "—"))
-                .contractNumber(getString(data, "contractNumber", "—"))
-                .contractDate(getString(data, "contractDate", "—"))
-                .waybillReference(getString(data, "waybillReference", "—"))
+                .shipperName(getString(data, "shipperName", ""))
+                .shipperInn(getString(data, "shipperInn", ""))
+                .shipperAddress(getString(data, "shipperAddress", ""))
+                .consigneeName(getString(data, "consigneeName", ""))
+                .consigneeInn(getString(data, "consigneeInn", ""))
+                .consigneeAddress(getString(data, "consigneeAddress", ""))
+                .warehouseName(getString(data, "warehouseName", ""))
+                .contractNumber(getString(data, "contractNumber", ""))
+                .contractDate(getString(data, "contractDate", ""))
+                .waybillReference(getString(data, "waybillReference", ""))
                 .items(items)
                 .totalQuantity(totalQty)
                 .totalAmount(totalAmount)
                 .totalVat(totalVat)
-                .releasedBy(getString(data, "releasedBy", "—"))
-                .acceptedBy(getString(data, "acceptedBy", "—"))
+                .releasedBy(getString(data, "releasedBy", ""))
+                .acceptedBy(getString(data, "acceptedBy", ""))
                 .notes(getString(data, "notes", ""))
                 .build();
     }
@@ -353,10 +373,10 @@ public class DocumentService {
                 Map<String, Object> item = (Map<String, Object>) map;
                 items.add(CmrData.CmrItem.builder()
                         .rowNumber(idx++)
-                        .marks(getString(item, "marks", "—"))
-                        .packagingType(getString(item, "packagingType", "—"))
-                        .productName(getString(item, "productName", "—"))
-                        .hsCode(getString(item, "hsCode", "—"))
+                        .marks(getString(item, "marks", ""))
+                        .packagingType(getString(item, "packagingType", ""))
+                        .productName(getString(item, "productName", ""))
+                        .hsCode(getString(item, "hsCode", ""))
                         .quantity(toDecimal(item.get("quantity")))
                         .unit(getString(item, "unit", "шт"))
                         .grossWeightKg(toDecimal(item.get("grossWeightKg")))
@@ -383,24 +403,24 @@ public class DocumentService {
                 .documentNumber(getString(data, "documentNumber", "CMR-001"))
                 .documentDate(getDate(data, "documentDate", LocalDate.now()))
                 .currency(getString(data, "currency", "EUR"))
-                .shipperName(getString(data, "shipperName", "—"))
-                .shipperInn(getString(data, "shipperInn", "—"))
-                .shipperAddress(getString(data, "shipperAddress", "—"))
+                .shipperName(getString(data, "shipperName", ""))
+                .shipperInn(getString(data, "shipperInn", ""))
+                .shipperAddress(getString(data, "shipperAddress", ""))
                 .shipperCountry(getString(data, "shipperCountry", "BY"))
                 .shipperGln(getString(data, "shipperGln", ""))
-                .consigneeName(getString(data, "consigneeName", "—"))
-                .consigneeInn(getString(data, "consigneeInn", "—"))
-                .consigneeAddress(getString(data, "consigneeAddress", "—"))
+                .consigneeName(getString(data, "consigneeName", ""))
+                .consigneeInn(getString(data, "consigneeInn", ""))
+                .consigneeAddress(getString(data, "consigneeAddress", ""))
                 .consigneeCountry(getString(data, "consigneeCountry", "RU"))
                 .consigneeGln(getString(data, "consigneeGln", ""))
-                .carrierName(getString(data, "carrierName", "—"))
-                .carrierAddress(getString(data, "carrierAddress", "—"))
-                .vehicleNumber(getString(data, "vehicleNumber", "—"))
+                .carrierName(getString(data, "carrierName", ""))
+                .carrierAddress(getString(data, "carrierAddress", ""))
+                .vehicleNumber(getString(data, "vehicleNumber", ""))
                 .trailerNumber(getString(data, "trailerNumber", ""))
-                .driverName(getString(data, "driverName", "—"))
-                .driverPassport(getString(data, "driverPassport", "—"))
-                .placeOfLoading(getString(data, "placeOfLoading", "—"))
-                .placeOfDelivery(getString(data, "placeOfDelivery", "—"))
+                .driverName(getString(data, "driverName", ""))
+                .driverPassport(getString(data, "driverPassport", ""))
+                .placeOfLoading(getString(data, "placeOfLoading", ""))
+                .placeOfDelivery(getString(data, "placeOfDelivery", ""))
                 .loadingDate(getDate(data, "loadingDate", LocalDate.now()))
                 .deliveryDate(getDate(data, "deliveryDate", LocalDate.now()))
                 .items(items)
@@ -412,10 +432,10 @@ public class DocumentService {
                         : totalDeclared)
                 .paymentInstructions(getString(data, "paymentInstructions", ""))
                 .specialInstructions(getString(data, "specialInstructions", ""))
-                .contractNumber(getString(data, "contractNumber", "—"))
-                .shipperSignedBy(getString(data, "shipperSignedBy", "—"))
-                .carrierSignedBy(getString(data, "carrierSignedBy", "—"))
-                .consigneeSignedBy(getString(data, "consigneeSignedBy", "—"))
+                .contractNumber(getString(data, "contractNumber", ""))
+                .shipperSignedBy(getString(data, "shipperSignedBy", ""))
+                .carrierSignedBy(getString(data, "carrierSignedBy", ""))
+                .consigneeSignedBy(getString(data, "consigneeSignedBy", ""))
                 .build();
     }
 

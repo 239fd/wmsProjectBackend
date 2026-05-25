@@ -44,10 +44,14 @@ public class GlobalExceptionHandler {
 
         log.error("Validation failed: {}", errors);
 
+        String combined = errors.values().stream()
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.joining("; "));
+
         ErrorResponse error = new ErrorResponse(
                 400,
                 "VALIDATION_ERROR",
-                "Ошибка валидации: " + errors,
+                combined.isEmpty() ? "Проверьте заполнение полей" : combined,
                 request.getRequestURI()
         );
 

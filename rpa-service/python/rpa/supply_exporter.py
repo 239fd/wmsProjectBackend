@@ -14,7 +14,6 @@ from .models import OrderItem, PurchaseOrder
 
 log = logging.getLogger(__name__)
 
-# 1С "Текущее состояние" → supply_status enum.
 _STATUS_MAP = {
     "не согласован":                 "PLANNED",
     "ожидается согласование":        "PLANNED",
@@ -286,7 +285,7 @@ def _order_to_shipment(order: PurchaseOrder) -> dict:
         "currency":        order.currency or "",
         "total_amount":    _decimal_str(order.total_amount),
         "payment_pct":     _decimal_str(order.payment_pct),
-        "shipment_pct":    _decimal_str(order.receipt_pct),  # «% отгрузки»
+        "shipment_pct":    _decimal_str(order.receipt_pct),
         "debt_pct":        _decimal_str(order.debt_pct),
         "operation":       order.operation or "",
         "customer": {

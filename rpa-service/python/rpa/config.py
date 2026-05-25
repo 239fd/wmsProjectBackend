@@ -42,7 +42,6 @@ def _default_onec_executable() -> str:
     for candidate in _DEFAULT_ONEC_PATHS:
         if Path(candidate).is_file():
             return candidate
-    # Probe versioned installs; prefer thin-training, then thin, then thick.
     for root in (Path(r"D:\1C"), Path(r"C:\1C"), Path(r"C:\Program Files\1cv8")):
         if not root.exists():
             continue
@@ -58,7 +57,6 @@ def _default_onec_executable() -> str:
 
 
 def _default_onec_launch_args(executable: str) -> tuple[str, ...]:
-    # Direct *.exe clients need ENTERPRISE as the first arg; starters do not.
     if Path(executable).name.lower().startswith("1cv8"):
         return ("ENTERPRISE",)
     return ()
@@ -77,9 +75,7 @@ class OneCConfig:
         r".*(Управление торговлей|1С:Предприятие|Демонстрационная база).*",
     )
     attach_if_running: bool = _env_bool("RPA_ONEC_ATTACH_IF_RUNNING", True)
-    # UT 11.2 demo uses masculine "Готов к поступлению" in this column.
     status_column: str = "Текущее состояние"
-    # Substring match — "Ожидается оплата" catches "Ожидается оплата (после поступления)" too.
     target_statuses: tuple[str, ...] = (
         "Готов к поступлению",
         "Ожидается поступление",

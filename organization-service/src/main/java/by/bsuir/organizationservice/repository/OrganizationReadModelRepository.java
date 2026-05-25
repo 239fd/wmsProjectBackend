@@ -22,5 +22,7 @@ public interface OrganizationReadModelRepository extends JpaRepository<Organizat
 
     boolean existsByName(String name);
 
+    boolean existsByNameIgnoreCase(String name);
+
     List<OrganizationReadModel> findAllByStatus(OrganizationStatus status);
 }

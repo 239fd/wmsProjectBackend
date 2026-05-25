@@ -77,6 +77,12 @@ public class ShipmentRequest {
     @Column(name = "recipient_gln", length = 32)
     private String recipientGln;
 
+    @Column(name = "picking_list_doc_id")
+    private UUID pickingListDocId;
+
+    @Column(name = "document_error", columnDefinition = "TEXT")
+    private String documentError;
+
     @Column(name = "created_by")
     private UUID createdBy;
 

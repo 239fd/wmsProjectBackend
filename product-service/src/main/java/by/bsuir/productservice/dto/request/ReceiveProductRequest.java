@@ -7,12 +7,12 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record ReceiveProductRequest(
-        @NotNull(message = "Product ID обязателен")
+        @NotNull(message = "Товар обязателен")
         UUID productId,
 
         UUID batchId,
 
-        @NotNull(message = "Warehouse ID обязателен")
+        @NotNull(message = "Склад обязателен")
         UUID warehouseId,
 
         UUID cellId,
@@ -21,7 +21,7 @@ public record ReceiveProductRequest(
         @Positive(message = "Количество должно быть положительным")
         BigDecimal quantity,
 
-        @NotNull(message = "User ID обязателен")
+        @NotNull(message = "Пользователь обязателен")
         UUID userId,
 
         UUID supplyId,

@@ -42,7 +42,7 @@
       <div class="bold mb-2">Продавец / Seller</div>
       <table class="no-border">
         <tr><td class="muted small" style="width: 40pt;">Наименование:</td><td th:text="${sellerName} ?: '—'">—</td></tr>
-        <tr><td class="muted small">УНП / ИНН:</td><td th:text="${sellerInn} ?: '—'">—</td></tr>
+        <tr><td class="muted small">УНП:</td><td th:text="${sellerInn} ?: '—'">—</td></tr>
         <tr><td class="muted small">Адрес:</td><td th:text="${sellerAddress} ?: '—'">—</td></tr>
       </table>
     </td>
@@ -86,20 +86,26 @@
 </table>
 
 <table class="no-border totals">
+  <tr th:if="${totalGrossWeight != null}">
+    <td style="width: 65%;"></td>
+    <td class="label">Общий вес / Total weight, кг:</td>
+    <td class="value bordered" th:text="${totalGrossWeight}">0.00</td>
+  </tr>
   <tr>
     <td style="width: 65%;"></td>
     <td class="label">Итого без НДС / Subtotal:</td>
     <td class="value bordered" th:text="${totalAmount} ?: '0.00'">0.00</td>
   </tr>
-  <tr th:if="${vatAmount != null and vatAmount != 0}">
+  <tr th:if="${totalVat != null and totalVat != 0}">
     <td></td>
-    <td class="label">НДС (<span th:text="${vatRate} ?: '20'">20</span>%):</td>
-    <td class="value bordered" th:text="${vatAmount}">0.00</td>
+    <td class="label">НДС (20%):</td>
+    <td class="value bordered" th:text="${totalVat}">0.00</td>
   </tr>
   <tr>
     <td></td>
     <td class="label">Всего к оплате / Total due:</td>
-    <td class="value bordered bold" th:text="${totalAmount} ?: '0.00'">0.00</td>
+    <td class="value bordered bold"
+        th:text="${totalAmountWithVat != null ? totalAmountWithVat : (totalAmount != null ? totalAmount : '0.00')}">0.00</td>
   </tr>
 </table>
 

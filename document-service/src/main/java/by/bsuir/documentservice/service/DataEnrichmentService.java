@@ -2,13 +2,21 @@ package by.bsuir.documentservice.service;
 
 import by.bsuir.documentservice.client.OrganizationClient;
 import by.bsuir.documentservice.client.ProductClient;
+import by.bsuir.documentservice.client.SsoClient;
 import by.bsuir.documentservice.client.WarehouseClient;
+import by.bsuir.documentservice.util.FullNameFormatter;
+import by.bsuir.documentservice.util.RoleToPosition;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -16,9 +24,24 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DataEnrichmentService {
 
+    private static final List<String> SIGNATURE_KEYS = Arrays.asList(
+            "chairmanName",
+            "responsiblePerson",
+            "startedBy",
+            "acceptedBy",
+            "releasedBy",
+            "handedOverBy",
+            "consigneeSignedBy",
+            "receiverSignedBy",
+            "shipperSignedBy",
+            "carrierSignedBy",
+            "approvedBy"
+    );
+
     private final ProductClient productClient;
     private final WarehouseClient warehouseClient;
     private final OrganizationClient organizationClient;
+    private final SsoClient ssoClient;
 
     public Map<String, Object> enrich(Map<String, Object> data, UUID organizationId) {
         Map<String, Object> enriched = new HashMap<>(data);
@@ -65,18 +88,21 @@ public class DataEnrichmentService {
                     enriched.put("organizationName", name);
                     enriched.putIfAbsent("shipperName", name);
                     enriched.putIfAbsent("senderName", name);
-                    enriched.putIfAbsent("releasedBy", name);
+                    enriched.putIfAbsent("sellerName", name);
                 }
+                Object orgInn = org.get("unp") != null ? org.get("unp") : org.get("inn");
                 if (org.get("inn") != null) enriched.put("inn", org.get("inn"));
                 if (org.get("unp") != null) {
                     enriched.put("unp", org.get("unp"));
                     enriched.putIfAbsent("shipperInn", org.get("unp"));
                     enriched.putIfAbsent("senderInn", org.get("unp"));
                 }
+                if (orgInn != null) enriched.putIfAbsent("sellerInn", orgInn);
                 if (org.get("address") != null) {
                     enriched.put("organizationAddress", org.get("address"));
                     enriched.putIfAbsent("shipperAddress", org.get("address"));
                     enriched.putIfAbsent("senderAddress", org.get("address"));
+                    enriched.putIfAbsent("sellerAddress", org.get("address"));
                 }
             }
         }
@@ -85,19 +111,103 @@ public class DataEnrichmentService {
         if (recipientName != null) {
             enriched.putIfAbsent("consigneeName", recipientName);
             enriched.putIfAbsent("payerName", recipientName);
+            enriched.putIfAbsent("buyerName", recipientName);
         }
         Object recipientAddress = data.get("recipientAddress");
         if (recipientAddress != null) {
             enriched.putIfAbsent("consigneeAddress", recipientAddress);
             enriched.putIfAbsent("deliveryPoint", recipientAddress);
+            enriched.putIfAbsent("buyerAddress", recipientAddress);
         }
         Object recipientInn = data.get("recipientInn");
         if (recipientInn != null) {
             enriched.putIfAbsent("consigneeInn", recipientInn);
             enriched.putIfAbsent("payerInn", recipientInn);
+            enriched.putIfAbsent("buyerInn", recipientInn);
         }
 
+        enrichSignatures(enriched, orgIdToFetch);
+
         return enriched;
+    }
+
+    private void enrichSignatures(Map<String, Object> payload, UUID orgIdToFetch) {
+        Set<UUID> idsToLookup = new LinkedHashSet<>();
+
+        for (String key : SIGNATURE_KEYS) {
+            UUID id = parseUuid(payload.get(key));
+            if (id != null) idsToLookup.add(id);
+        }
+        Object members = payload.get("commissionMembers");
+        if (members instanceof List<?> list) {
+            for (Object m : list) {
+                UUID id = parseUuid(m);
+                if (id != null) idsToLookup.add(id);
+            }
+        }
+
+        UUID directorUserId = null;
+        if (orgIdToFetch != null) {
+            Map<String, Object> director = organizationClient.getDirector(orgIdToFetch);
+            if (director != null && director.get("userId") != null) {
+                directorUserId = parseUuid(director.get("userId"));
+                if (directorUserId != null) idsToLookup.add(directorUserId);
+            }
+        }
+
+        if (idsToLookup.isEmpty()) {
+            return;
+        }
+
+        Map<String, Map<String, Object>> users = ssoClient.lookupUsers(new ArrayList<>(idsToLookup));
+        if (users == null || users.isEmpty()) {
+            return;
+        }
+
+        for (String key : SIGNATURE_KEYS) {
+            UUID id = parseUuid(payload.get(key));
+            if (id == null) continue;
+            String formatted = formatUser(users.get(id.toString()));
+            if (!formatted.isEmpty()) payload.put(key, formatted);
+        }
+
+        if (members instanceof List<?> list) {
+            List<String> resolved = new ArrayList<>();
+            for (Object m : list) {
+                UUID id = parseUuid(m);
+                String formatted = id == null ? null : formatUser(users.get(id.toString()));
+                if (formatted != null && !formatted.isEmpty()) {
+                    resolved.add(formatted);
+                } else if (m != null) {
+                    resolved.add(m.toString());
+                }
+            }
+            if (!resolved.isEmpty()) payload.put("commissionMembers", resolved);
+        }
+
+        if (directorUserId != null) {
+            Map<String, Object> info = users.get(directorUserId.toString());
+            if (info != null) {
+                String fullName = info.get("fullName") != null ? info.get("fullName").toString() : "";
+                String shortName = FullNameFormatter.shortName(fullName);
+                String position = RoleToPosition.label(info.get("role") != null ? info.get("role").toString() : null);
+                if (!shortName.isEmpty()) {
+                    payload.putIfAbsent("directorName", shortName);
+                    payload.putIfAbsent("approvedBy", shortName);
+                }
+                if (!position.isEmpty()) {
+                    payload.putIfAbsent("directorTitle", position);
+                    payload.putIfAbsent("directorPosition", position);
+                }
+            }
+        }
+    }
+
+    private String formatUser(Map<String, Object> info) {
+        if (info == null) return "";
+        String fullName = info.get("fullName") != null ? info.get("fullName").toString() : "";
+        String role = info.get("role") != null ? info.get("role").toString() : null;
+        return FullNameFormatter.shortNameWithPosition(fullName, RoleToPosition.label(role));
     }
 
     private UUID parseUuid(Object value) {

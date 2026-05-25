@@ -13,23 +13,29 @@ import java.util.List;
 import java.util.UUID;
 
 public record CreateReceiptSessionRequest(
-        @NotNull(message = "Warehouse ID обязателен")
+        @NotNull(message = "Склад обязателен")
         UUID warehouseId,
 
         UUID supplierId,
         UUID supplyId,
 
-        @NotNull(message = "User ID обязателен")
+        @NotNull(message = "Пользователь обязателен")
         UUID userId,
 
         String generalNotes,
+
+        String contractNumber,
+        LocalDate contractDate,
+
+        UUID responsibleUserId,
+        List<UUID> commissionMembers,
 
         @NotEmpty(message = "Список позиций не может быть пустым")
         @Valid
         List<ReceiptItem> items
 ) {
     public record ReceiptItem(
-            @NotNull(message = "Product ID обязателен")
+            @NotNull(message = "Товар обязателен")
             UUID productId,
 
             UUID batchId,

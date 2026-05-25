@@ -2,6 +2,7 @@ package by.bsuir.productservice.controller;
 
 import by.bsuir.productservice.config.SecurityUtils;
 import by.bsuir.productservice.dto.request.AnalyticsReportRequest;
+import by.bsuir.productservice.service.AbcAnalysisService;
 import by.bsuir.productservice.service.AnalyticsReportService;
 import by.bsuir.productservice.service.ProductAnalyticsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,6 +34,7 @@ public class ProductAnalyticsController {
 
     private final ProductAnalyticsService analyticsService;
     private final AnalyticsReportService reportService;
+    private final AbcAnalysisService abcAnalysisService;
 
     @Operation(summary = "Получить аналитику по остаткам", description = "Возвращает аналитические данные по текущим остаткам товаров на всех складах. Доступно только для DIRECTOR")
     @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "Аналитика успешно получена"), @ApiResponse(responseCode = "403", description = "Недостаточно прав")})
@@ -127,6 +129,20 @@ public class ProductAnalyticsController {
             return ResponseEntity.status(403).build();
         }
         return ResponseEntity.ok(analyticsService.getAbcDistribution());
+    }
+
+    @Operation(summary = "Ручной пересчёт ABC-классов",
+            description = "Пересчитывает abc_class по выручке отгрузок за последние 90 дней. "
+                    + "Доступно только DIRECTOR. Сбрасывает кэш abcDistribution.")
+    @PostMapping("/abc-analysis/run")
+    public ResponseEntity<Map<String, Object>> runAbcAnalysis(
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+
+        String role = SecurityUtils.resolveRole(userRole);
+        if (!"DIRECTOR".equals(role)) {
+            return ResponseEntity.status(403).build();
+        }
+        return ResponseEntity.ok(abcAnalysisService.runManually());
     }
 
     @Operation(summary = "Товары с истекающим сроком годности")

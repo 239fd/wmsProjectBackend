@@ -71,28 +71,14 @@ public class PlacementService {
         if (required == null) required = StorageConditions.ROOM;
         final StorageConditions cond = required;
 
-        // quantity теперь в ШТУКАХ (canonical). Кол-во упаковок: numPackages.
         int upp = (unitsPerPackage != null && unitsPerPackage > 0) ? unitsPerPackage : 1;
         BigDecimal numPackages = quantity != null
                 ? quantity.divide(BigDecimal.valueOf(upp), 0, java.math.RoundingMode.CEILING)
                 : BigDecimal.ZERO;
 
-        BigDecimal incomingWeightKg;
-        if (packageWeightKg != null) {
-            incomingWeightKg = packageWeightKg.multiply(numPackages);
-        } else if (product != null && product.getWeightKg() != null) {
-            incomingWeightKg = product.getWeightKg().multiply(quantity != null ? quantity : BigDecimal.ZERO);
-        } else {
-            incomingWeightKg = BigDecimal.ZERO;
-        }
-
-        // Объём через ГАБАРИТЫ УПАКОВКИ (a × b × c × numPackages), а не product.volumeM3.
-        BigDecimal singlePackageVolM3 = BigDecimal.ZERO;
-        if (packageLengthCm != null && packageWidthCm != null && packageHeightCm != null) {
-            singlePackageVolM3 = packageLengthCm.multiply(packageWidthCm).multiply(packageHeightCm)
-                    .divide(BigDecimal.valueOf(1_000_000), 6, java.math.RoundingMode.HALF_UP);
-        }
-        BigDecimal incomingVolumeM3 = singlePackageVolM3.multiply(numPackages);
+        BigDecimal incomingWeightKg = packageWeightKg != null
+                ? packageWeightKg.multiply(numPackages)
+                : BigDecimal.ZERO;
 
         boolean requirePallet = packagingType == by.bsuir.productservice.model.enums.PackagingType.PALLET;
 
@@ -138,40 +124,27 @@ public class PlacementService {
             } catch (Exception e) {
                 continue;
             }
+            long needPackages = numPackages.longValueExact();
             for (CellInfoDto cell : cells) {
                 if (occupied.contains(cell.cellId())) continue;
-                if (cell.maxWeightKg() != null
-                        && incomingWeightKg.compareTo(cell.maxWeightKg()) > 0) {
-                    log.debug("Cell {} weight overflow: incoming={}, max={}",
-                            cell.cellId(), incomingWeightKg, cell.maxWeightKg());
-                    continue;
-                }
-                BigDecimal cellVolumeM3 = cellVolumeM3(cell);
-                if (cellVolumeM3 != null && incomingVolumeM3.compareTo(BigDecimal.ZERO) > 0
-                        && incomingVolumeM3.compareTo(cellVolumeM3) > 0) {
-                    log.debug("Cell {} volume overflow: incoming={}m3, capacity={}m3",
-                            cell.cellId(), incomingVolumeM3, cellVolumeM3);
-                    continue;
-                }
-                // Линейные размеры упаковки vs ячейки: сортируем триплеты и сравниваем.
-                if (!fitsByLinearDimensions(
-                        packageLengthCm, packageWidthCm, packageHeightCm,
-                        cell.lengthCm(), cell.widthCm(), cell.heightCm())) {
-                    log.debug("Cell {} linear-size mismatch: package={}x{}x{}см, cell={}x{}x{}см",
+                BigDecimal effectiveHeight = cell.remainingHeightCm() != null
+                        ? cell.remainingHeightCm() : cell.heightCm();
+                long cap = capacityByDims(
+                        cell.lengthCm(), cell.widthCm(), effectiveHeight,
+                        packageLengthCm, packageWidthCm, packageHeightCm);
+                if (cap == 0L) {
+                    log.debug("Cell {} не вмещает упаковку: package={}x{}x{}см, cell={}x{}x{}см",
                             cell.cellId(),
                             packageLengthCm, packageWidthCm, packageHeightCm,
-                            cell.lengthCm(), cell.widthCm(), cell.heightCm());
+                            cell.lengthCm(), cell.widthCm(), effectiveHeight);
                     continue;
                 }
-                // PALLET-place: проверка высоты упаковки против max-высоты паллет-места.
-                if (requirePallet && packageHeightCm != null && cell.maxHeightCm() != null
-                        && packageHeightCm.compareTo(cell.maxHeightCm()) > 0) {
-                    log.debug("Pallet-place {} height overflow: packageH={}см, max={}см",
-                            cell.cellId(), packageHeightCm, cell.maxHeightCm());
+                if (cap > 0L && needPackages > 0 && cap < needPackages) {
+                    log.debug("Cell {} вмещает {} упаковок, нужно {}", cell.cellId(), cap, needPackages);
                     continue;
                 }
-                log.info("Auto-picked cell {} on rack {} for product {} (weight={}кг, volume={}m3, packs={})",
-                        cell.cellId(), rack.name(), productId, incomingWeightKg, incomingVolumeM3, numPackages);
+                log.info("Auto-picked cell {} on rack {} for product {} (weight={}кг, capacity={}шт, need={}шт)",
+                        cell.cellId(), rack.name(), productId, incomingWeightKg, cap, needPackages);
                 return cell.cellId();
             }
         }
@@ -180,22 +153,6 @@ public class PlacementService {
         return null;
     }
 
-    private BigDecimal effectiveUnits(BigDecimal quantity, Integer unitsPerPackage) {
-        if (quantity == null) return BigDecimal.ZERO;
-        if (unitsPerPackage == null || unitsPerPackage <= 1) return quantity;
-        return quantity.multiply(BigDecimal.valueOf(unitsPerPackage));
-    }
-
-    private BigDecimal cellVolumeM3(CellInfoDto cell) {
-        if (cell.lengthCm() == null || cell.widthCm() == null || cell.heightCm() == null) return null;
-        BigDecimal cm3 = cell.lengthCm().multiply(cell.widthCm()).multiply(cell.heightCm());
-        return cm3.divide(BigDecimal.valueOf(1_000_000), 6, java.math.RoundingMode.HALF_UP);
-    }
-
-    /**
-     * Упаковка влезает в ячейку, если сортированные триплеты её L/W/H ≤ сортированные триплеты ячейки.
-     * Разрешает любой поворот упаковки. Если хотя бы один размер не задан — проверка пропускается.
-     */
     private boolean fitsByLinearDimensions(
             BigDecimal pL, BigDecimal pW, BigDecimal pH,
             BigDecimal cL, BigDecimal cW, BigDecimal cH) {
@@ -210,11 +167,26 @@ public class PlacementService {
                 && pkg[2].compareTo(cel[2]) <= 0;
     }
 
-    /**
-     * Жёсткая валидация подходящей ячейки/паллет-места: бросает AppException.conflict
-     * при нарушении габаритов/веса. Используется в manualPlacement / autoPlacement
-     * после авто-приёмки и в любых перемещениях через карточку товара.
-     */
+    private long capacityByDims(
+            BigDecimal cL, BigDecimal cW, BigDecimal cH,
+            BigDecimal pL, BigDecimal pW, BigDecimal pH) {
+        if (pL == null || pW == null || pH == null) return -1L;
+        if (cL == null || cW == null || cH == null) return -1L;
+        if (pL.signum() <= 0 || pW.signum() <= 0 || pH.signum() <= 0) return -1L;
+        if (cL.signum() <= 0 || cW.signum() <= 0 || cH.signum() <= 0) return -1L;
+        BigDecimal[] pkg = { pL, pW, pH };
+        BigDecimal[] cel = { cL, cW, cH };
+        java.util.Arrays.sort(pkg);
+        java.util.Arrays.sort(cel);
+        if (pkg[0].compareTo(cel[0]) > 0 || pkg[1].compareTo(cel[1]) > 0 || pkg[2].compareTo(cel[2]) > 0) {
+            return 0L;
+        }
+        long c0 = cel[0].divide(pkg[0], 0, java.math.RoundingMode.FLOOR).longValueExact();
+        long c1 = cel[1].divide(pkg[1], 0, java.math.RoundingMode.FLOOR).longValueExact();
+        long c2 = cel[2].divide(pkg[2], 0, java.math.RoundingMode.FLOOR).longValueExact();
+        return c0 * c1 * c2;
+    }
+
     private void enforcePlacementFit(
             CellInfoDto cell, RackInfoDto rack, ProductBatch batch, BigDecimal quantityUnits,
             BigDecimal rackUsedKg, boolean isPallet) {
@@ -238,23 +210,21 @@ public class PlacementService {
                 ? pWeight.multiply(numPackages)
                 : BigDecimal.ZERO;
 
-        if (!fitsByLinearDimensions(pL, pW, pH, cell.lengthCm(), cell.widthCm(), cell.heightCm())) {
+        BigDecimal effectiveHeight = cell.remainingHeightCm() != null
+                ? cell.remainingHeightCm() : cell.heightCm();
+        long cap = capacityByDims(cell.lengthCm(), cell.widthCm(), effectiveHeight, pL, pW, pH);
+        if (cap == 0L) {
             throw AppException.conflict(
-                    "Размеры упаковки (" + pL + "×" + pW + "×" + pH + "см) превышают размеры места ("
-                            + cell.lengthCm() + "×" + cell.widthCm() + "×" + cell.heightCm() + "см)");
+                    "Размеры упаковки (" + pL + "×" + pW + "×" + pH + "см) превышают доступные размеры места ("
+                            + cell.lengthCm() + "×" + cell.widthCm() + "×" + effectiveHeight
+                            + "см осталось)");
         }
-        if (isPallet && pH != null && cell.maxHeightCm() != null
-                && pH.compareTo(cell.maxHeightCm()) > 0) {
+        long needPackages = numPackages.longValueExact();
+        if (cap > 0L && needPackages > 0 && cap < needPackages) {
             throw AppException.conflict(
-                    "Высота упаковки (" + pH + "см) превышает максимальную высоту паллет-места ("
-                            + cell.maxHeightCm() + "см)");
-        }
-        if (!isPallet && cell.maxWeightKg() != null
-                && totalWeightKg.compareTo(BigDecimal.ZERO) > 0
-                && totalWeightKg.compareTo(cell.maxWeightKg()) > 0) {
-            throw AppException.conflict(
-                    "Вес упаковки (" + totalWeightKg + "кг) превышает грузоподъёмность ячейки ("
-                            + cell.maxWeightKg() + "кг)");
+                    "Ячейка вмещает " + cap + " упак., а нужно " + needPackages + " ("
+                            + cell.lengthCm() + "×" + cell.widthCm() + "×" + effectiveHeight + "см "
+                            + "÷ " + pL + "×" + pW + "×" + pH + "см)");
         }
         if (rack != null && rack.maxWeightKg() != null
                 && rackUsedKg != null
@@ -265,11 +235,6 @@ public class PlacementService {
         }
     }
 
-    /**
-     * Публичная валидация для случаев, когда worker сам выбрал ячейку/паллет-место
-     * в мастере приёмки (батч ещё не создан). Бросает AppException.conflict, если
-     * упаковка не влезает по габаритам/весу или стеллаж/ячейка перегружены.
-     */
     public void validateReceiptCellFit(
             UUID warehouseId, UUID cellId,
             BigDecimal packageLengthCm, BigDecimal packageWidthCm, BigDecimal packageHeightCm,
@@ -286,6 +251,12 @@ public class PlacementService {
             rack = warehouseClient.getRack(rackId, userRole);
         } catch (Exception ignored) { }
         if (rack == null) return;
+
+        if (warehouseId != null && rack.warehouseId() != null
+                && !warehouseId.equals(rack.warehouseId())) {
+            throw AppException.conflict(
+                    "Выбранная ячейка принадлежит другому складу — выберите ячейку текущего склада");
+        }
 
         CellInfoDto cell = resolveCellInfo(cellId, rackId, userRole);
         if (cell == null) return;
@@ -324,10 +295,14 @@ public class PlacementService {
     private Map<UUID, BigDecimal> computeWeightByRack(List<Inventory> warehouseInv) {
         Map<UUID, BigDecimal> byRack = new java.util.HashMap<>();
         for (Inventory inv : warehouseInv) {
-            if (inv.getProductId() == null || inv.getQuantity() == null) continue;
-            ProductReadModel p = productRepository.findById(inv.getProductId()).orElse(null);
-            if (p == null || p.getWeightKg() == null) continue;
-            BigDecimal w = p.getWeightKg().multiply(inv.getQuantity());
+            if (inv.getQuantity() == null || inv.getBatchId() == null || inv.getCellId() == null) continue;
+            ProductBatch b = batchRepository.findById(inv.getBatchId()).orElse(null);
+            if (b == null || b.getPackageWeightKg() == null) continue;
+            int upp = (b.getUnitsPerPackage() != null && b.getUnitsPerPackage() > 0)
+                    ? b.getUnitsPerPackage() : 1;
+            BigDecimal numPackages = inv.getQuantity()
+                    .divide(BigDecimal.valueOf(upp), 0, java.math.RoundingMode.CEILING);
+            BigDecimal w = b.getPackageWeightKg().multiply(numPackages);
             UUID rackId = lookupRackOfCell(inv.getCellId());
             if (rackId == null) continue;
             byRack.merge(rackId, w, BigDecimal::add);
@@ -449,7 +424,7 @@ public class PlacementService {
                 request.batchId(), request.warehouseId(), request.cellId(), organizationId);
 
         if (request.cellId() == null) {
-            throw AppException.badRequest("Cell ID обязателен для ручного размещения");
+            throw AppException.badRequest("Ячейка обязательна для ручного размещения");
         }
 
         ProductBatch batch = batchRepository.findById(request.batchId())
@@ -561,13 +536,66 @@ public class PlacementService {
     }
 
     private boolean matchesConditions(String rackConditions, StorageConditions required) {
+        StorageConditions need = required != null ? required : StorageConditions.ROOM;
+        StorageConditions slot;
         if (rackConditions == null) {
-            return required == StorageConditions.ROOM;
+            slot = StorageConditions.ROOM;
+        } else {
+            try {
+                slot = StorageConditions.valueOf(rackConditions);
+            } catch (IllegalArgumentException e) {
+                return false;
+            }
         }
+        return coldnessLevel(slot) >= coldnessLevel(need);
+    }
+
+    private static int coldnessLevel(StorageConditions c) {
+        return switch (c) {
+            case ROOM -> 0;
+            case COOL -> 1;
+            case FRIDGE -> 2;
+            case FREEZER -> 3;
+        };
+    }
+
+    public void validateTransferFit(
+            UUID warehouseId, UUID toCellId, ProductBatch batch, ProductReadModel product,
+            BigDecimal quantityUnits, String userRole) {
+        if (toCellId == null || batch == null) {
+            return;
+        }
+        UUID rackId = lookupRackOfCell(toCellId);
+        if (rackId == null) {
+            return;
+        }
+        RackInfoDto rack;
         try {
-            return StorageConditions.valueOf(rackConditions) == required;
-        } catch (IllegalArgumentException e) {
-            return false;
+            rack = warehouseClient.getRack(rackId, userRole);
+        } catch (Exception ignored) {
+            rack = null;
         }
+        if (rack == null) {
+            return;
+        }
+
+        StorageConditions required = batch.getStorageConditions();
+        if (required == null && product != null) {
+            required = product.getRequiredStorageCondition();
+        }
+        if (required == null) {
+            required = StorageConditions.ROOM;
+        }
+        if (!matchesConditions(rack.storageConditions(), required)) {
+            throw AppException.conflict(
+                    "Условия хранения ячейки (" + rack.storageConditions()
+                            + ") не подходят для товара (требуется " + required + " или строже)");
+        }
+
+        validateReceiptCellFit(
+                warehouseId, toCellId,
+                batch.getPackageLengthCm(), batch.getPackageWidthCm(), batch.getPackageHeightCm(),
+                batch.getPackageWeightKg(), batch.getUnitsPerPackage(), quantityUnits,
+                batch.getPackagingType(), userRole);
     }
 }

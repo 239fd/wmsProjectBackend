@@ -24,7 +24,6 @@ from .templates_spec import ExcelSpec
 
 _DEFAULT_VAT_RATE = Decimal("20")
 
-# Cells in narrow 0.6-col-wide ТН slots — shrink font so realistic strings fit.
 _NARROW_HEADER_FIELDS: dict[str, int] = {
     "handed_over_by":    9,
     "carrier_signer":    9,
@@ -161,7 +160,6 @@ def fill_excel(spec: ExcelSpec, order: PurchaseOrder, output_dir: Path,
     ctx = _context(order)
     log.info("Excel [%s] ← %s", spec.output_suffix, spec.path.name)
 
-    # Temp copy: keep the shared template unlocked and read-only on disk.
     tmp = Path(tempfile.gettempdir()) / f"rpa-{spec.path.stem}-{id(order)}{spec.path.suffix}"
     shutil.copy(spec.path, tmp)
 
@@ -377,8 +375,6 @@ def _fill_continuation_sheet(wb, spec: ExcelSpec, order: PurchaseOrder, ctx: dic
         _normalize_row_style(ws, spec.continuation_items_columns, row,
                              align_right=spec.items_align_right)
 
-    # Spec addresses point to pre-expansion rows; shift by `extra` to land on
-    # visible cells after Rows.Insert pushed them down.
     for field_name, addr in spec.continuation_totals.items():
         value = ctx.get(field_name, "")
         if value is not None and value != "":
@@ -424,9 +420,6 @@ def _expand_items_capacity(ws, spec, needed: int) -> None:
 
     src = ws.Rows(f"{last_template_row}:{last_template_row}")
     try:
-        # Re-Copy() before EACH Insert — Excel consumes the clipboard on the
-        # first Insert; subsequent Inserts without re-copying produce blank
-        # rows with no merges, leaving items #8+ in narrow single columns.
         for i in range(extra):
             src.Copy()
             ws.Rows(f"{insert_at_row + i}:{insert_at_row + i}").Insert(Shift=XL_SHIFT_DOWN)
@@ -458,19 +451,32 @@ def _context(order: PurchaseOrder) -> dict[str, object]:
     date_str = order.date.strftime("%d.%m.%Y")
     warehouse = order.warehouse or "склад приёмки"
 
-    line_totals = [
-        (it.price * it.quantity).quantize(Decimal("0.01"), ROUND_HALF_UP)
-        for it in order.items
-    ]
-    total_with_vat = sum(line_totals, Decimal("0")) if line_totals else (order.total_amount or Decimal("0"))
-    total_net, total_vat = _vat_split(total_with_vat)
+    total_net = Decimal("0")
+    total_vat = Decimal("0")
+    total_with_vat = Decimal("0")
+    for it in order.items:
+        n, v, g, _ = _line_amounts(it)
+        total_net += n
+        total_vat += v
+        total_with_vat += g
+    if not order.items:
+        total_with_vat = order.total_amount or Decimal("0")
+        total_net, total_vat = _vat_split(total_with_vat)
     total_qty = sum((it.quantity for it in order.items), Decimal("0"))
 
-    # Акт расхождения mock: each item has a ±1 unit diff → diff_count = N items.
-    diff_count = len(order.items)
-    diff_amount = sum(
-        (it.price or Decimal("0")) for it in order.items
-    ).quantize(Decimal("0.01"), ROUND_HALF_UP) if order.items else Decimal("0")
+    discrepant = [it for it in order.items
+                  if it.qty_actual is not None and it.qty_expected is not None
+                  and it.qty_actual != it.qty_expected]
+    if discrepant:
+        diff_count = len(discrepant)
+        diff_amount = sum(
+            (abs(it.qty_actual - it.qty_expected) * (it.price or Decimal("0")) for it in discrepant),
+            Decimal("0")).quantize(Decimal("0.01"), ROUND_HALF_UP)
+    else:
+        diff_count = len(order.items)
+        diff_amount = sum(
+            (it.price or Decimal("0")) for it in order.items
+        ).quantize(Decimal("0.01"), ROUND_HALF_UP) if order.items else Decimal("0")
     diff_count_words = num2words(diff_count, lang="ru") if diff_count else "ноль"
     diff_count_unit = _ru_plural(diff_count, "штука", "штуки", "штук")
 
@@ -480,8 +486,25 @@ def _context(order: PurchaseOrder) -> dict[str, object]:
     mo_name, mo_position = _split_name_position(sig.released_by)
     qty_total_int = int(total_qty)
     pos_count = len(order.items)
-    total_weight = sum((it.quantity for it in order.items), Decimal("0")) * Decimal("5.0")
-    total_package_count = total_qty  # mock: 1 package per unit
+    total_weight = sum(
+        ((it.weight if it.weight is not None else (it.quantity or Decimal("0")) * Decimal("5.0"))
+         for it in order.items), Decimal("0"))
+    total_package_count = sum(
+        ((it.package_count if it.package_count is not None else (it.quantity or Decimal("0")))
+         for it in order.items), Decimal("0"))
+
+    def _qa(it):
+        return it.qty_actual if it.qty_actual is not None else (it.quantity or Decimal("0"))
+
+    def _qe(it):
+        return it.qty_expected if it.qty_expected is not None else (it.quantity or Decimal("0"))
+
+    inv_qty_fact = sum((_qa(it) for it in order.items), Decimal("0"))
+    inv_qty_acc = sum((_qe(it) for it in order.items), Decimal("0"))
+    inv_amount_fact = sum(((it.price or Decimal("0")) * _qa(it) for it in order.items),
+                          Decimal("0")).quantize(Decimal("0.01"), ROUND_HALF_UP)
+    inv_amount_acc = sum(((it.price or Decimal("0")) * _qe(it) for it in order.items),
+                         Decimal("0")).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
     return {
         "doc_number":      order.number or "",
@@ -600,10 +623,10 @@ def _context(order: PurchaseOrder) -> dict[str, object]:
         "okpo_code":           "12345678",
         "order_date":          date_str,
         "order_number":        order.number or "",
-        "total_qty_fact":         float(total_qty),
-        "total_amount_fact":      float(total_with_vat),
-        "total_qty_accounted":    float(total_qty),
-        "total_amount_accounted": float(total_with_vat),
+        "total_qty_fact":         float(inv_qty_fact),
+        "total_amount_fact":      float(inv_amount_fact),
+        "total_qty_accounted":    float(inv_qty_acc),
+        "total_amount_accounted": float(inv_amount_acc),
         "count_positions_words": (
             f"{num2words(pos_count, lang='ru').capitalize()} "
             f"{_ru_plural(pos_count, 'порядковый номер', 'порядковых номера', 'порядковых номеров')}"
@@ -650,16 +673,39 @@ def _one_line(party: Counterparty, fallback_name: str) -> str:
     return ", ".join(p for p in parts if p)
 
 
-def _item_value(item, field_name: str, *, order=None):
-    # item.amount = price × qty is VAT-inclusive; split into net + VAT.
-    gross = (item.price or Decimal("0")) * (item.quantity or Decimal("0"))
-    gross = gross.quantize(Decimal("0.01"), ROUND_HALF_UP)
+def _line_amounts(item) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    """(net, vat, gross, vat_rate) для строки. Если из WMS пришёл реальный
+    vat_rate — цена трактуется как net и НДС добавляется сверху (реальные числа).
+    Иначе legacy-режим: price×qty считается суммой С НДС и расщепляется 20%."""
+    qty = item.quantity or Decimal("0")
+    price = item.price or Decimal("0")
+    if item.vat_rate is not None:
+        net = (price * qty).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        rate = item.vat_rate
+        vat = (item.vat_amount if item.vat_amount is not None
+               else (net * rate / Decimal("100")).quantize(Decimal("0.01"), ROUND_HALF_UP))
+        gross = (net + vat).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        return net, vat, gross, rate
+    gross = (price * qty).quantize(Decimal("0.01"), ROUND_HALF_UP)
     net, vat = _vat_split(gross)
-    weight_kg = (item.quantity or Decimal("0")) * Decimal("5.0")
-    # Акт расхождения: odd row = +1 излишек, even = −1 недостача. qty_actual
-    # is distinct from qty_accepted so other docs keep their semantics.
-    is_surplus = bool(item.row_number % 2)
-    qty_actual = (item.quantity or Decimal("0")) + (Decimal("1") if is_surplus else Decimal("-1"))
+    return net, vat, gross, _DEFAULT_VAT_RATE
+
+
+def _item_value(item, field_name: str, *, order=None):
+    net, vat, gross, vat_rate = _line_amounts(item)
+    qty = item.quantity or Decimal("0")
+    weight_kg = item.weight if item.weight is not None else qty * Decimal("5.0")
+    package_count = item.package_count if item.package_count is not None else qty
+    amount_revalued = (((item.new_price or Decimal("0")) * qty).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                       if item.new_price is not None
+                       else (gross * Decimal("1.1")).quantize(Decimal("0.01"), ROUND_HALF_UP))
+    qty_expected = item.qty_expected if item.qty_expected is not None else qty
+    if item.qty_actual is not None:
+        qty_actual = item.qty_actual
+    else:
+        is_surplus = bool(item.row_number % 2)
+        qty_actual = qty + (Decimal("1") if is_surplus else Decimal("-1"))
+    diff = qty_actual - qty_expected
     mapping = {
         "row_number":    item.row_number,
         "doc_series":    "ПН",
@@ -668,25 +714,27 @@ def _item_value(item, field_name: str, *, order=None):
         "nomenclature":  item.nomenclature,
         "unit":          item.unit,
         "qty":           _num(item.quantity),
-        "qty_expected":  _num(item.quantity),
+        "qty_expected":  _num(qty_expected),
         "qty_accepted":  _num(item.quantity),
         "qty_actual":    float(qty_actual),
-        "qty_diff_plus":  1.0 if is_surplus else "",
-        "qty_diff_minus": "" if is_surplus else 1.0,
-        "note":          "излишек" if is_surplus else "недостача",
+        "qty_diff_plus":  float(diff) if diff > 0 else "",
+        "qty_diff_minus": float(-diff) if diff < 0 else "",
+        "note":          "излишек" if diff > 0 else ("недостача" if diff < 0 else ""),
         "price":         _num(item.price),
         "amount":        _num(item.amount),
         "cost":          float(net),
-        "vat_rate":      float(_DEFAULT_VAT_RATE),
+        "vat_rate":      float(vat_rate),
         "vat_amount":    float(vat),
         "cost_with_vat": float(gross),
-        "package_count": _num(item.quantity),
+        "package_count": _num(package_count),
         "weight":        float(weight_kg),
-        "amount_revalued": float((gross * Decimal("1.1")).quantize(Decimal("0.01"), ROUND_HALF_UP)),
-        "qty_fact":           _num(item.quantity),
-        "amount_fact":        float(gross),
-        "qty_accounted":      _num(item.quantity),
-        "amount_accounted":   float(gross),
+        "amount_revalued": float(amount_revalued),
+        "qty_fact":           float(qty_actual),
+        "amount_fact":        float(((item.price or Decimal("0")) * qty_actual)
+                                    .quantize(Decimal("0.01"), ROUND_HALF_UP)),
+        "qty_accounted":      float(qty_expected),
+        "amount_accounted":   float(((item.price or Decimal("0")) * qty_expected)
+                                    .quantize(Decimal("0.01"), ROUND_HALF_UP)),
     }
     return mapping.get(field_name, "")
 

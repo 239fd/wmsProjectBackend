@@ -85,7 +85,7 @@ public class EmailService {
         return switch (role) {
             case "WORKER" -> "Кладовщик";
             case "ACCOUNTANT" -> "Бухгалтер";
-            case "DIRECTOR" -> "Директор";
+            case "DIRECTOR" -> "Заведующий";
             default -> role;
         };
     }

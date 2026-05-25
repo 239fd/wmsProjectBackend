@@ -196,8 +196,7 @@ public class SupplyImportService {
     private ProductReadModel resolveProduct(UUID organizationId, SupplyDto.ProductDto dto) {
         if (dto == null || dto.sku() == null || dto.sku().isBlank()) return null;
         Optional<ProductReadModel> match = productRepository.findBySku(dto.sku());
-        if (match.isPresent() && match.get().getOrganizationId() != null
-                && match.get().getOrganizationId().equals(organizationId)) {
+        if (match.isPresent()) {
             return match.get();
         }
         ProductReadModel created = ProductReadModel.builder()
@@ -209,8 +208,6 @@ public class SupplyImportService {
                 .category(dto.category())
                 .description(dto.description())
                 .unitOfMeasure(dto.unitOfMeasure())
-                .weightKg(dto.weightKg())
-                .volumeM3(dto.volumeM3())
                 .price(dto.price())
                 .abcClass("C")
                 .requiredStorageCondition(parseStorageConditions(dto.storageConditions()))

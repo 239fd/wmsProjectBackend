@@ -1,6 +1,8 @@
 package by.bsuir.productservice.controller;
 
 import by.bsuir.productservice.dto.import_.SalesOrderDto;
+import by.bsuir.productservice.dto.request.AddShipmentItemsRequest;
+import by.bsuir.productservice.dto.request.CompleteShipmentRequest;
 import by.bsuir.productservice.dto.request.CreateShipmentRequestRequest;
 import by.bsuir.productservice.dto.request.PickRequest;
 import by.bsuir.productservice.dto.response.ShipmentRequestResponse;
@@ -84,6 +86,18 @@ public class ShipmentRequestController {
         return ResponseEntity.ok(service.get(requestId, organizationId));
     }
 
+    @Operation(summary = "Добавить позиции в существующую заявку",
+            description = "Резервирует партии под новые позиции (стратегия из заявки) и добавляет их. "
+                    + "Доступно только для заявок в статусе PLANNED/PICKING.")
+    @PostMapping("/{requestId}/items")
+    public ResponseEntity<ShipmentRequestResponse> addItems(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody AddShipmentItemsRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        return ResponseEntity.ok(service.addItems(requestId, request, userId, organizationId));
+    }
+
     @Operation(summary = "Отметить позицию как собранную (по штрихкоду/SKU). Идемпотентно")
     @PostMapping("/{requestId}/pick")
     public ResponseEntity<ShipmentRequestResponse> pick(
@@ -104,13 +118,16 @@ public class ShipmentRequestController {
 
     @Operation(summary = "Завершить заявку",
             description = "Закрывает заявку и генерирует пакет документов по выбранному типу отгрузки: "
-                    + "DOMESTIC → ТН/ТТН по выбранному kind+layout; EXPORT → пакет {ТН + CMR + invoice}")
+                    + "DOMESTIC → ТН/ТТН по выбранному kind+layout; EXPORT → пакет {ТН + CMR + invoice}. "
+                    + "Тело запроса опционально — содержит транспортные/доверенность/контракт/перевозчик-поля, "
+                    + "которые попадают только в payload документа, в БД не сохраняются.")
     @PostMapping("/{requestId}/complete")
     public ResponseEntity<ShipmentRequestResponse> complete(
             @PathVariable UUID requestId,
+            @RequestBody(required = false) CompleteShipmentRequest manual,
             @RequestHeader(value = "X-User-Id", required = false) UUID userId,
             @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
-        return ResponseEntity.ok(service.complete(requestId, userId, organizationId));
+        return ResponseEntity.ok(service.complete(requestId, userId, organizationId, manual));
     }
 
     @Operation(summary = "Отменить заявку")

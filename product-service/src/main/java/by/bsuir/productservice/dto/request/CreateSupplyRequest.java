@@ -4,6 +4,8 @@ import by.bsuir.productservice.model.enums.PackagingType;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -14,6 +16,7 @@ import java.util.UUID;
 public record CreateSupplyRequest(
         @JsonProperty("supplierId") UUID supplierId,
         @JsonProperty("supplierName") String supplierName,
+        @NotNull(message = "Склад обязателен")
         @JsonProperty("warehouseId") UUID warehouseId,
         @JsonProperty("expectedDate") LocalDate expectedDate,
         @JsonProperty("currency") String currency,
@@ -26,6 +29,7 @@ public record CreateSupplyRequest(
 ) {
 
     public record SupplyItemRequest(
+            @NotNull(message = "Товар обязателен")
             @JsonProperty("productId") UUID productId,
             @JsonProperty("productName") String productName,
             @JsonProperty("sku") String sku,
@@ -34,6 +38,8 @@ public record CreateSupplyRequest(
             @JsonProperty("unitOfMeasure") String unitOfMeasure,
             @JsonProperty("manufacturer") String manufacturer,
             @JsonProperty("storageConditions") String storageConditions,
+            @NotNull(message = "Количество обязательно")
+            @Positive(message = "Количество должно быть положительным")
             @JsonProperty("expectedQty") BigDecimal expectedQty,
             @JsonProperty("unitPrice") BigDecimal unitPrice,
             @JsonProperty("vatRate") BigDecimal vatRate,

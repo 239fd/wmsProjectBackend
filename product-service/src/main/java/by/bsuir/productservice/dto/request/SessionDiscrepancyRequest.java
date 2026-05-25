@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record SessionDiscrepancyRequest(
-        @NotNull(message = "User ID обязателен")
+        @NotNull(message = "Пользователь обязателен")
         UUID userId,
 
         String generalNotes,
@@ -17,7 +17,7 @@ public record SessionDiscrepancyRequest(
         List<DiscrepancyItem> items
 ) {
     public record DiscrepancyItem(
-            @NotNull(message = "Product ID обязателен")
+            @NotNull(message = "Товар обязателен")
             UUID productId,
 
             @NotNull(message = "Ожидаемое количество обязательно")

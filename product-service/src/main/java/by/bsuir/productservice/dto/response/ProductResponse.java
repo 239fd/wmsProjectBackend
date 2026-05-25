@@ -14,8 +14,7 @@ public record ProductResponse(
         String category,
         String description,
         String unitOfMeasure,
-        BigDecimal weightKg,
-        BigDecimal volumeM3,
+        BigDecimal price,
         StorageConditions requiredStorageCondition,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

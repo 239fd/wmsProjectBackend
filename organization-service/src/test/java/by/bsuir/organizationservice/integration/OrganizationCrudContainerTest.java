@@ -65,7 +65,7 @@ class OrganizationCrudContainerTest extends TestcontainersIntegrationBase {
     }
 
     @Test
-    @DisplayName("POST с невалидным ИНН (не 9 цифр) → 400")
+    @DisplayName("POST с невалидным УНП (не 9 цифр) → 400")
     void create_GivenInvalidUnp_ShouldReturnBadRequest() throws Exception {
         CreateOrganizationRequest req = new CreateOrganizationRequest(
                 "X", "X", "12345", "addr"

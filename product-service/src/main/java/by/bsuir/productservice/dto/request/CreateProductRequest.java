@@ -2,6 +2,7 @@ package by.bsuir.productservice.dto.request;
 
 import by.bsuir.productservice.model.enums.StorageConditions;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -25,9 +26,8 @@ public record CreateProductRequest(
         @Size(max = 50, message = "Единица измерения не должна превышать 50 символов")
         String unitOfMeasure,
 
-        BigDecimal weightKg,
-
-        BigDecimal volumeM3,
+        @PositiveOrZero(message = "Учётная цена не может быть отрицательной")
+        BigDecimal price,
 
         StorageConditions requiredStorageCondition
 ) {

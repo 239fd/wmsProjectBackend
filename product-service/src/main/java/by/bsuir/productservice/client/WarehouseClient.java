@@ -3,6 +3,7 @@ package by.bsuir.productservice.client;
 import by.bsuir.productservice.client.dto.CellInfoDto;
 import by.bsuir.productservice.client.dto.PageResponse;
 import by.bsuir.productservice.client.dto.RackInfoDto;
+import by.bsuir.productservice.service.SlotHeightRetryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
@@ -26,6 +27,7 @@ public class WarehouseClient {
     private static final String BASE = "http://WAREHOUSE-SERVICE/api/racks";
 
     private final RestTemplate loadBalancedRestTemplate;
+    private final SlotHeightRetryService slotHeightRetryService;
 
     public List<RackInfoDto> getRacksByWarehouse(UUID warehouseId, String userRole) {
         try {
@@ -58,11 +60,14 @@ public class WarehouseClient {
             return body.stream().map(m -> new CellInfoDto(
                     parseUuid(m.get("cellId") != null ? m.get("cellId") : m.get("id")),
                     rackId,
+                    m.get("slotCode") != null ? m.get("slotCode").toString() : null,
+                    m.get("slotType") != null ? m.get("slotType").toString() : null,
                     parseDecimal(m.get("maxWeightKg")),
                     parseDecimal(m.get("lengthCm")),
                     parseDecimal(m.get("widthCm")),
                     parseDecimal(m.get("heightCm")),
-                    parseDecimal(m.get("maxHeightCm"))
+                    parseDecimal(m.get("maxHeightCm")),
+                    parseDecimal(m.get("remainingHeightCm"))
             )).toList();
         } catch (Exception e) {
             log.error("Failed to fetch cells for rack {}: {}", rackId, e.getMessage());
@@ -86,6 +91,23 @@ public class WarehouseClient {
         }
     }
 
+    public Map<String, Object> getWarehouse(UUID warehouseId, String userRole) {
+        if (warehouseId == null) return null;
+        try {
+            HttpHeaders headers = buildHeaders(userRole);
+            ResponseEntity<Map<String, Object>> response = loadBalancedRestTemplate.exchange(
+                    "http://WAREHOUSE-SERVICE/api/warehouses/" + warehouseId,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    new ParameterizedTypeReference<>() {}
+            );
+            return response.getBody();
+        } catch (Exception e) {
+            log.error("Failed to fetch warehouse {}: {}", warehouseId, e.getMessage());
+            return null;
+        }
+    }
+
     public RackInfoDto getRack(UUID rackId, String userRole) {
         try {
             HttpHeaders headers = buildHeaders(userRole);
@@ -99,6 +121,24 @@ public class WarehouseClient {
         } catch (Exception e) {
             log.error("Failed to fetch rack {}: {}", rackId, e.getMessage());
             return null;
+        }
+    }
+
+    public void adjustSlotHeight(UUID slotId, java.math.BigDecimal deltaCm) {
+        if (slotId == null || deltaCm == null || deltaCm.signum() == 0) return;
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            Map<String, Object> body = Map.of("delta", deltaCm);
+            loadBalancedRestTemplate.exchange(
+                    "http://WAREHOUSE-SERVICE/api/internal/slots/" + slotId + "/height",
+                    HttpMethod.POST,
+                    new HttpEntity<>(body, headers),
+                    new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            log.warn("adjustSlotHeight failed for slot {} delta={}: {} — queued for retry",
+                    slotId, deltaCm, e.getMessage());
+            slotHeightRetryService.enqueue(slotId, deltaCm);
         }
     }
 

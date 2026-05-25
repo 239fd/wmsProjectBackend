@@ -41,6 +41,7 @@ public class WriteOffService {
     private final ProductReadModelRepository productRepository;
     private final ProductBatchRepository batchRepository;
     private final FEFOService fefoService;
+    private final by.bsuir.productservice.client.WarehouseClient warehouseClient;
 
     @Transactional
     public Map<String, Object> writeOff(WriteOffRequest request, UUID organizationId) {
@@ -129,6 +130,13 @@ public class WriteOffService {
             inventoryEventService.recordQuantityChange(inv, InventoryEventType.WRITTEN_OFF,
                     qtyBefore, take.negate(), operation.getOperationId(), request.userId(), writeOffMeta);
 
+            if (inv.getCellId() != null && inv.getBatchId() != null) {
+                BigDecimal heightDelta = computeHeightDelta(inv.getBatchId(), take);
+                if (heightDelta.signum() > 0) {
+                    warehouseClient.adjustSlotHeight(inv.getCellId(), heightDelta);
+                }
+            }
+
             if (inv.getQuantity().compareTo(BigDecimal.ZERO) <= 0
                     && (inv.getReservedQuantity() == null
                         || inv.getReservedQuantity().compareTo(BigDecimal.ZERO) <= 0)) {
@@ -186,6 +194,14 @@ public class WriteOffService {
             itemRows.add(item);
         }
 
+        if (request.countId() != null) {
+            countRepository.findById(request.countId()).ifPresent(c -> {
+                c.setMarkedForWriteoff(false);
+                countRepository.save(c);
+                log.info("InventoryCount {} снят с markedForWriteoff после списания", request.countId());
+            });
+        }
+
         Map<String, Object> result = new HashMap<>();
         result.put("operationId", operation.getOperationId());
         result.put("productId", request.productId());
@@ -195,6 +211,16 @@ public class WriteOffService {
         result.put("items", itemRows);
         result.put("totalQuantity", request.quantity().stripTrailingZeros().toPlainString());
         result.put("totalAmount", grandTotal);
+        result.put("totalAmountInWords",
+                by.bsuir.productservice.util.MoneyToWordsRu.rubles(grandTotal));
+        if (request.responsibleUserId() != null) {
+            result.put("responsibleUserId", request.responsibleUserId());
+            result.put("responsiblePerson", request.responsibleUserId());
+            result.put("chairmanName", request.responsibleUserId());
+        }
+        if (request.commissionMembers() != null && !request.commissionMembers().isEmpty()) {
+            result.put("commissionMembers", request.commissionMembers());
+        }
         return result;
     }
 
@@ -236,5 +262,18 @@ public class WriteOffService {
         m.put("discrepancy", c.getDiscrepancy());
         m.put("notes", c.getNotes());
         return m;
+    }
+
+    private BigDecimal computeHeightDelta(UUID batchId, BigDecimal quantityUnits) {
+        if (batchId == null || quantityUnits == null || quantityUnits.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        ProductBatch batch = batchRepository.findById(batchId).orElse(null);
+        if (batch == null || batch.getPackageHeightCm() == null) return BigDecimal.ZERO;
+        int upp = (batch.getUnitsPerPackage() != null && batch.getUnitsPerPackage() > 0)
+                ? batch.getUnitsPerPackage() : 1;
+        BigDecimal numPackages = quantityUnits.divide(
+                BigDecimal.valueOf(upp), 0, java.math.RoundingMode.CEILING);
+        return batch.getPackageHeightCm().multiply(numPackages);
     }
 }

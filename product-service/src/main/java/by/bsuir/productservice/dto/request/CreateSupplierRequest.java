@@ -11,8 +11,8 @@ public record CreateSupplierRequest(
         @Size(max = 255, message = "Наименование не более 255 символов")
         String name,
 
-        @Schema(description = "ИНН поставщика (9 цифр)", example = "100234567")
-        @Size(max = 20, message = "ИНН не более 20 символов")
+        @Schema(description = "УНП поставщика (9 цифр)", example = "100234567")
+        @Size(max = 20, message = "УНП не более 20 символов")
         String unp,
 
         @Schema(description = "Контактное лицо", example = "Иванов Иван Иванович")

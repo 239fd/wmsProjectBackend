@@ -95,7 +95,10 @@ public class InventoryCheckController {
     @PostMapping("/{sessionId}/record")
     public ResponseEntity<Map<String, String>> recordActualCount(
             @Parameter(description = "ID сессии инвентаризации", required = true) @PathVariable UUID sessionId,
-            @Parameter(description = "ID товара", required = true) @RequestParam UUID productId,
+            @Parameter(description = "ID строки подсчёта (предпочтительно — однозначно)")
+            @RequestParam(required = false) UUID countId,
+            @Parameter(description = "ID товара (fallback, если не передан countId)")
+            @RequestParam(required = false) UUID productId,
             @Parameter(description = "ID ячейки") @RequestParam(required = false) UUID cellId,
             @Parameter(description = "Фактическое количество", required = true) @RequestParam BigDecimal actualQuantity,
             @Parameter(description = "Примечания") @RequestParam(required = false) String notes,
@@ -106,12 +109,18 @@ public class InventoryCheckController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        inventoryCheckService.recordActualCount(sessionId, productId, cellId, actualQuantity, notes);
+        if (countId != null) {
+            inventoryCheckService.recordActualCountById(sessionId, countId, actualQuantity, notes);
+        } else if (productId != null) {
+            inventoryCheckService.recordActualCount(sessionId, productId, cellId, actualQuantity, notes);
+        } else {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message", "Укажите countId или productId"));
+        }
 
         return ResponseEntity.ok(Map.of(
                 "message", "Фактическое количество зафиксировано",
                 "sessionId", sessionId.toString(),
-                "productId", productId.toString(),
                 "actualQuantity", actualQuantity.toString()
         ));
     }
@@ -180,6 +189,24 @@ public class InventoryCheckController {
     public ResponseEntity<Map<String, Object>> getInventorySession(
             @Parameter(description = "ID сессии инвентаризации", required = true) @PathVariable UUID sessionId) {
         Map<String, Object> session = inventoryCheckService.getInventorySession(sessionId);
+        return ResponseEntity.ok(session);
+    }
+
+    @Operation(
+            summary = "Активная сессия инвентаризации",
+            description = "Возвращает текущую IN_PROGRESS сессию для организации пользователя (если есть)"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Активная сессия найдена"),
+            @ApiResponse(responseCode = "204", description = "Активной сессии нет")
+    })
+    @GetMapping("/active")
+    public ResponseEntity<Map<String, Object>> getActiveSession(
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        Map<String, Object> session = inventoryCheckService.findActiveSessionForOrg(organizationId);
+        if (session == null) {
+            return ResponseEntity.noContent().build();
+        }
         return ResponseEntity.ok(session);
     }
 }

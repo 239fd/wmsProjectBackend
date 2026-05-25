@@ -5,9 +5,9 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-@Schema(description = "Регистрация директора без привязки к организации")
+@Schema(description = "Регистрация заведующего без привязки к организации")
 public record RegisterDirectorRequest(
-        @Schema(description = "Email директора", example = "director@company.by")
+        @Schema(description = "Email заведующего", example = "director@company.by")
         @NotBlank(message = "Email обязателен")
         @Email(message = "Некорректный формат email")
         String email,
@@ -17,11 +17,11 @@ public record RegisterDirectorRequest(
         @Size(min = 8, message = "Пароль должен содержать минимум 8 символов")
         String password,
 
-        @Schema(description = "Имя директора", example = "Александр")
+        @Schema(description = "Имя заведующего", example = "Александр")
         @NotBlank(message = "Имя обязательно")
         String firstName,
 
-        @Schema(description = "Фамилия директора", example = "Сидоров")
+        @Schema(description = "Фамилия заведующего", example = "Сидоров")
         @NotBlank(message = "Фамилия обязательна")
         String lastName,
 

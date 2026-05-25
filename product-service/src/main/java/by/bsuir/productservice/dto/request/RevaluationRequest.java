@@ -10,11 +10,11 @@ import java.util.UUID;
 @Schema(description = "Запрос на переоценку товара")
 public record RevaluationRequest(
         @Schema(description = "ID товара")
-        @NotNull(message = "Product ID обязателен")
+        @NotNull(message = "Товар обязателен")
         UUID productId,
 
         @Schema(description = "ID склада")
-        @NotNull(message = "Warehouse ID обязателен")
+        @NotNull(message = "Склад обязателен")
         UUID warehouseId,
 
         @Schema(description = "Новая учётная цена за единицу, BYN")
@@ -35,7 +35,7 @@ public record RevaluationRequest(
         List<UUID> commissionMembers,
 
         @Schema(description = "ID бухгалтера, выполняющего переоценку")
-        @NotNull(message = "User ID обязателен")
+        @NotNull(message = "Пользователь обязателен")
         UUID userId,
 
         @Schema(description = "Примечания")

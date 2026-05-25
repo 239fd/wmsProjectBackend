@@ -103,6 +103,8 @@ public class RackService {
 
         Shelf shelf = Shelf.builder()
                 .rackId(request.rackId())
+                .warehouseId(rack.getWarehouseId())
+                .slotCode(generateSlotCode(rack, shelfRepository.countByRackId(rack.getRackId())))
                 .organizationId(resolveOrgIdForRack(rack))
                 .shelfCapacityKg(request.shelfCapacityKg())
                 .lengthCm(request.lengthCm())
@@ -136,6 +138,8 @@ public class RackService {
 
         Cell cell = Cell.builder()
                 .rackId(request.rackId())
+                .warehouseId(rack.getWarehouseId())
+                .slotCode(generateSlotCode(rack, cellRepository.countByRackId(rack.getRackId())))
                 .organizationId(resolveOrgIdForRack(rack))
                 .maxWeightKg(request.maxWeightKg())
                 .lengthCm(request.lengthCm())
@@ -181,10 +185,13 @@ public class RackService {
 
         PalletType palletType = request.palletType();
         UUID rackOrgId = resolveOrgIdForRack(rack);
+        long existing = palletPlaceRepository.countByRackId(request.rackId());
         for (int i = 0; i < request.palletPlaceCount(); i++) {
             PalletPlace place = PalletPlace.builder()
                     .placeId(UUID.randomUUID())
                     .rackId(request.rackId())
+                    .warehouseId(rack.getWarehouseId())
+                    .slotCode(generateSlotCode(rack, existing + i))
                     .organizationId(rackOrgId)
                     .lengthCm(palletType.getLengthCm())
                     .widthCm(palletType.getWidthCm())
@@ -211,6 +218,41 @@ public class RackService {
         return warehouseRepository.findByWarehouseId(rack.getWarehouseId())
                 .map(w -> w.getOrgId())
                 .orElse(null);
+    }
+
+    private String generateSlotCode(RackReadModel rack, long existingCount) {
+        String base = rack.getName() != null && !rack.getName().isBlank()
+                ? rack.getName().trim()
+                : "R" + rack.getRackId().toString().substring(0, 4).toUpperCase();
+        return base + "-" + (existingCount + 1);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> resolveSlotByCode(UUID warehouseId, String slotCode) {
+        if (warehouseId == null || slotCode == null || slotCode.isBlank()) {
+            throw AppException.badRequest("warehouseId и код ячейки обязательны");
+        }
+        String code = slotCode.trim();
+
+        Optional<Cell> cell = cellRepository.findByWarehouseIdAndSlotCode(warehouseId, code);
+        if (cell.isPresent()) {
+            Map<String, Object> row = cellToMap(cell.get());
+            rackRepository.findById(cell.get().getRackId()).ifPresent(r -> annotateRack(row, r));
+            return row;
+        }
+        Optional<Shelf> shelf = shelfRepository.findByWarehouseIdAndSlotCode(warehouseId, code);
+        if (shelf.isPresent()) {
+            Map<String, Object> row = shelfToMap(shelf.get());
+            rackRepository.findById(shelf.get().getRackId()).ifPresent(r -> annotateRack(row, r));
+            return row;
+        }
+        Optional<PalletPlace> place = palletPlaceRepository.findByWarehouseIdAndSlotCode(warehouseId, code);
+        if (place.isPresent()) {
+            Map<String, Object> row = palletPlaceToMap(place.get());
+            rackRepository.findById(place.get().getRackId()).ifPresent(r -> annotateRack(row, r));
+            return row;
+        }
+        throw AppException.notFound("Ячейка с кодом «" + code + "» не найдена на складе");
     }
 
     private void saveRackEvent(UUID rackId, String eventType, Map<String, Object> eventData) {
@@ -377,11 +419,17 @@ public class RackService {
         m.put("id", s.getShelfId());
         m.put("shelfId", s.getShelfId());
         m.put("rackId", s.getRackId());
+        m.put("warehouseId", s.getWarehouseId());
+        m.put("slotCode", s.getSlotCode());
+        m.put("cellCode", s.getSlotCode());
+        m.put("slotType", "SHELF");
         m.put("organizationId", s.getOrganizationId());
         m.put("shelfCapacityKg", s.getShelfCapacityKg());
         m.put("lengthCm", s.getLengthCm());
         m.put("widthCm", s.getWidthCm());
         m.put("heightCm", s.getHeightCm());
+        m.put("remainingHeightCm",
+                s.getRemainingHeightCm() != null ? s.getRemainingHeightCm() : s.getHeightCm());
         return m;
     }
 
@@ -390,24 +438,37 @@ public class RackService {
         m.put("id", c.getCellId());
         m.put("cellId", c.getCellId());
         m.put("rackId", c.getRackId());
+        m.put("warehouseId", c.getWarehouseId());
+        m.put("slotCode", c.getSlotCode());
+        m.put("cellCode", c.getSlotCode());
+        m.put("slotType", "CELL");
         m.put("organizationId", c.getOrganizationId());
         m.put("maxWeightKg", c.getMaxWeightKg());
         m.put("lengthCm", c.getLengthCm());
         m.put("widthCm", c.getWidthCm());
         m.put("heightCm", c.getHeightCm());
+        m.put("remainingHeightCm",
+                c.getRemainingHeightCm() != null ? c.getRemainingHeightCm() : c.getHeightCm());
         return m;
     }
 
     private Map<String, Object> palletPlaceToMap(PalletPlace p) {
+        java.math.BigDecimal capacity = p.getMaxHeightCm() != null ? p.getMaxHeightCm() : p.getHeightCm();
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", p.getPlaceId());
         m.put("placeId", p.getPlaceId());
         m.put("rackId", p.getRackId());
+        m.put("warehouseId", p.getWarehouseId());
+        m.put("slotCode", p.getSlotCode());
+        m.put("cellCode", p.getSlotCode());
+        m.put("slotType", "PALLET_PLACE");
         m.put("organizationId", p.getOrganizationId());
         m.put("lengthCm", p.getLengthCm());
         m.put("widthCm", p.getWidthCm());
         m.put("heightCm", p.getHeightCm());
         m.put("maxHeightCm", p.getMaxHeightCm());
+        m.put("remainingHeightCm",
+                p.getRemainingHeightCm() != null ? p.getRemainingHeightCm() : capacity);
         return m;
     }
 

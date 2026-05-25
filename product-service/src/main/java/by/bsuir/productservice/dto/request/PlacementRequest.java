@@ -7,17 +7,17 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record PlacementRequest(
-        @NotNull(message = "Batch ID обязателен")
+        @NotNull(message = "Партия обязательна")
         UUID batchId,
 
-        @NotNull(message = "Warehouse ID обязателен")
+        @NotNull(message = "Склад обязателен")
         UUID warehouseId,
 
-        @NotNull(message = "Quantity обязателен")
+        @NotNull(message = "Количество обязательно")
         @Positive(message = "Количество должно быть положительным")
         BigDecimal quantity,
 
-        @NotNull(message = "User ID обязателен")
+        @NotNull(message = "Пользователь обязателен")
         UUID userId,
 
         UUID cellId,

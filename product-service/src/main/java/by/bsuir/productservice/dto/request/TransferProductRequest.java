@@ -7,13 +7,13 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record TransferProductRequest(
-        @NotNull(message = "Product ID обязателен")
+        @NotNull(message = "Товар обязателен")
         UUID productId,
 
-        @NotNull(message = "Warehouse ID отправителя обязателен")
+        @NotNull(message = "Склад-отправитель обязателен")
         UUID fromWarehouseId,
 
-        @NotNull(message = "Warehouse ID получателя обязателен")
+        @NotNull(message = "Склад-получатель обязателен")
         UUID toWarehouseId,
 
         UUID fromCellId,
@@ -26,7 +26,7 @@ public record TransferProductRequest(
         @DecimalMin(value = "0.001", message = "Количество должно быть больше 0")
         BigDecimal quantity,
 
-        @NotNull(message = "User ID обязателен")
+        @NotNull(message = "Пользователь обязателен")
         UUID userId,
 
         String notes

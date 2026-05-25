@@ -25,7 +25,6 @@ try:
                     txt = (cell.Range.Text or "").replace("\r", " | ").replace("\a", "").strip()
                 except Exception:
                     continue
-                # Show empty cells too so we can spot data slots
                 if len(txt) > 80:
                     txt = txt[:80] + "…"
                 marker = "DATA" if not txt or txt == "|" else "LBL "

@@ -10,7 +10,9 @@ import by.bsuir.productservice.model.enums.InventoryEventType;
 import by.bsuir.productservice.model.enums.InventoryStatus;
 import by.bsuir.productservice.model.enums.OperationStatus;
 import by.bsuir.productservice.model.enums.OperationType;
+import by.bsuir.productservice.model.entity.ProductBatch;
 import by.bsuir.productservice.repository.InventoryRepository;
+import by.bsuir.productservice.repository.ProductBatchRepository;
 import by.bsuir.productservice.repository.ProductOperationRepository;
 import by.bsuir.productservice.repository.ProductReadModelRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,6 +37,9 @@ public class ProductOperationService {
     private final ProductReadModelRepository productRepository;
     private final by.bsuir.productservice.client.WarehouseClient warehouseClient;
     private final InventoryEventService inventoryEventService;
+    private final ProductBatchRepository batchRepository;
+    private final DocumentRegistryService documentRegistryService;
+    private final PlacementService placementService;
 
     @Transactional
     public UUID receiveProduct(ReceiveProductRequest request) {
@@ -56,16 +62,16 @@ public class ProductOperationService {
                     request.productId(), request.warehouseId(), request.quantity(), organizationId, sessionId);
 
             if (request.productId() == null) {
-                throw AppException.badRequest("Product ID обязателен");
+                throw AppException.badRequest("Товар обязателен");
             }
             if (request.warehouseId() == null) {
-                throw AppException.badRequest("Warehouse ID обязателен");
+                throw AppException.badRequest("Склад обязателен");
             }
             if (request.quantity() == null || request.quantity().compareTo(BigDecimal.ZERO) <= 0) {
                 throw AppException.badRequest("Количество должно быть больше 0");
             }
             if (request.userId() == null) {
-                throw AppException.badRequest("User ID обязателен");
+                throw AppException.badRequest("Пользователь обязателен");
             }
 
             ProductReadModel product = productRepository.findById(request.productId())
@@ -92,42 +98,44 @@ public class ProductOperationService {
                     .build();
             operationRepository.save(operation);
 
-        Optional<Inventory> existingInventory = inventoryRepository
-                .findExactInventoryForUpdate(
-                        request.productId(), request.batchId(),
-                        request.warehouseId(), request.cellId());
-
-        if (existingInventory.isPresent()) {
-
-            Inventory inventory = existingInventory.get();
-            BigDecimal qtyBefore = inventory.getQuantity();
-            inventory.setQuantity(qtyBefore.add(request.quantity()));
-            if (inventory.getOrganizationId() == null) {
-                inventory.setOrganizationId(effectiveOrgId);
+            Inventory existing = inventoryRepository.findExactInventoryForUpdate(
+                    request.productId(), request.batchId(),
+                    request.warehouseId(), request.cellId()).orElse(null);
+            Inventory inventory;
+            BigDecimal qtyBefore;
+            if (existing != null) {
+                qtyBefore = existing.getQuantity() != null ? existing.getQuantity() : BigDecimal.ZERO;
+                existing.setQuantity(qtyBefore.add(request.quantity()));
+                existing.setLastUpdated(LocalDateTime.now());
+                inventory = inventoryRepository.save(existing);
+                log.info("Merged into existing inventory: {} (+{})",
+                        inventory.getInventoryId(), request.quantity());
+            } else {
+                qtyBefore = BigDecimal.ZERO;
+                inventory = Inventory.builder()
+                        .inventoryId(UUID.randomUUID())
+                        .productId(request.productId())
+                        .batchId(request.batchId())
+                        .organizationId(effectiveOrgId)
+                        .warehouseId(request.warehouseId())
+                        .cellId(request.cellId())
+                        .quantity(request.quantity())
+                        .reservedQuantity(BigDecimal.ZERO)
+                        .status(InventoryStatus.AVAILABLE)
+                        .lastUpdated(LocalDateTime.now())
+                        .build();
+                inventoryRepository.save(inventory);
+                log.info("Created new inventory: {}", inventory.getInventoryId());
             }
-            inventoryRepository.save(inventory);
             inventoryEventService.recordQuantityChange(inventory, InventoryEventType.ITEM_ADDED,
                     qtyBefore, request.quantity(), operation.getOperationId(), request.userId(), null);
-            log.info("Updated existing inventory: {}", inventory.getInventoryId());
-        } else {
 
-            Inventory inventory = Inventory.builder()
-                    .inventoryId(UUID.randomUUID())
-                    .productId(request.productId())
-                    .batchId(request.batchId())
-                    .organizationId(effectiveOrgId)
-                    .warehouseId(request.warehouseId())
-                    .cellId(request.cellId())
-                    .quantity(request.quantity())
-                    .reservedQuantity(BigDecimal.ZERO)
-                    .status(InventoryStatus.AVAILABLE)
-                    .lastUpdated(LocalDateTime.now())
-                    .build();
-            inventoryRepository.save(inventory);
-            inventoryEventService.recordQuantityChange(inventory, InventoryEventType.ITEM_ADDED,
-                    BigDecimal.ZERO, request.quantity(), operation.getOperationId(), request.userId(), null);
-            log.info("Created new inventory: {}", inventory.getInventoryId());
-        }
+            if (request.cellId() != null && request.batchId() != null) {
+                BigDecimal heightDelta = computeHeightDelta(request.batchId(), request.quantity());
+                if (heightDelta.signum() > 0) {
+                    warehouseClient.adjustSlotHeight(request.cellId(), heightDelta.negate());
+                }
+            }
 
             log.info("Product received successfully. Operation ID: {}", operation.getOperationId());
             return operation.getOperationId();
@@ -187,7 +195,7 @@ public class ProductOperationService {
                 throw AppException.badRequest("Количество должно быть больше 0");
             }
             if (request.userId() == null) {
-                throw AppException.badRequest("User ID обязателен");
+                throw AppException.badRequest("Пользователь обязателен");
             }
 
             ProductReadModel product = productRepository.findById(request.productId())
@@ -206,6 +214,13 @@ public class ProductOperationService {
                     && !organizationId.equals(source.getOrganizationId())) {
                 throw AppException.forbidden("Запасы принадлежат другой организации");
             }
+
+            UUID validateBatchId = request.batchId() != null ? request.batchId() : source.getBatchId();
+            ProductBatch destBatch = validateBatchId != null
+                    ? batchRepository.findById(validateBatchId).orElse(null) : null;
+            placementService.validateTransferFit(
+                    request.toWarehouseId(), request.toCellId(), destBatch, product,
+                    request.quantity(), "WORKER");
 
             BigDecimal available = source.getQuantity().subtract(source.getReservedQuantity());
             if (available.compareTo(request.quantity()) < 0) {
@@ -288,6 +303,21 @@ public class ProductOperationService {
                 log.info("Source inventory {} drained → deleted (cell freed)", source.getInventoryId());
             }
 
+            UUID batchForHeight = request.batchId() != null ? request.batchId() : source.getBatchId();
+            if (batchForHeight != null) {
+                BigDecimal heightDelta = computeHeightDelta(batchForHeight, request.quantity());
+                if (heightDelta.signum() > 0) {
+                    if (request.fromCellId() != null) {
+                        warehouseClient.adjustSlotHeight(request.fromCellId(), heightDelta);
+                    }
+                    if (request.toCellId() != null) {
+                        warehouseClient.adjustSlotHeight(request.toCellId(), heightDelta.negate());
+                    }
+                }
+            }
+
+            generateTransferPlacementList(operation, product, request, effectiveOrgId);
+
             log.info("Product transferred successfully. Operation ID: {}, dest inventory: {}",
                     operation.getOperationId(), dest.getInventoryId());
             return operation.getOperationId();
@@ -298,5 +328,87 @@ public class ProductOperationService {
             log.error("Error transferring product: {}", e.getMessage(), e);
             throw AppException.internalError("Ошибка при перемещении товара: " + e.getMessage());
         }
+    }
+
+    private void generateTransferPlacementList(
+            ProductOperation operation, ProductReadModel product,
+            TransferProductRequest request, UUID organizationId) {
+        try {
+            ProductBatch batch = operation.getBatchId() != null
+                    ? batchRepository.findById(operation.getBatchId()).orElse(null) : null;
+            Map<String, String> loc = resolveCellLocation(request.toCellId());
+
+            Map<String, Object> line = new HashMap<>();
+            line.put("rowNumber", 1);
+            line.put("lineNo", 1);
+            line.put("quantity", request.quantity() != null
+                    ? request.quantity().stripTrailingZeros().toPlainString() : "0");
+            line.put("batchNumber", batch != null ? batch.getBatchNumber() : null);
+            line.put("rackName", loc.get("rackName"));
+            line.put("cellCode", loc.get("cellCode"));
+            line.put("cellId", request.toCellId() != null ? request.toCellId().toString() : null);
+            line.put("storageConditions", batch != null && batch.getStorageConditions() != null
+                    ? batch.getStorageConditions().name() : null);
+            if (product != null) {
+                line.put("productName", product.getName());
+                line.put("name", product.getName());
+                line.put("sku", product.getSku());
+                line.put("unit", product.getUnitOfMeasure() != null ? product.getUnitOfMeasure() : "шт");
+            }
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("warehouseId", request.toWarehouseId() != null
+                    ? request.toWarehouseId().toString() : null);
+            payload.put("date", java.time.LocalDate.now().toString());
+            payload.put("documentDate", java.time.LocalDate.now().toString());
+            payload.put("items", java.util.List.of(line));
+
+            documentRegistryService.register(
+                    operation.getOperationId(), "placement-list", payload,
+                    organizationId, request.userId());
+        } catch (Exception ex) {
+            log.warn("Не удалось сгенерировать лист размещения для перемещения {}: {}",
+                    operation.getOperationId(), ex.getMessage());
+        }
+    }
+
+    private Map<String, String> resolveCellLocation(UUID cellId) {
+        String rackName = "—";
+        String cellCode = cellId != null
+                ? String.valueOf(cellId).substring(0, 8).toUpperCase() : "—";
+        if (cellId == null) {
+            return Map.of("rackName", rackName, "cellCode", cellCode);
+        }
+        try {
+            Map<String, Object> info = warehouseClient.getCellInfo(cellId, "WORKER");
+            if (info != null) {
+                if (info.get("slotCode") != null) {
+                    cellCode = info.get("slotCode").toString();
+                }
+                if (info.get("rackId") != null) {
+                    UUID rackId = UUID.fromString(info.get("rackId").toString());
+                    var rack = warehouseClient.getRack(rackId, "WORKER");
+                    if (rack != null && rack.name() != null) {
+                        rackName = rack.name();
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.debug("resolveCellLocation: failed for cell {}: {}", cellId, ex.getMessage());
+        }
+        return Map.of("rackName", rackName, "cellCode", cellCode);
+    }
+
+    BigDecimal computeHeightDelta(UUID batchId, BigDecimal quantityUnits) {
+        if (batchId == null || quantityUnits == null || quantityUnits.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        ProductBatch batch = batchRepository.findById(batchId).orElse(null);
+        if (batch == null || batch.getPackageHeightCm() == null) return BigDecimal.ZERO;
+        int upp = (batch.getUnitsPerPackage() != null && batch.getUnitsPerPackage() > 0)
+                ? batch.getUnitsPerPackage() : 1;
+        BigDecimal numPackages = quantityUnits.divide(
+                BigDecimal.valueOf(upp), 0, java.math.RoundingMode.CEILING);
+        return batch.getPackageHeightCm().multiply(numPackages);
     }
 }

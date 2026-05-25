@@ -64,7 +64,6 @@ class AbcAnalysisServiceTest {
         UUID p1 = UUID.randomUUID();
         UUID p2 = UUID.randomUUID();
         UUID p3 = UUID.randomUUID();
-        // turnover: p1=800 (80% — A), p2=150 (15% — B), p3=50 (5% — C)
         when(operationRepository.findByOperationDateBetween(any(), any()))
                 .thenReturn(List.of(
                         op(p1, new BigDecimal("800"), OperationType.SHIPMENT),
@@ -120,7 +119,6 @@ class AbcAnalysisServiceTest {
 
         Map<String, Object> result = service.runManually();
 
-        // single product = 100% of turnover > 95% → class C; class counted but no product save
         assertThat(result.get("class_c_count")).isEqualTo(1L);
         verify(productRepository, never()).save(any(ProductReadModel.class));
     }
@@ -147,7 +145,7 @@ class AbcAnalysisServiceTest {
         pa.setAbcClass("A");
         ProductReadModel pb = product(b, "B-prod");
         pb.setAbcClass("B");
-        ProductReadModel pn = product(none, "N-prod"); // no class
+        ProductReadModel pn = product(none, "N-prod");
         when(productRepository.findAll()).thenReturn(List.of(pb, pa, pn));
 
         List<Map<String, Object>> report = service.getAbcReport();

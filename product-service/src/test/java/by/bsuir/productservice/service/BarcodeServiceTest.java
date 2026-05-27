@@ -104,11 +104,12 @@ class BarcodeServiceTest {
         Inventory inv = inventory(id, orgId, warehouseId, cellId);
         when(inventoryRepository.findById(id)).thenReturn(Optional.of(inv));
         when(warehouseClient.getRacksByWarehouse(warehouseId, "WORKER")).thenReturn(List.of(
-                new RackInfoDto(rackId, warehouseId, "SHELF", "R1", "ROOM", true)));
+                new RackInfoDto(rackId, warehouseId, "SHELF", "R1", "ROOM", null, true)));
         when(warehouseClient.getCellsByRack(rackId, "WORKER")).thenReturn(List.of(
-                new CellInfoDto(cellId, rackId, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN)));
+                new CellInfoDto(cellId, rackId, null, null, BigDecimal.TEN, BigDecimal.TEN,
+                        BigDecimal.TEN, BigDecimal.TEN, null, null, null)));
         when(warehouseClient.getRack(rackId, "WORKER")).thenReturn(
-                new RackInfoDto(rackId, warehouseId, "SHELF", "R1", "ROOM", true));
+                new RackInfoDto(rackId, warehouseId, "SHELF", "R1", "ROOM", null, true));
         when(inventoryRepository.findByOrganizationIdAndUnitSku(any(), anyString())).thenReturn(Optional.empty());
 
         String sku = service.assignSkuToInventory(id, "WORKER");
@@ -127,7 +128,7 @@ class BarcodeServiceTest {
         UUID warehouseId = UUID.randomUUID();
         UUID rackId = UUID.randomUUID();
         when(warehouseClient.getRacksByWarehouse(warehouseId, "WORKER")).thenReturn(List.of(
-                new RackInfoDto(rackId, warehouseId, "PALLET", "P1", null, true)));
+                new RackInfoDto(rackId, warehouseId, "PALLET", "P1", null, null, true)));
 
         String sku = service.formatSku(orgId, warehouseId, rackId, "PALLET", 5);
 

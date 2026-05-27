@@ -20,6 +20,8 @@ public record SessionDiscrepancyRequest(
             @NotNull(message = "Товар обязателен")
             UUID productId,
 
+            UUID operationId,
+
             @NotNull(message = "Ожидаемое количество обязательно")
             BigDecimal expectedQty,
 

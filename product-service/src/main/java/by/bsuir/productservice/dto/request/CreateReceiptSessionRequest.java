@@ -56,6 +56,7 @@ public record CreateReceiptSessionRequest(
             BigDecimal packageWeightKg,
             UUID palletPlaceId,
             StorageConditions storageConditions,
+            String palletType,
             String notes
     ) {
     }

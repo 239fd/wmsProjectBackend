@@ -31,6 +31,8 @@ public record ShipmentRequestResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         BigDecimal progress,
+        UUID pickingListDocId,
+        String documentError,
         List<UUID> documentIds,
         List<Item> items
 ) {

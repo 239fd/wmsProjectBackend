@@ -67,7 +67,8 @@ public class WarehouseClient {
                     parseDecimal(m.get("widthCm")),
                     parseDecimal(m.get("heightCm")),
                     parseDecimal(m.get("maxHeightCm")),
-                    parseDecimal(m.get("remainingHeightCm"))
+                    parseDecimal(m.get("remainingHeightCm")),
+                    m.get("palletType") != null ? m.get("palletType").toString() : null
             )).toList();
         } catch (Exception e) {
             log.error("Failed to fetch cells for rack {}: {}", rackId, e.getMessage());

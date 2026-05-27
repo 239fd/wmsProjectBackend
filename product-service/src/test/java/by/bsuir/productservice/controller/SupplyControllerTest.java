@@ -41,9 +41,13 @@ class SupplyControllerTest {
 
     private SupplyResponse sample() {
         return new SupplyResponse(
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), SupplyStatus.PLANNED, LocalDate.now(), null,
-                1, "n", UUID.randomUUID(), LocalDateTime.now(), LocalDateTime.now(), List.of());
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), null,
+                UUID.randomUUID(), SupplyStatus.PLANNED,
+                null, null, null,
+                LocalDate.now(), null,
+                1,
+                null, null,
+                "n", UUID.randomUUID(), LocalDateTime.now(), LocalDateTime.now(), List.of());
     }
 
     @Test
@@ -131,10 +135,12 @@ class SupplyControllerTest {
     void create_givenValidRequest_whenCalled_thenReturns201() {
         UUID org = UUID.randomUUID();
         CreateSupplyRequest req = new CreateSupplyRequest(
-                null, UUID.randomUUID(), LocalDate.now(), null, UUID.randomUUID(), null);
-        when(supplyService.create(req, org)).thenReturn(sample());
+                null, null, UUID.randomUUID(), LocalDate.now(),
+                null, null, null,
+                UUID.randomUUID(), null, null, null);
+        when(supplyService.create(eq(req), eq(org), any(), any())).thenReturn(sample());
 
-        ResponseEntity<SupplyResponse> response = controller.create(req, org);
+        ResponseEntity<SupplyResponse> response = controller.create(req, org, null, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     }

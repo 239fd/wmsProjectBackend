@@ -124,7 +124,7 @@ public class ShipmentRequestController {
     @PostMapping("/{requestId}/complete")
     public ResponseEntity<ShipmentRequestResponse> complete(
             @PathVariable UUID requestId,
-            @RequestBody(required = false) CompleteShipmentRequest manual,
+            @Valid @RequestBody(required = false) CompleteShipmentRequest manual,
             @RequestHeader(value = "X-User-Id", required = false) UUID userId,
             @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
         return ResponseEntity.ok(service.complete(requestId, userId, organizationId, manual));

@@ -52,10 +52,12 @@ class ReceiptSessionControllerTest {
     private CreateReceiptSessionRequest sampleCreateRequest() {
         return new CreateReceiptSessionRequest(
                 UUID.randomUUID(), null, null, UUID.randomUUID(), "note",
+                null, null, null, null,
                 List.of(new CreateReceiptSessionRequest.ReceiptItem(
                         UUID.randomUUID(), null, null,
                         new BigDecimal("10"), null,
-                        "BATCH-001", LocalDate.now().plusMonths(6), "n")));
+                        "BATCH-001", LocalDate.now().plusMonths(6),
+                        null, null, null, null, null, null, null, null, null, "n")));
     }
 
     @Test
@@ -112,7 +114,7 @@ class ReceiptSessionControllerTest {
         SessionDiscrepancyRequest req = new SessionDiscrepancyRequest(
                 UUID.randomUUID(), "fix",
                 List.of(new SessionDiscrepancyRequest.DiscrepancyItem(
-                        UUID.randomUUID(), new BigDecimal("10"), new BigDecimal("7"),
+                        UUID.randomUUID(), null, new BigDecimal("10"), new BigDecimal("7"),
                         "тара", "SHORTAGE")));
         when(sessionService.recordDiscrepancy(eq(sessionId), eq(req), eq(org)))
                 .thenReturn(session(sessionId, ReceiptSessionStatus.COMPLETED_WITH_DISCREPANCY));

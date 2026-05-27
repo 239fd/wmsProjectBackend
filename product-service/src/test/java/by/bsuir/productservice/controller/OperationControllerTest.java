@@ -80,7 +80,7 @@ class OperationControllerTest {
                 UUID.randomUUID(), null, UUID.randomUUID(), null,
                 BigDecimal.TEN, UUID.randomUUID(), null, null);
         when(operationService.receiveProduct(any(), any())).thenReturn(UUID.randomUUID());
-        when(documentClient.fetch(any(), any(), any(), any())).thenReturn(new DocumentClient.Fetched(new byte[0], "auto"));
+        when(documentClient.fetch(any(), any(), any(), any())).thenReturn(new DocumentClient.Fetched(new byte[0], "auto", null, null));
 
         mockMvc.perform(post("/api/operations/receive")
                         .header("X-User-Role", "WORKER")
@@ -98,7 +98,7 @@ class OperationControllerTest {
         WriteOffRequest req = new WriteOffRequest(
                 UUID.randomUUID(), UUID.randomUUID(), null, null,
                 BigDecimal.ONE, "Просрочка", null, null, List.of(),
-                UUID.randomUUID(), null);
+                UUID.randomUUID(), null, null);
 
         mockMvc.perform(post("/api/operations/write-off")
                         .contentType(MediaType.APPLICATION_JSON)

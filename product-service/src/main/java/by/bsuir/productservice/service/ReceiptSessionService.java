@@ -112,54 +112,85 @@ public class ReceiptSessionService {
         List<PlacedItem> placedItems = new ArrayList<>();
         for (CreateReceiptSessionRequest.ReceiptItem item : req.items()) {
             UUID effectiveBatchId = resolveBatchId(item, req, organizationId);
-            UUID effectiveCellId = item.cellId();
-            if (effectiveCellId == null && item.palletPlaceId() != null) {
-                effectiveCellId = item.palletPlaceId();
-            }
-            if (effectiveCellId == null) {
-                effectiveCellId = placementService.autoSelectCellForReceipt(
+            boolean isPallet = item.packagingType()
+                    == by.bsuir.productservice.model.enums.PackagingType.PALLET;
+            UUID manualCell = item.cellId() != null ? item.cellId() : item.palletPlaceId();
+            int upp = (item.unitsPerPackage() != null && item.unitsPerPackage() > 0)
+                    ? item.unitsPerPackage() : 1;
+
+            List<Map.Entry<UUID, BigDecimal>> placements = new ArrayList<>();
+
+            if (isPallet && manualCell == null) {
+                long numPallets = item.quantity()
+                        .divide(BigDecimal.valueOf(upp), 0, java.math.RoundingMode.CEILING)
+                        .longValueExact();
+                PlacementService.PalletSelection sel = placementService.autoSelectPalletPlaces(
+                        req.warehouseId(), numPallets, item.palletType(), item.storageConditions(),
+                        item.packageHeightCm(), item.packageWeightKg(), "WORKER");
+                if (!sel.enough(numPallets)) {
+                    String prodLabel = productRepository.findById(item.productId())
+                            .map(p -> "«" + p.getName() + "»").orElse(item.productId().toString());
+                    throw AppException.conflict(
+                            "Не удалось разместить " + numPallets + " паллет(ов) товара " + prodLabel
+                                    + (item.palletType() != null ? " (тип " + item.palletType() + ")" : "")
+                                    + ": " + sel.shortageReason() + ".");
+                }
+                List<UUID> places = sel.placeIds();
+                BigDecimal perPallet = BigDecimal.valueOf(upp);
+                BigDecimal remaining = item.quantity();
+                for (UUID place : places) {
+                    BigDecimal q = remaining.min(perPallet);
+                    placements.add(Map.entry(place, q));
+                    remaining = remaining.subtract(q);
+                }
+            } else if (manualCell != null) {
+                placementService.validateReceiptCellFit(
+                        req.warehouseId(), manualCell,
+                        item.packageLengthCm(), item.packageWidthCm(),
+                        item.packageHeightCm(), item.packageWeightKg(),
+                        item.unitsPerPackage(), item.quantity(),
+                        item.packagingType(), "WORKER");
+                placements.add(Map.entry(manualCell, item.quantity()));
+            } else {
+                UUID cell = placementService.autoSelectCellForReceipt(
                         req.warehouseId(), item.productId(),
                         item.quantity(), item.unitsPerPackage(),
-                        item.storageConditions(), item.packagingType(),
+                        item.storageConditions(), item.packagingType(), item.palletType(),
                         item.packageLengthCm(), item.packageWidthCm(),
                         item.packageHeightCm(), item.packageWeightKg(),
                         "WORKER");
-                if (effectiveCellId == null) {
+                if (cell == null) {
                     String prodLabel = productRepository.findById(item.productId())
                             .map(p -> "«" + p.getName() + "»"
                                     + (p.getSku() != null ? " (SKU " + p.getSku() + ")" : ""))
                             .orElse(item.productId().toString());
                     throw AppException.conflict(
                             "Не удалось подобрать место для товара " + prodLabel
-                                    + ": нет свободных мест с условиями "
+                                    + ": нет свободных мест для "
                                     + (item.storageConditions() != null
-                                            ? item.storageConditions() : "по умолчанию")
+                                            ? item.storageConditions().getLabel()
+                                            : "хранения по умолчанию")
                                     + ", подходящих по габаритам/весу. Проверьте стеллажи "
-                                    + (item.packagingType()
-                                            == by.bsuir.productservice.model.enums.PackagingType.PALLET
-                                            ? "паллетного" : "ячеистого/полочного") + " типа.");
+                                    + (isPallet ? "паллетного" : "ячеистого/полочного") + " типа.");
                 }
-            } else {
-                placementService.validateReceiptCellFit(
-                        req.warehouseId(), effectiveCellId,
-                        item.packageLengthCm(), item.packageWidthCm(),
-                        item.packageHeightCm(), item.packageWeightKg(),
-                        item.unitsPerPackage(), item.quantity(),
-                        item.packagingType(), "WORKER");
+                placements.add(Map.entry(cell, item.quantity()));
             }
-            ReceiveProductRequest rpr = new ReceiveProductRequest(
-                    item.productId(),
-                    effectiveBatchId,
-                    req.warehouseId(),
-                    effectiveCellId,
-                    item.quantity(),
-                    req.userId(),
-                    req.supplyId(),
-                    item.notes()
-            );
-            UUID opId = productOperationService.receiveItemInSession(rpr, organizationId, sessionId);
-            operationIds.add(opId);
-            placedItems.add(new PlacedItem(item, effectiveBatchId, effectiveCellId));
+
+            for (Map.Entry<UUID, BigDecimal> pl : placements) {
+                ReceiveProductRequest rpr = new ReceiveProductRequest(
+                        item.productId(),
+                        effectiveBatchId,
+                        req.warehouseId(),
+                        pl.getKey(),
+                        pl.getValue(),
+                        req.userId(),
+                        req.supplyId(),
+                        item.notes()
+                );
+                UUID opId = productOperationService.receiveItemInSession(rpr, organizationId, sessionId);
+                operationIds.add(opId);
+                placedItems.add(new PlacedItem(item, effectiveBatchId, pl.getKey(), pl.getValue()));
+            }
         }
 
         GeneratedDocument receiptOrder = safeRegister(
@@ -251,18 +282,35 @@ public class ReceiptSessionService {
 
         List<ProductOperation> ops = operationRepository.findBySessionId(sessionId);
 
+        Map<UUID, SessionDiscrepancyRequest.DiscrepancyItem> discByOp = new HashMap<>();
         Map<UUID, SessionDiscrepancyRequest.DiscrepancyItem> discByProduct = new HashMap<>();
         for (SessionDiscrepancyRequest.DiscrepancyItem d : realDiscrepancies) {
-            discByProduct.put(d.productId(), d);
+            if (d.operationId() != null) {
+                discByOp.put(d.operationId(), d);
+            } else if (d.productId() != null) {
+                discByProduct.put(d.productId(), d);
+            }
         }
 
-        List<Map<String, Object>> itemRows = buildItemRowsFromOps(ops, discByProduct);
+        List<Map<String, Object>> itemRows = buildItemRowsFromOps(ops, discByOp, discByProduct);
         BigDecimal totalAmount = itemRows.stream()
                 .map(m -> (BigDecimal) m.get("amount"))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         List<Map<String, Object>> discrepancyRows = buildDiscrepancyRows(realDiscrepancies);
 
-        applyDiscrepancyToInventory(ops, discByProduct);
+        BigDecimal totalActualQty = itemRows.stream()
+                .map(m -> (BigDecimal) m.get("actualQty"))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalSurplusQty = realDiscrepancies.stream()
+                .map(d -> d.actualQty().subtract(d.expectedQty()))
+                .filter(diff -> diff.signum() > 0)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalShortageQty = realDiscrepancies.stream()
+                .map(d -> d.expectedQty().subtract(d.actualQty()))
+                .filter(diff -> diff.signum() > 0)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        applyDiscrepancyToInventory(ops, discByOp, discByProduct);
 
         UUID prevActDocId = session.getReceiptActDocId();
         UUID prevOrderDocId = session.getReceiptOrderDocId();
@@ -270,7 +318,15 @@ public class ReceiptSessionService {
         Map<String, Object> actPayload = baseHeader(session);
         actPayload.put("items", itemRows);
         actPayload.put("totalAmount", totalAmount);
+        actPayload.put("totalAmountInWords",
+                by.bsuir.productservice.util.MoneyToWordsRu.rubles(totalAmount));
+        actPayload.put("totalQuantity", totalActualQty.stripTrailingZeros().toPlainString());
+        actPayload.put("totalQty", totalActualQty.stripTrailingZeros().toPlainString());
+        actPayload.put("totalSurplus", totalSurplusQty.stripTrailingZeros().toPlainString());
+        actPayload.put("totalShortage", totalShortageQty.stripTrailingZeros().toPlainString());
+        actPayload.put("totalLines", itemRows.size());
         actPayload.put("discrepancies", discrepancyRows);
+        actPayload.put("discrepancyCount", discrepancyRows.size());
         GeneratedDocument receiptAct = safeRegister(
                 "receipt-act", actPayload, organizationId, req.userId());
         if (receiptAct != null) {
@@ -281,11 +337,25 @@ public class ReceiptSessionService {
         Map<String, Object> orderPayload = baseHeader(session);
         orderPayload.put("items", itemRows);
         orderPayload.put("totalAmount", totalAmount);
+        orderPayload.put("totalAmountInWords",
+                by.bsuir.productservice.util.MoneyToWordsRu.rubles(totalAmount));
+        orderPayload.put("totalQuantity", totalActualQty.stripTrailingZeros().toPlainString());
+        orderPayload.put("totalLines", itemRows.size());
         GeneratedDocument receiptOrder = safeRegister(
                 "receipt-order", orderPayload, organizationId, req.userId());
         if (receiptOrder != null) {
             session.setReceiptOrderDocId(receiptOrder.getId());
             documentRegistryService.markSuperseded(prevOrderDocId, receiptOrder.getId(), organizationId);
+        }
+
+        UUID prevPlacementDocId = session.getPlacementListDocId();
+        Map<String, Object> placementPayload = baseHeader(session);
+        placementPayload.put("items", buildPlacementRowsFromOps(ops));
+        GeneratedDocument placementList = safeRegister(
+                "placement-list", placementPayload, organizationId, req.userId());
+        if (placementList != null) {
+            session.setPlacementListDocId(placementList.getId());
+            documentRegistryService.markSuperseded(prevPlacementDocId, placementList.getId(), organizationId);
         }
 
         for (ProductOperation op : ops) {
@@ -476,9 +546,10 @@ public class ReceiptSessionService {
 
     private void applyDiscrepancyToInventory(
             List<ProductOperation> ops,
+            Map<UUID, SessionDiscrepancyRequest.DiscrepancyItem> discByOp,
             Map<UUID, SessionDiscrepancyRequest.DiscrepancyItem> discByProduct) {
         for (ProductOperation op : ops) {
-            SessionDiscrepancyRequest.DiscrepancyItem d = discByProduct.get(op.getProductId());
+            SessionDiscrepancyRequest.DiscrepancyItem d = matchDiscrepancy(op, discByOp, discByProduct);
             if (d == null) continue;
             BigDecimal expected = op.getQuantity() != null ? op.getQuantity() : BigDecimal.ZERO;
             BigDecimal actual = d.actualQty() != null ? d.actualQty() : expected;
@@ -610,8 +681,21 @@ public class ReceiptSessionService {
         return result;
     }
 
+    private SessionDiscrepancyRequest.DiscrepancyItem matchDiscrepancy(
+            ProductOperation op,
+            Map<UUID, SessionDiscrepancyRequest.DiscrepancyItem> discByOp,
+            Map<UUID, SessionDiscrepancyRequest.DiscrepancyItem> discByProduct) {
+        SessionDiscrepancyRequest.DiscrepancyItem d =
+                op.getOperationId() != null ? discByOp.get(op.getOperationId()) : null;
+        if (d == null && op.getProductId() != null) {
+            d = discByProduct.get(op.getProductId());
+        }
+        return d;
+    }
+
     private List<Map<String, Object>> buildItemRowsFromOps(
             List<ProductOperation> ops,
+            Map<UUID, SessionDiscrepancyRequest.DiscrepancyItem> discByOp,
             Map<UUID, SessionDiscrepancyRequest.DiscrepancyItem> discByProduct) {
         List<Map<String, Object>> items = new ArrayList<>();
         int row = 1;
@@ -619,7 +703,7 @@ public class ReceiptSessionService {
             ProductBatch batch = op.getBatchId() != null
                     ? batchRepository.findById(op.getBatchId()).orElse(null) : null;
             BigDecimal expected = op.getQuantity() != null ? op.getQuantity() : BigDecimal.ZERO;
-            SessionDiscrepancyRequest.DiscrepancyItem d = discByProduct.get(op.getProductId());
+            SessionDiscrepancyRequest.DiscrepancyItem d = matchDiscrepancy(op, discByOp, discByProduct);
             BigDecimal actual = d != null && d.actualQty() != null ? d.actualQty() : expected;
             BigDecimal price = batch != null && batch.getPurchasePrice() != null
                     ? batch.getPurchasePrice() : BigDecimal.ZERO;
@@ -657,6 +741,44 @@ public class ReceiptSessionService {
         return items;
     }
 
+    private List<Map<String, Object>> buildPlacementRowsFromOps(List<ProductOperation> ops) {
+        Map<UUID, Map<String, String>> locationCache = new HashMap<>();
+        List<Map<String, Object>> items = new ArrayList<>();
+        int row = 1;
+        for (ProductOperation op : ops) {
+            BigDecimal qty = op.getQuantity() != null ? op.getQuantity() : BigDecimal.ZERO;
+            if (qty.signum() <= 0) {
+                continue;
+            }
+            UUID cellId = op.getToCellId() != null ? op.getToCellId() : op.getFromCellId();
+            Map<String, String> loc = resolveCellLocation(cellId, locationCache);
+            ProductBatch batch = op.getBatchId() != null
+                    ? batchRepository.findById(op.getBatchId()).orElse(null) : null;
+            Map<String, Object> line = new HashMap<>();
+            line.put("rowNumber", row);
+            line.put("lineNo", row++);
+            line.put("quantity", qty.stripTrailingZeros().toPlainString());
+            line.put("cellId", cellId != null ? cellId.toString() : null);
+            line.put("rackName", loc.get("rackName"));
+            line.put("cellCode", loc.get("cellCode"));
+            if (batch != null) {
+                line.put("batchNumber", batch.getBatchNumber());
+            }
+            productRepository.findById(op.getProductId()).ifPresent(p -> {
+                line.put("productName", p.getName());
+                line.put("name", p.getName());
+                line.put("sku", p.getSku());
+                line.put("unit", p.getUnitOfMeasure() != null ? p.getUnitOfMeasure() : "шт");
+                if (p.getRequiredStorageCondition() != null) {
+                    line.put("storageConditions", p.getRequiredStorageCondition().getLabel());
+                    line.put("storageConditionsCode", p.getRequiredStorageCondition().name());
+                }
+            });
+            items.add(line);
+        }
+        return items;
+    }
+
     private List<Map<String, Object>> buildDiscrepancyRows(
             List<SessionDiscrepancyRequest.DiscrepancyItem> discrepancies) {
         List<Map<String, Object>> rows = new ArrayList<>();
@@ -682,7 +804,7 @@ public class ReceiptSessionService {
     }
 
     private record PlacedItem(
-            CreateReceiptSessionRequest.ReceiptItem item, UUID batchId, UUID cellId) {
+            CreateReceiptSessionRequest.ReceiptItem item, UUID batchId, UUID cellId, BigDecimal quantity) {
     }
 
     private Map<String, Object> buildPlacementListPayload(ReceiptSession session, List<PlacedItem> placed) {
@@ -696,13 +818,15 @@ public class ReceiptSessionService {
             Map<String, Object> line = new HashMap<>();
             line.put("rowNumber", row);
             line.put("lineNo", row++);
-            line.put("quantity", it.quantity() != null
-                    ? it.quantity().stripTrailingZeros().toPlainString() : "0");
+            line.put("quantity", pi.quantity() != null
+                    ? pi.quantity().stripTrailingZeros().toPlainString() : "0");
             line.put("batchNumber", it.batchNumber());
             line.put("rackName", loc.get("rackName"));
             line.put("cellCode", loc.get("cellCode"));
             line.put("cellId", pi.cellId() != null ? pi.cellId().toString() : null);
             line.put("storageConditions", it.storageConditions() != null
+                    ? it.storageConditions().getLabel() : null);
+            line.put("storageConditionsCode", it.storageConditions() != null
                     ? it.storageConditions().name() : null);
             productRepository.findById(it.productId()).ifPresent(p -> {
                 line.put("productName", p.getName());

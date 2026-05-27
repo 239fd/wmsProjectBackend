@@ -104,7 +104,7 @@ public class RackService {
         Shelf shelf = Shelf.builder()
                 .rackId(request.rackId())
                 .warehouseId(rack.getWarehouseId())
-                .slotCode(generateSlotCode(rack, shelfRepository.countByRackId(rack.getRackId())))
+                .slotCode(generateSlotCode(rack))
                 .organizationId(resolveOrgIdForRack(rack))
                 .shelfCapacityKg(request.shelfCapacityKg())
                 .lengthCm(request.lengthCm())
@@ -139,7 +139,7 @@ public class RackService {
         Cell cell = Cell.builder()
                 .rackId(request.rackId())
                 .warehouseId(rack.getWarehouseId())
-                .slotCode(generateSlotCode(rack, cellRepository.countByRackId(rack.getRackId())))
+                .slotCode(generateSlotCode(rack))
                 .organizationId(resolveOrgIdForRack(rack))
                 .maxWeightKg(request.maxWeightKg())
                 .lengthCm(request.lengthCm())
@@ -185,13 +185,12 @@ public class RackService {
 
         PalletType palletType = request.palletType();
         UUID rackOrgId = resolveOrgIdForRack(rack);
-        long existing = palletPlaceRepository.countByRackId(request.rackId());
         for (int i = 0; i < request.palletPlaceCount(); i++) {
             PalletPlace place = PalletPlace.builder()
                     .placeId(UUID.randomUUID())
                     .rackId(request.rackId())
                     .warehouseId(rack.getWarehouseId())
-                    .slotCode(generateSlotCode(rack, existing + i))
+                    .slotCode(generateSlotCode(rack))
                     .organizationId(rackOrgId)
                     .lengthCm(palletType.getLengthCm())
                     .widthCm(palletType.getWidthCm())
@@ -214,17 +213,40 @@ public class RackService {
 
 
     private UUID resolveOrgIdForRack(RackReadModel rack) {
-        if (rack == null || rack.getWarehouseId() == null) return null;
-        return warehouseRepository.findByWarehouseId(rack.getWarehouseId())
+        if (rack == null || rack.getWarehouseId() == null) {
+            throw AppException.badRequest("Стеллаж не привязан к складу — невозможно определить организацию");
+        }
+        UUID orgId = warehouseRepository.findByWarehouseId(rack.getWarehouseId())
                 .map(w -> w.getOrgId())
                 .orElse(null);
+        if (orgId == null) {
+            throw AppException.notFound(
+                    "Склад " + rack.getWarehouseId() + " не найден — невозможно определить организацию стеллажа");
+        }
+        return orgId;
     }
 
-    private String generateSlotCode(RackReadModel rack, long existingCount) {
+    private String generateSlotCode(RackReadModel rack) {
         String base = rack.getName() != null && !rack.getName().isBlank()
                 ? rack.getName().trim()
                 : "R" + rack.getRackId().toString().substring(0, 4).toUpperCase();
-        return base + "-" + (existingCount + 1);
+        UUID warehouseId = rack.getWarehouseId();
+        int n = 1;
+        String candidate = base + "-" + n;
+        while (isSlotCodeTaken(warehouseId, candidate, null)) {
+            n++;
+            candidate = base + "-" + n;
+        }
+        return candidate;
+    }
+
+    private boolean isSlotCodeTaken(UUID warehouseId, String code, UUID excludeSlotId) {
+        return cellRepository.findByWarehouseIdAndSlotCode(warehouseId, code)
+                        .filter(c -> excludeSlotId == null || !c.getCellId().equals(excludeSlotId)).isPresent()
+                || shelfRepository.findByWarehouseIdAndSlotCode(warehouseId, code)
+                        .filter(s -> excludeSlotId == null || !s.getShelfId().equals(excludeSlotId)).isPresent()
+                || palletPlaceRepository.findByWarehouseIdAndSlotCode(warehouseId, code)
+                        .filter(p -> excludeSlotId == null || !p.getPlaceId().equals(excludeSlotId)).isPresent();
     }
 
     @Transactional(readOnly = true)
@@ -253,6 +275,49 @@ public class RackService {
             return row;
         }
         throw AppException.notFound("Ячейка с кодом «" + code + "» не найдена на складе");
+    }
+
+    @Transactional
+    public Map<String, Object> renameSlotCode(UUID slotId, String newCode) {
+        if (slotId == null || newCode == null || newCode.isBlank()) {
+            throw AppException.badRequest("slotId и новый код обязательны");
+        }
+        String code = newCode.trim();
+        if (code.length() > 32) {
+            throw AppException.badRequest("Код ячейки не может быть длиннее 32 символов");
+        }
+
+        Optional<Cell> cell = cellRepository.findById(slotId);
+        if (cell.isPresent()) {
+            Cell c = cell.get();
+            ensureSlotCodeFree(c.getWarehouseId(), code, slotId);
+            c.setSlotCode(code);
+            cellRepository.save(c);
+            return cellToMap(c);
+        }
+        Optional<Shelf> shelf = shelfRepository.findById(slotId);
+        if (shelf.isPresent()) {
+            Shelf s = shelf.get();
+            ensureSlotCodeFree(s.getWarehouseId(), code, slotId);
+            s.setSlotCode(code);
+            shelfRepository.save(s);
+            return shelfToMap(s);
+        }
+        Optional<PalletPlace> place = palletPlaceRepository.findById(slotId);
+        if (place.isPresent()) {
+            PalletPlace p = place.get();
+            ensureSlotCodeFree(p.getWarehouseId(), code, slotId);
+            p.setSlotCode(code);
+            palletPlaceRepository.save(p);
+            return palletPlaceToMap(p);
+        }
+        throw AppException.notFound("Ячейка не найдена");
+    }
+
+    private void ensureSlotCodeFree(UUID warehouseId, String code, UUID excludeSlotId) {
+        if (isSlotCodeTaken(warehouseId, code, excludeSlotId)) {
+            throw AppException.conflict("Код «" + code + "» уже используется другой ячейкой на этом складе");
+        }
     }
 
     private void saveRackEvent(UUID rackId, String eventType, Map<String, Object> eventData) {
@@ -462,6 +527,7 @@ public class RackService {
         m.put("slotCode", p.getSlotCode());
         m.put("cellCode", p.getSlotCode());
         m.put("slotType", "PALLET_PLACE");
+        m.put("palletType", inferPalletType(p));
         m.put("organizationId", p.getOrganizationId());
         m.put("lengthCm", p.getLengthCm());
         m.put("widthCm", p.getWidthCm());
@@ -470,6 +536,17 @@ public class RackService {
         m.put("remainingHeightCm",
                 p.getRemainingHeightCm() != null ? p.getRemainingHeightCm() : capacity);
         return m;
+    }
+
+    private static String inferPalletType(PalletPlace p) {
+        if (p.getLengthCm() == null || p.getWidthCm() == null) return null;
+        int l = p.getLengthCm().intValue();
+        int w = p.getWidthCm().intValue();
+        if (l == 1200 && w == 800) return "EUR";
+        if (l == 1200 && w == 1000) return "FIN";
+        if (l == 1200 && w == 1200) return "US";
+        if (l == 1100 && w == 1100) return "ASIA";
+        return null;
     }
 
     @Transactional(readOnly = true)

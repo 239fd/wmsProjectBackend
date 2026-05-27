@@ -66,7 +66,7 @@ class ReceiveOperationContainerTest extends TestcontainersIntegrationBase {
                 .build();
         productRepository.save(product);
 
-        when(documentClient.fetch(any(), any(), any(), any())).thenReturn(new DocumentClient.Fetched(new byte[0], "auto"));
+        when(documentClient.fetch(any(), any(), any(), any())).thenReturn(new DocumentClient.Fetched(new byte[0], "auto", null, null));
 
         ReceiveProductRequest request = new ReceiveProductRequest(
                 product.getProductId(), null, warehouseId, cellId,

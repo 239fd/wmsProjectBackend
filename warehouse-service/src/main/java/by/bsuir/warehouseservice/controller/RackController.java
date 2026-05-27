@@ -27,6 +27,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -237,6 +238,23 @@ public class RackController {
             @Parameter(description = "ID склада", required = true) @RequestParam UUID warehouseId,
             @Parameter(description = "Код ячейки", required = true) @PathVariable String slotCode) {
         return ResponseEntity.ok(rackService.resolveSlotByCode(warehouseId, slotCode));
+    }
+
+    @Operation(
+            summary = "Переименовать код ячейки",
+            description = "Меняет человеко-читаемый slotCode у слота (cell/shelf/pallet). "
+                    + "Код должен быть уникален в пределах склада."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Код обновлён"),
+            @ApiResponse(responseCode = "404", description = "Ячейка не найдена"),
+            @ApiResponse(responseCode = "409", description = "Код уже занят на складе")
+    })
+    @PatchMapping("/cells/{slotId}/code")
+    public ResponseEntity<Map<String, Object>> renameSlotCode(
+            @Parameter(description = "ID слота", required = true) @PathVariable UUID slotId,
+            @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(rackService.renameSlotCode(slotId, body.get("slotCode")));
     }
 
     @Operation(

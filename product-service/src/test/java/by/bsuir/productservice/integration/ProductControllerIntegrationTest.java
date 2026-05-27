@@ -3,6 +3,7 @@ package by.bsuir.productservice.integration;
 import by.bsuir.productservice.controller.ProductController;
 import by.bsuir.productservice.dto.request.CreateProductRequest;
 import by.bsuir.productservice.dto.response.ProductResponse;
+import by.bsuir.productservice.model.enums.StorageConditions;
 import by.bsuir.productservice.service.ProductService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -72,7 +73,7 @@ class ProductControllerIntegrationTest {
                     "Описание товара",
                     "шт",
                     new BigDecimal("1.5"),
-                    new BigDecimal("0.01")
+                    StorageConditions.ROOM
             );
 
             ProductResponse response = new ProductResponse(
@@ -84,7 +85,7 @@ class ProductControllerIntegrationTest {
                     "Описание товара",
                     "шт",
                     new BigDecimal("1.5"),
-                    new BigDecimal("0.01"),
+                    StorageConditions.ROOM,
                     LocalDateTime.now(),
                     LocalDateTime.now()
             );
@@ -110,12 +111,12 @@ class ProductControllerIntegrationTest {
         void createProduct_WithDirectorRole_ShouldReturnCreated() throws Exception {
             CreateProductRequest request = new CreateProductRequest(
                     "Товар директора", "SKU-DIR", "999", "Категория",
-                    "Описание", "шт", BigDecimal.ONE, BigDecimal.ZERO
+                    "Описание", "шт", BigDecimal.ONE, StorageConditions.ROOM
             );
 
             ProductResponse response = new ProductResponse(
                     UUID.randomUUID(), "Товар директора", "SKU-DIR", "999", "Категория",
-                    "Описание", "шт", BigDecimal.ONE, BigDecimal.ZERO,
+                    "Описание", "шт", BigDecimal.ONE, StorageConditions.ROOM,
                     LocalDateTime.now(), LocalDateTime.now()
             );
 
@@ -133,12 +134,12 @@ class ProductControllerIntegrationTest {
         void createProduct_WithWorkerRole_ShouldReturnCreated() throws Exception {
             CreateProductRequest request = new CreateProductRequest(
                     "Товар", "SKU-W", "888", "Категория",
-                    "Описание", "шт", BigDecimal.ONE, BigDecimal.ZERO
+                    "Описание", "шт", BigDecimal.ONE, StorageConditions.ROOM
             );
 
             ProductResponse response = new ProductResponse(
                     UUID.randomUUID(), "Товар", "SKU-W", "888", "Категория",
-                    "Описание", "шт", BigDecimal.ONE, BigDecimal.ZERO,
+                    "Описание", "шт", BigDecimal.ONE, StorageConditions.ROOM,
                     LocalDateTime.now(), LocalDateTime.now()
             );
 
@@ -156,7 +157,7 @@ class ProductControllerIntegrationTest {
         void createProduct_WithoutRole_ShouldReturnForbidden() throws Exception {
             CreateProductRequest request = new CreateProductRequest(
                     "Тестовый товар", "SKU-001", "1234567890123", "Электроника",
-                    "Описание", "шт", new BigDecimal("1.5"), new BigDecimal("0.01")
+                    "Описание", "шт", new BigDecimal("1.5"), StorageConditions.ROOM
             );
 
             mockMvc.perform(post(BASE_URL)
@@ -172,7 +173,7 @@ class ProductControllerIntegrationTest {
         void createProduct_WithEmptyName_ShouldReturnBadRequest() throws Exception {
             CreateProductRequest request = new CreateProductRequest(
                     "", "SKU-001", "1234567890123", "Электроника",
-                    "Описание", "шт", new BigDecimal("1.5"), new BigDecimal("0.01")
+                    "Описание", "шт", new BigDecimal("1.5"), StorageConditions.ROOM
             );
 
             mockMvc.perform(post(BASE_URL)
@@ -187,7 +188,7 @@ class ProductControllerIntegrationTest {
         void createProduct_WithTooLongName_ShouldReturnBadRequest() throws Exception {
             String longName = "A".repeat(300);
             CreateProductRequest request = new CreateProductRequest(
-                    longName, "SKU", "123", "Cat", "Desc", "шт", BigDecimal.ONE, BigDecimal.ZERO
+                    longName, "SKU", "123", "Cat", "Desc", "шт", BigDecimal.ONE, StorageConditions.ROOM
             );
 
             mockMvc.perform(post(BASE_URL)
@@ -208,7 +209,7 @@ class ProductControllerIntegrationTest {
             UUID productId = UUID.randomUUID();
             ProductResponse response = new ProductResponse(
                     productId, "Товар", "SKU-001", "1234567890", "Категория",
-                    "Описание", "шт", new BigDecimal("1.0"), new BigDecimal("0.01"),
+                    "Описание", "шт", new BigDecimal("1.0"), StorageConditions.ROOM,
                     LocalDateTime.now(), LocalDateTime.now()
             );
 
@@ -227,10 +228,10 @@ class ProductControllerIntegrationTest {
         void getAllProducts_ShouldReturnList() throws Exception {
             List<ProductResponse> products = List.of(
                     new ProductResponse(UUID.randomUUID(), "Товар 1", "SKU-001", "123",
-                            "Категория", "Описание", "шт", BigDecimal.ONE, BigDecimal.ZERO,
+                            "Категория", "Описание", "шт", BigDecimal.ONE, StorageConditions.ROOM,
                             LocalDateTime.now(), LocalDateTime.now()),
                     new ProductResponse(UUID.randomUUID(), "Товар 2", "SKU-002", "456",
-                            "Категория", "Описание", "шт", BigDecimal.ONE, BigDecimal.ZERO,
+                            "Категория", "Описание", "шт", BigDecimal.ONE, StorageConditions.ROOM,
                             LocalDateTime.now(), LocalDateTime.now())
             );
 
@@ -248,7 +249,7 @@ class ProductControllerIntegrationTest {
         void getProductBySku_ShouldReturnOk() throws Exception {
             ProductResponse response = new ProductResponse(
                     UUID.randomUUID(), "Товар", "SKU-TEST", "123", "Категория",
-                    "Описание", "шт", BigDecimal.ONE, BigDecimal.ZERO,
+                    "Описание", "шт", BigDecimal.ONE, StorageConditions.ROOM,
                     LocalDateTime.now(), LocalDateTime.now()
             );
 
@@ -264,7 +265,7 @@ class ProductControllerIntegrationTest {
         void getProductByBarcode_ShouldReturnOk() throws Exception {
             ProductResponse response = new ProductResponse(
                     UUID.randomUUID(), "Товар", "SKU-001", "9876543210", "Категория",
-                    "Описание", "шт", BigDecimal.ONE, BigDecimal.ZERO,
+                    "Описание", "шт", BigDecimal.ONE, StorageConditions.ROOM,
                     LocalDateTime.now(), LocalDateTime.now()
             );
 
@@ -281,7 +282,7 @@ class ProductControllerIntegrationTest {
         void getProductsByCategory_ShouldReturnList() throws Exception {
             List<ProductResponse> products = List.of(
                     new ProductResponse(UUID.randomUUID(), "Электроника 1", "SKU-E1", "123",
-                            "Электроника", "Описание", "шт", BigDecimal.ONE, BigDecimal.ZERO,
+                            "Электроника", "Описание", "шт", BigDecimal.ONE, StorageConditions.ROOM,
                             LocalDateTime.now(), LocalDateTime.now())
             );
 
@@ -304,7 +305,7 @@ class ProductControllerIntegrationTest {
             UUID productId = UUID.randomUUID();
             ProductResponse response = new ProductResponse(
                     productId, "Товар", "SKU-001", "123456789", "Категория",
-                    "Описание товара", "шт", new BigDecimal("2.5"), new BigDecimal("0.05"),
+                    "Описание товара", "шт", new BigDecimal("2.5"), StorageConditions.ROOM,
                     LocalDateTime.now(), LocalDateTime.now()
             );
 
@@ -319,8 +320,8 @@ class ProductControllerIntegrationTest {
                     .andExpect(jsonPath("$.category").exists())
                     .andExpect(jsonPath("$.description").exists())
                     .andExpect(jsonPath("$.unitOfMeasure").exists())
-                    .andExpect(jsonPath("$.weightKg").exists())
-                    .andExpect(jsonPath("$.volumeM3").exists())
+                    .andExpect(jsonPath("$.price").exists())
+                    .andExpect(jsonPath("$.requiredStorageCondition").exists())
                     .andExpect(jsonPath("$.createdAt").exists())
                     .andExpect(jsonPath("$.updatedAt").exists());
         }

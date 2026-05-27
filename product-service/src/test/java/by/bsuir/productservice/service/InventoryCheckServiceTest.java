@@ -142,7 +142,7 @@ class InventoryCheckServiceTest {
         when(countRepository.save(any(InventoryCount.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        inventoryCheckService.recordActualCount(sessionId, productId, cellId, actualQuantity, "Test notes");
+        inventoryCheckService.recordActualCount(sessionId, productId, cellId, actualQuantity, "Test notes", null);
 
         assertThat(inventoryCount.getActualQuantity()).isEqualTo(actualQuantity);
         assertThat(inventoryCount.getDiscrepancy()).isEqualTo(new BigDecimal("-5"));
@@ -156,7 +156,7 @@ class InventoryCheckServiceTest {
         when(sessionRepository.findById(sessionId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> inventoryCheckService.recordActualCount(
-                sessionId, productId, cellId, new BigDecimal("95"), "Test notes"))
+                sessionId, productId, cellId, new BigDecimal("95"), "Test notes", null))
                 .isInstanceOf(AppException.class)
                 .hasMessageContaining("не найдена");
 
@@ -172,7 +172,7 @@ class InventoryCheckServiceTest {
         when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
 
         assertThatThrownBy(() -> inventoryCheckService.recordActualCount(
-                sessionId, productId, cellId, new BigDecimal("95"), "Test notes"))
+                sessionId, productId, cellId, new BigDecimal("95"), "Test notes", null))
                 .isInstanceOf(AppException.class)
                 .hasMessageContaining("завершена");
 
@@ -189,7 +189,7 @@ class InventoryCheckServiceTest {
         when(countRepository.findBySessionId(sessionId)).thenReturn(Arrays.asList(inventoryCount));
 
         assertThatThrownBy(() -> inventoryCheckService.recordActualCount(
-                sessionId, nonExistentProductId, cellId, new BigDecimal("95"), "Test notes"))
+                sessionId, nonExistentProductId, cellId, new BigDecimal("95"), "Test notes", null))
                 .isInstanceOf(AppException.class)
                 .hasMessageContaining("не найдена");
 
@@ -207,7 +207,7 @@ class InventoryCheckServiceTest {
         when(sessionRepository.save(any(InventorySession.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        Map<String, Object> result = inventoryCheckService.completeInventory(sessionId, userId);
+        Map<String, Object> result = inventoryCheckService.completeInventory(sessionId, userId, null);
 
         assertThat(result).isNotNull();
         assertThat(result.get("sessionId")).isEqualTo(sessionId.toString());

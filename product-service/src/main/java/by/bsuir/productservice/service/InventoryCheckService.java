@@ -131,14 +131,23 @@ public class InventoryCheckService {
         return sessionId;
     }
 
+    private InventorySession loadOwnedSession(UUID sessionId, UUID organizationId) {
+        InventorySession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> AppException.notFound("Сессия инвентаризации не найдена"));
+        if (organizationId != null && session.getOrganizationId() != null
+                && !organizationId.equals(session.getOrganizationId())) {
+            throw AppException.forbidden("Сессия инвентаризации принадлежит другой организации");
+        }
+        return session;
+    }
+
     @Transactional
     public void recordActualCount(UUID sessionId, UUID productId, UUID cellId,
-                                   BigDecimal actualQuantity, String notes) {
+                                   BigDecimal actualQuantity, String notes, UUID organizationId) {
         log.info("Recording actual count for session: {}, product: {}, cell: {}, quantity: {}",
                 sessionId, productId, cellId, actualQuantity);
 
-        InventorySession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> AppException.notFound("Сессия инвентаризации не найдена"));
+        InventorySession session = loadOwnedSession(sessionId, organizationId);
 
         if (session.getStatus() != InventorySession.SessionStatus.IN_PROGRESS) {
             throw AppException.badRequest("Сессия инвентаризации уже завершена");
@@ -161,12 +170,11 @@ public class InventoryCheckService {
 
     @Transactional
     public void recordActualCountById(UUID sessionId, UUID countId,
-                                      BigDecimal actualQuantity, String notes) {
+                                      BigDecimal actualQuantity, String notes, UUID organizationId) {
         log.info("Recording actual count by countId={} for session: {}, quantity: {}",
                 countId, sessionId, actualQuantity);
 
-        InventorySession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> AppException.notFound("Сессия инвентаризации не найдена"));
+        InventorySession session = loadOwnedSession(sessionId, organizationId);
         if (session.getStatus() != InventorySession.SessionStatus.IN_PROGRESS) {
             throw AppException.badRequest("Сессия инвентаризации уже завершена");
         }
@@ -192,11 +200,10 @@ public class InventoryCheckService {
     }
 
     @Transactional
-    public Map<String, Object> completeInventory(UUID sessionId, UUID userId) {
+    public Map<String, Object> completeInventory(UUID sessionId, UUID userId, UUID organizationId) {
         log.info("Completing inventory session: {}", sessionId);
 
-        InventorySession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> AppException.notFound("Сессия инвентаризации не найдена"));
+        InventorySession session = loadOwnedSession(sessionId, organizationId);
 
         if (session.getStatus() != InventorySession.SessionStatus.IN_PROGRESS) {
             throw AppException.badRequest("Сессия уже завершена");
@@ -458,11 +465,10 @@ public class InventoryCheckService {
     }
 
     @Transactional
-    public void cancelInventory(UUID sessionId) {
+    public void cancelInventory(UUID sessionId, UUID organizationId) {
         log.info("Cancelling inventory session: {}", sessionId);
 
-        InventorySession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> AppException.notFound("Сессия не найдена"));
+        InventorySession session = loadOwnedSession(sessionId, organizationId);
 
         if (session.getStatus() != InventorySession.SessionStatus.IN_PROGRESS) {
             throw AppException.badRequest("Можно отменить только активную сессию");
@@ -485,6 +491,12 @@ public class InventoryCheckService {
                 .max((a, b) -> a.getStartedAt().compareTo(b.getStartedAt()))
                 .orElse(active.get(0));
         return getInventorySession(session.getSessionId());
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getInventorySession(UUID sessionId, UUID organizationId) {
+        loadOwnedSession(sessionId, organizationId);
+        return getInventorySession(sessionId);
     }
 
     @Transactional(readOnly = true)

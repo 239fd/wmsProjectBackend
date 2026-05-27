@@ -16,6 +16,7 @@ public record CellInfoDto(
         BigDecimal widthCm,
         BigDecimal heightCm,
         BigDecimal maxHeightCm,
-        BigDecimal remainingHeightCm
+        BigDecimal remainingHeightCm,
+        String palletType
 ) {
 }

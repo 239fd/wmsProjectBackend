@@ -64,7 +64,7 @@ class WriteOffOperationContainerTest extends TestcontainersIntegrationBase {
                 .build();
         productRepository.save(product);
 
-        when(documentClient.fetch(any(), any(), any(), any())).thenReturn(new DocumentClient.Fetched(new byte[0], "auto"));
+        when(documentClient.fetch(any(), any(), any(), any())).thenReturn(new DocumentClient.Fetched(new byte[0], "auto", null, null));
 
         ReceiveProductRequest receive = new ReceiveProductRequest(
                 product.getProductId(), null, warehouseId, UUID.randomUUID(),
@@ -81,7 +81,7 @@ class WriteOffOperationContainerTest extends TestcontainersIntegrationBase {
                 product.getProductId(), warehouseId, null, null,
                 new BigDecimal("15"),
                 "Просрочка", "Акт #42", null, List.of(),
-                userId, "санитарный контроль"
+                userId, null, "санитарный контроль"
         );
         mockMvc.perform(post("/api/operations/write-off")
                         .header("X-User-Role", "ACCOUNTANT")
@@ -130,7 +130,7 @@ class WriteOffOperationContainerTest extends TestcontainersIntegrationBase {
         WriteOffRequest writeOff = new WriteOffRequest(
                 product.getProductId(), warehouseId, null, null,
                 new BigDecimal("1"), "any", null, null, List.of(),
-                UUID.randomUUID(), null
+                UUID.randomUUID(), null, null
         );
         mockMvc.perform(post("/api/operations/write-off")
                         .header("X-Organization-Id", orgId.toString())

@@ -36,14 +36,14 @@ class InventoryCheckControllerTest {
         UUID userId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
 
-        when(inventoryCheckService.startInventory(eq(warehouseId), eq(userId), any())).thenReturn(sessionId);
+        when(inventoryCheckService.startInventory(eq(warehouseId), eq(userId), any(), any())).thenReturn(sessionId);
 
         ResponseEntity<Map<String, String>> response = inventoryCheckController.startInventory(
-                warehouseId, userId, "Test notes", "DIRECTOR");
+                warehouseId, userId, "Test notes", "DIRECTOR", UUID.randomUUID());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).containsKey("sessionId");
-        verify(inventoryCheckService, times(1)).startInventory(eq(warehouseId), eq(userId), any());
+        verify(inventoryCheckService, times(1)).startInventory(eq(warehouseId), eq(userId), any(), any());
     }
 
     @Test
@@ -53,14 +53,14 @@ class InventoryCheckControllerTest {
         UUID userId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
 
-        when(inventoryCheckService.startInventory(eq(warehouseId), eq(userId), any())).thenReturn(sessionId);
+        when(inventoryCheckService.startInventory(eq(warehouseId), eq(userId), any(), any())).thenReturn(sessionId);
 
         ResponseEntity<Map<String, String>> response = inventoryCheckController.startInventory(
-                warehouseId, userId, "Test notes", "ACCOUNTANT");
+                warehouseId, userId, "Test notes", "ACCOUNTANT", UUID.randomUUID());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).containsKey("sessionId");
-        verify(inventoryCheckService, times(1)).startInventory(eq(warehouseId), eq(userId), any());
+        verify(inventoryCheckService, times(1)).startInventory(eq(warehouseId), eq(userId), any(), any());
     }
 
     @Test
@@ -70,10 +70,10 @@ class InventoryCheckControllerTest {
         UUID userId = UUID.randomUUID();
 
         ResponseEntity<Map<String, String>> response = inventoryCheckController.startInventory(
-                warehouseId, userId, "Test notes", null);
+                warehouseId, userId, "Test notes", null, UUID.randomUUID());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        verify(inventoryCheckService, never()).startInventory(any(), any(), any());
+        verify(inventoryCheckService, never()).startInventory(any(), any(), any(), any());
     }
 
     @Test
@@ -83,10 +83,10 @@ class InventoryCheckControllerTest {
         UUID userId = UUID.randomUUID();
 
         ResponseEntity<Map<String, String>> response = inventoryCheckController.startInventory(
-                warehouseId, userId, "Test notes", "ADMIN");
+                warehouseId, userId, "Test notes", "ADMIN", UUID.randomUUID());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        verify(inventoryCheckService, never()).startInventory(any(), any(), any());
+        verify(inventoryCheckService, never()).startInventory(any(), any(), any(), any());
     }
 
     @Test
@@ -97,14 +97,14 @@ class InventoryCheckControllerTest {
         UUID cellId = UUID.randomUUID();
         BigDecimal actualQuantity = new BigDecimal("50.00");
 
-        doNothing().when(inventoryCheckService).recordActualCount(any(), any(), any(), any(), any());
+        doNothing().when(inventoryCheckService).recordActualCount(any(), any(), any(), any(), any(), any());
 
         ResponseEntity<Map<String, String>> response = inventoryCheckController.recordActualCount(
-                sessionId, productId, cellId, actualQuantity, "Test notes", "ACCOUNTANT");
+                sessionId, null, productId, cellId, actualQuantity, "Test notes", "ACCOUNTANT", UUID.randomUUID());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).containsKey("message");
-        verify(inventoryCheckService, times(1)).recordActualCount(any(), any(), any(), any(), any());
+        verify(inventoryCheckService, times(1)).recordActualCount(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -115,10 +115,10 @@ class InventoryCheckControllerTest {
         BigDecimal actualQuantity = new BigDecimal("50.00");
 
         ResponseEntity<Map<String, String>> response = inventoryCheckController.recordActualCount(
-                sessionId, productId, null, actualQuantity, "Test notes", null);
+                sessionId, null, productId, null, actualQuantity, "Test notes", null, UUID.randomUUID());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        verify(inventoryCheckService, never()).recordActualCount(any(), any(), any(), any(), any());
+        verify(inventoryCheckService, never()).recordActualCount(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -127,14 +127,15 @@ class InventoryCheckControllerTest {
         UUID sessionId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
-        when(inventoryCheckService.completeInventory(eq(sessionId), eq(userId))).thenReturn(Map.of("message", "Completed"));
+        when(inventoryCheckService.completeInventory(eq(sessionId), eq(userId), any()))
+                .thenReturn(Map.of("message", "Completed"));
 
         ResponseEntity<Map<String, Object>> response = inventoryCheckController.completeInventory(
-                sessionId, userId, "DIRECTOR");
+                sessionId, userId, "DIRECTOR", UUID.randomUUID());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).containsKey("message");
-        verify(inventoryCheckService, times(1)).completeInventory(eq(sessionId), eq(userId));
+        verify(inventoryCheckService, times(1)).completeInventory(eq(sessionId), eq(userId), any());
     }
 
     @Test
@@ -143,14 +144,15 @@ class InventoryCheckControllerTest {
         UUID sessionId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
-        when(inventoryCheckService.completeInventory(eq(sessionId), eq(userId))).thenReturn(Map.of("message", "Completed"));
+        when(inventoryCheckService.completeInventory(eq(sessionId), eq(userId), any()))
+                .thenReturn(Map.of("message", "Completed"));
 
         ResponseEntity<Map<String, Object>> response = inventoryCheckController.completeInventory(
-                sessionId, userId, "ACCOUNTANT");
+                sessionId, userId, "ACCOUNTANT", UUID.randomUUID());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).containsKey("message");
-        verify(inventoryCheckService, times(1)).completeInventory(eq(sessionId), eq(userId));
+        verify(inventoryCheckService, times(1)).completeInventory(eq(sessionId), eq(userId), any());
     }
 
     @Test
@@ -160,10 +162,10 @@ class InventoryCheckControllerTest {
         UUID userId = UUID.randomUUID();
 
         ResponseEntity<Map<String, Object>> response = inventoryCheckController.completeInventory(
-                sessionId, userId, "ADMIN");
+                sessionId, userId, "ADMIN", UUID.randomUUID());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        verify(inventoryCheckService, never()).completeInventory(any(), any());
+        verify(inventoryCheckService, never()).completeInventory(any(), any(), any());
     }
 }
 

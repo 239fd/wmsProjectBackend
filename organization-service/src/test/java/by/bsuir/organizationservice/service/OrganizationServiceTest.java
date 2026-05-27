@@ -75,7 +75,7 @@ class OrganizationServiceTest {
         CreateOrganizationRequest req = new CreateOrganizationRequest(
                 "ООО Ромашка", "Ромашка", "123456789", "Минск, ул. Ленина 1");
         when(readModelRepository.existsByUnp("123456789")).thenReturn(false);
-        when(readModelRepository.existsByName("ООО Ромашка")).thenReturn(false);
+        when(readModelRepository.existsByNameIgnoreCase("ООО Ромашка")).thenReturn(false);
 
         OrganizationResponse response = organizationService.createOrganization(req, directorUserId);
 
@@ -128,7 +128,7 @@ class OrganizationServiceTest {
         CreateOrganizationRequest req = new CreateOrganizationRequest(
                 "ООО Ромашка", null, "123456789", "адрес");
         when(readModelRepository.existsByUnp("123456789")).thenReturn(false);
-        when(readModelRepository.existsByName("ООО Ромашка")).thenReturn(true);
+        when(readModelRepository.existsByNameIgnoreCase("ООО Ромашка")).thenReturn(true);
 
         assertThatThrownBy(() -> organizationService.createOrganization(req, directorUserId))
                 .isInstanceOf(AppException.class)
@@ -142,7 +142,7 @@ class OrganizationServiceTest {
         CreateOrganizationRequest req = new CreateOrganizationRequest(
                 "ООО Ромашка", null, "123456789", "адрес");
         when(readModelRepository.existsByUnp("123456789")).thenReturn(false);
-        when(readModelRepository.existsByName("ООО Ромашка")).thenReturn(false);
+        when(readModelRepository.existsByNameIgnoreCase("ООО Ромашка")).thenReturn(false);
         when(restTemplate.patchForObject(anyString(), any(), eq(java.util.Map.class)))
                 .thenThrow(new RuntimeException("SSO down"));
 
@@ -323,7 +323,7 @@ class OrganizationServiceTest {
         CreateOrganizationRequest req = new CreateOrganizationRequest(
                 "ООО Ромашка", null, "123456789", "адрес");
         when(readModelRepository.existsByUnp("123456789")).thenReturn(false);
-        when(readModelRepository.existsByName("ООО Ромашка")).thenReturn(false);
+        when(readModelRepository.existsByNameIgnoreCase("ООО Ромашка")).thenReturn(false);
         lenient().doThrow(new RuntimeException("rabbit down"))
                 .when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
 

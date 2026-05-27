@@ -44,8 +44,8 @@ class InventoryControllerTest {
 
     private InventoryResponse sample() {
         return new InventoryResponse(
-                UUID.randomUUID(), UUID.randomUUID(), null, UUID.randomUUID(),
-                UUID.randomUUID(), UUID.randomUUID(), "INV-1",
+                UUID.randomUUID(), UUID.randomUUID(), null, null, null,
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "INV-1",
                 new BigDecimal("100"), BigDecimal.ZERO, new BigDecimal("100"),
                 null, LocalDateTime.now());
     }

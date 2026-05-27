@@ -46,7 +46,7 @@ public class PlacementService {
             UUID warehouseId, UUID productId, BigDecimal quantity, Integer unitsPerPackage,
             StorageConditions overrideConditions, String userRole) {
         return autoSelectCellForReceipt(warehouseId, productId, quantity, unitsPerPackage,
-                overrideConditions, null, null, null, null, null, userRole);
+                overrideConditions, null, null, null, null, null, null, userRole);
     }
 
     public UUID autoSelectCellForReceipt(
@@ -55,13 +55,14 @@ public class PlacementService {
             by.bsuir.productservice.model.enums.PackagingType packagingType,
             String userRole) {
         return autoSelectCellForReceipt(warehouseId, productId, quantity, unitsPerPackage,
-                overrideConditions, packagingType, null, null, null, null, userRole);
+                overrideConditions, packagingType, null, null, null, null, null, userRole);
     }
 
     public UUID autoSelectCellForReceipt(
             UUID warehouseId, UUID productId, BigDecimal quantity, Integer unitsPerPackage,
             StorageConditions overrideConditions,
             by.bsuir.productservice.model.enums.PackagingType packagingType,
+            String palletType,
             BigDecimal packageLengthCm, BigDecimal packageWidthCm, BigDecimal packageHeightCm,
             BigDecimal packageWeightKg,
             String userRole) {
@@ -124,9 +125,12 @@ public class PlacementService {
             } catch (Exception e) {
                 continue;
             }
-            long needPackages = numPackages.longValueExact();
             for (CellInfoDto cell : cells) {
                 if (occupied.contains(cell.cellId())) continue;
+                if (requirePallet && palletType != null && cell.palletType() != null
+                        && !palletType.equalsIgnoreCase(cell.palletType())) {
+                    continue;
+                }
                 BigDecimal effectiveHeight = cell.remainingHeightCm() != null
                         ? cell.remainingHeightCm() : cell.heightCm();
                 long cap = capacityByDims(
@@ -139,12 +143,8 @@ public class PlacementService {
                             cell.lengthCm(), cell.widthCm(), effectiveHeight);
                     continue;
                 }
-                if (cap > 0L && needPackages > 0 && cap < needPackages) {
-                    log.debug("Cell {} вмещает {} упаковок, нужно {}", cell.cellId(), cap, needPackages);
-                    continue;
-                }
                 log.info("Auto-picked cell {} on rack {} for product {} (weight={}кг, capacity={}шт, need={}шт)",
-                        cell.cellId(), rack.name(), productId, incomingWeightKg, cap, needPackages);
+                        cell.cellId(), rack.name(), productId, incomingWeightKg, cap, numPackages);
                 return cell.cellId();
             }
         }
@@ -152,6 +152,144 @@ public class PlacementService {
                 warehouseId, cond, incomingWeightKg);
         return null;
     }
+
+    public record PalletSelection(List<UUID> placeIds, String shortageReason) {
+        public boolean enough(long required) {
+            return placeIds.size() >= required;
+        }
+    }
+
+    public PalletSelection autoSelectPalletPlaces(
+            UUID warehouseId, long numPallets, String palletType,
+            StorageConditions overrideConditions,
+            BigDecimal loadHeightCm, BigDecimal palletWeightKg, String userRole) {
+
+        final StorageConditions cond = overrideConditions != null ? overrideConditions : StorageConditions.ROOM;
+
+        List<RackInfoDto> matching;
+        try {
+            matching = warehouseClient.getRacksByWarehouse(warehouseId, userRole).stream()
+                    .filter(r -> Boolean.TRUE.equals(r.isActive()))
+                    .filter(r -> "PALLET".equals(r.kind()))
+                    .filter(r -> matchesConditions(r.storageConditions(), cond))
+                    .toList();
+        } catch (Exception e) {
+            log.warn("autoSelectPalletPlaces: warehouseClient failed: {}", e.getMessage());
+            return new PalletSelection(List.of(),
+                    "не удалось получить список стеллажей склада — попробуйте позже");
+        }
+        if (matching.isEmpty()) {
+            log.warn("autoSelectPalletPlaces: нет паллет-стеллажей с условиями {} на складе {}", cond, warehouseId);
+            return new PalletSelection(List.of(),
+                    "на складе нет паллетных стеллажей с условиями «" + cond.getLabel() + "»");
+        }
+
+        List<Inventory> warehouseInv = inventoryRepository.findByWarehouseId(warehouseId);
+        Set<UUID> occupied = warehouseInv.stream()
+                .filter(inv -> inv.getQuantity() != null && inv.getQuantity().compareTo(BigDecimal.ZERO) > 0)
+                .map(Inventory::getCellId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<UUID, BigDecimal> weightByRack = computeWeightByRack(warehouseInv);
+        BigDecimal weightPerPallet = palletWeightKg != null ? palletWeightKg : BigDecimal.ZERO;
+
+        List<UUID> selected = new java.util.ArrayList<>();
+        Set<UUID> chosen = new java.util.HashSet<>();
+        Map<UUID, BigDecimal> rackRunningWeight = new java.util.HashMap<>(weightByRack);
+
+        int freeTotal = 0;
+        int blockedType = 0;
+        int blockedHeight = 0;
+        int blockedWeight = 0;
+        BigDecimal sampleMaxHeight = null;
+        BigDecimal sampleRackLimit = null;
+
+        for (RackInfoDto rack : matching) {
+            List<CellInfoDto> cells;
+            try {
+                cells = warehouseClient.getCellsByRack(rack.rackId(), userRole);
+            } catch (Exception e) {
+                continue;
+            }
+            for (CellInfoDto cell : cells) {
+                if (occupied.contains(cell.cellId()) || chosen.contains(cell.cellId())) continue;
+                freeTotal++;
+
+                if (palletType != null && cell.palletType() != null
+                        && !palletType.equalsIgnoreCase(cell.palletType())) {
+                    blockedType++;
+                    continue;
+                }
+
+                BigDecimal placeMaxHeight = cell.maxHeightCm() != null ? cell.maxHeightCm() : cell.heightCm();
+                if (loadHeightCm != null && placeMaxHeight != null
+                        && loadHeightCm.compareTo(placeMaxHeight) > 0) {
+                    log.debug("autoSelectPalletPlaces: место {} ниже груза — груз {}см, место {}см",
+                            cell.cellId(), loadHeightCm, placeMaxHeight);
+                    blockedHeight++;
+                    sampleMaxHeight = placeMaxHeight;
+                    continue;
+                }
+
+                BigDecimal rackUsed = rackRunningWeight.getOrDefault(rack.rackId(), BigDecimal.ZERO);
+                if (rack.maxWeightKg() != null
+                        && rackUsed.add(weightPerPallet).compareTo(rack.maxWeightKg()) > 0) {
+                    log.info("autoSelectPalletPlaces: стеллаж {} перегружен — занято {}кг, паллет {}кг, лимит {}кг",
+                            rack.name(), rackUsed, weightPerPallet, rack.maxWeightKg());
+                    blockedWeight++;
+                    sampleRackLimit = rack.maxWeightKg();
+                    continue;
+                }
+
+                selected.add(cell.cellId());
+                chosen.add(cell.cellId());
+                rackRunningWeight.put(rack.rackId(), rackUsed.add(weightPerPallet));
+                if (selected.size() >= numPallets) break;
+            }
+            if (selected.size() >= numPallets) break;
+        }
+
+        log.info("autoSelectPalletPlaces: подобрано {}/{} паллет-мест на складе {} (тип={}, условия={})",
+                selected.size(), numPallets, warehouseId, palletType, cond);
+
+        String reason = null;
+        if (selected.size() < numPallets) {
+            reason = buildPalletShortageReason(
+                    numPallets, selected.size(), freeTotal,
+                    blockedWeight, blockedHeight, blockedType,
+                    palletType, weightPerPallet, loadHeightCm, sampleRackLimit, sampleMaxHeight);
+        }
+        return new PalletSelection(selected, reason);
+    }
+
+    private String buildPalletShortageReason(
+            long need, int found, int freeTotal,
+            int blockedWeight, int blockedHeight, int blockedType,
+            String palletType, BigDecimal weightPerPallet, BigDecimal loadHeightCm,
+            BigDecimal sampleRackLimit, BigDecimal sampleMaxHeight) {
+        String plain = plain(weightPerPallet);
+        if (freeTotal == 0) {
+            return "все паллет-места заняты — нет ни одного свободного";
+        }
+        if (blockedWeight >= blockedHeight && blockedWeight >= blockedType && blockedWeight > 0) {
+            return "вес паллета " + plain + " кг превышает свободную грузоподъёмность стеллажа"
+                    + (sampleRackLimit != null ? " (лимит " + plain(sampleRackLimit) + " кг)" : "");
+        }
+        if (blockedHeight >= blockedType && blockedHeight > 0) {
+            return "высота груза " + plain(loadHeightCm) + " см превышает максимальную высоту мест"
+                    + (sampleMaxHeight != null ? " (" + plain(sampleMaxHeight) + " см)" : "");
+        }
+        if (blockedType > 0) {
+            return "нет свободных паллет-мест под тип паллета " + palletType;
+        }
+        return "свободно лишь " + found + " подходящих паллет-мест из требуемых " + need;
+    }
+
+    private static String plain(BigDecimal v) {
+        return v == null ? "—" : v.stripTrailingZeros().toPlainString();
+    }
+
 
     private boolean fitsByLinearDimensions(
             BigDecimal pL, BigDecimal pW, BigDecimal pH,
@@ -218,13 +356,6 @@ public class PlacementService {
                     "Размеры упаковки (" + pL + "×" + pW + "×" + pH + "см) превышают доступные размеры места ("
                             + cell.lengthCm() + "×" + cell.widthCm() + "×" + effectiveHeight
                             + "см осталось)");
-        }
-        long needPackages = numPackages.longValueExact();
-        if (cap > 0L && needPackages > 0 && cap < needPackages) {
-            throw AppException.conflict(
-                    "Ячейка вмещает " + cap + " упак., а нужно " + needPackages + " ("
-                            + cell.lengthCm() + "×" + cell.widthCm() + "×" + effectiveHeight + "см "
-                            + "÷ " + pL + "×" + pW + "×" + pH + "см)");
         }
         if (rack != null && rack.maxWeightKg() != null
                 && rackUsedKg != null

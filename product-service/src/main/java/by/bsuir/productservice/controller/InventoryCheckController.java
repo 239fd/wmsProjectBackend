@@ -102,7 +102,8 @@ public class InventoryCheckController {
             @Parameter(description = "ID ячейки") @RequestParam(required = false) UUID cellId,
             @Parameter(description = "Фактическое количество", required = true) @RequestParam BigDecimal actualQuantity,
             @Parameter(description = "Примечания") @RequestParam(required = false) String notes,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
 
         userRole = SecurityUtils.resolveRole(userRole);
         if (userRole == null) {
@@ -110,9 +111,9 @@ public class InventoryCheckController {
         }
 
         if (countId != null) {
-            inventoryCheckService.recordActualCountById(sessionId, countId, actualQuantity, notes);
+            inventoryCheckService.recordActualCountById(sessionId, countId, actualQuantity, notes, organizationId);
         } else if (productId != null) {
-            inventoryCheckService.recordActualCount(sessionId, productId, cellId, actualQuantity, notes);
+            inventoryCheckService.recordActualCount(sessionId, productId, cellId, actualQuantity, notes, organizationId);
         } else {
             return ResponseEntity.badRequest().body(Map.of(
                     "message", "Укажите countId или productId"));
@@ -138,14 +139,15 @@ public class InventoryCheckController {
     public ResponseEntity<Map<String, Object>> completeInventory(
             @Parameter(description = "ID сессии инвентаризации", required = true) @PathVariable UUID sessionId,
             @Parameter(description = "ID пользователя", required = true) @RequestParam UUID userId,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
 
         userRole = SecurityUtils.resolveRole(userRole);
         if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        Map<String, Object> result = inventoryCheckService.completeInventory(sessionId, userId);
+        Map<String, Object> result = inventoryCheckService.completeInventory(sessionId, userId, organizationId);
 
         return ResponseEntity.ok(result);
     }
@@ -162,14 +164,15 @@ public class InventoryCheckController {
     @PostMapping("/{sessionId}/cancel")
     public ResponseEntity<Map<String, String>> cancelInventory(
             @Parameter(description = "ID сессии инвентаризации", required = true) @PathVariable UUID sessionId,
-            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @Parameter(description = "Роль пользователя") @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
 
         userRole = SecurityUtils.resolveRole(userRole);
         if (!"DIRECTOR".equals(userRole) && !"ACCOUNTANT".equals(userRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        inventoryCheckService.cancelInventory(sessionId);
+        inventoryCheckService.cancelInventory(sessionId, organizationId);
 
         return ResponseEntity.ok(Map.of(
                 "message", "Инвентаризация отменена",
@@ -187,8 +190,9 @@ public class InventoryCheckController {
     })
     @GetMapping("/{sessionId}")
     public ResponseEntity<Map<String, Object>> getInventorySession(
-            @Parameter(description = "ID сессии инвентаризации", required = true) @PathVariable UUID sessionId) {
-        Map<String, Object> session = inventoryCheckService.getInventorySession(sessionId);
+            @Parameter(description = "ID сессии инвентаризации", required = true) @PathVariable UUID sessionId,
+            @RequestHeader(value = "X-Organization-Id", required = false) UUID organizationId) {
+        Map<String, Object> session = inventoryCheckService.getInventorySession(sessionId, organizationId);
         return ResponseEntity.ok(session);
     }
 

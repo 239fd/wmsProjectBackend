@@ -61,6 +61,7 @@ public class OperationController {
     private final by.bsuir.productservice.repository.InventoryRepository inventoryRepository;
     private final by.bsuir.productservice.repository.ProductBatchRepository batchRepository;
     private final by.bsuir.productservice.client.WarehouseClient warehouseClient;
+    private final by.bsuir.productservice.client.UserClient userClient;
 
     private GeneratedDocument safeRegister(
             UUID operationId,
@@ -152,6 +153,13 @@ public class OperationController {
                                 by.bsuir.productservice.model.entity.ProductReadModel::getProductId,
                                 p -> p));
 
+        java.util.List<UUID> opUserIds = page.getContent().stream()
+                .map(ProductOperation::getUserId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+        java.util.Map<UUID, String> userNames = userClient.resolveNames(opUserIds);
+
         return ResponseEntity.ok(page.map(op -> {
             Map<String, Object> row = new HashMap<>();
             row.put("operationId", op.getOperationId());
@@ -164,6 +172,9 @@ public class OperationController {
             row.put("toCellId", op.getToCellId());
             row.put("quantity", op.getQuantity());
             row.put("userId", op.getUserId());
+            if (op.getUserId() != null && userNames.containsKey(op.getUserId())) {
+                row.put("userName", userNames.get(op.getUserId()));
+            }
             row.put("documentId", op.getDocumentId());
             row.put("status", op.getStatus());
             row.put("notes", op.getNotes());

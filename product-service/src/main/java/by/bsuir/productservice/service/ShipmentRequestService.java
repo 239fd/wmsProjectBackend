@@ -410,8 +410,17 @@ public class ShipmentRequestService {
             }
         }
 
-        List<UUID> generatedIds = generateShipmentDocuments(req, items, primaryOperationId,
-                userId != null ? userId : req.getCreatedBy(), organizationId, manual);
+        List<UUID> generatedIds;
+        try {
+            generatedIds = generateShipmentDocuments(req, items, primaryOperationId,
+                    userId != null ? userId : req.getCreatedBy(), organizationId, manual);
+            req.setDocumentError(null);
+        } catch (Exception ex) {
+            log.warn("Не удалось сгенерировать отгрузочные документы для заявки {}: {}",
+                    requestId, ex.getMessage());
+            generatedIds = List.of();
+            req.setDocumentError("Отгрузка проведена, но документы не сгенерированы — перевыпустите позже");
+        }
 
         req.setStatus(ShipmentRequestStatus.COMPLETED);
         req.setUpdatedAt(LocalDateTime.now());
@@ -800,6 +809,8 @@ public class ShipmentRequestService {
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
                 progress,
+                entity.getPickingListDocId(),
+                entity.getDocumentError(),
                 documentIds != null ? documentIds : List.of(),
                 itemDtos
         );

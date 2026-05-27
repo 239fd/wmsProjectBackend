@@ -6,6 +6,7 @@ import by.bsuir.productservice.dto.response.ProductResponse;
 import by.bsuir.productservice.exception.AppException;
 import by.bsuir.productservice.model.entity.ProductEvent;
 import by.bsuir.productservice.model.entity.ProductReadModel;
+import by.bsuir.productservice.model.enums.StorageConditions;
 import by.bsuir.productservice.repository.ProductEventRepository;
 import by.bsuir.productservice.repository.ProductReadModelRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -62,8 +63,8 @@ class ProductServiceTest {
                 .category("Electronics")
                 .description("Test description")
                 .unitOfMeasure("pcs")
-                .weightKg(new BigDecimal("1.5"))
-                .volumeM3(new BigDecimal("0.01"))
+                .price(new BigDecimal("1.5"))
+                .requiredStorageCondition(StorageConditions.ROOM)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -76,7 +77,7 @@ class ProductServiceTest {
                 "Test description",
                 "pcs",
                 new BigDecimal("1.5"),
-                new BigDecimal("0.01")
+                StorageConditions.ROOM
         );
 
         updateRequest = new UpdateProductRequest(
@@ -87,7 +88,7 @@ class ProductServiceTest {
                 "Updated description",
                 "pcs",
                 new BigDecimal("2.0"),
-                new BigDecimal("0.02")
+                StorageConditions.ROOM
         );
     }
 

@@ -3,6 +3,7 @@ package by.bsuir.productservice.controller;
 import by.bsuir.productservice.dto.request.CreateProductRequest;
 import by.bsuir.productservice.dto.request.UpdateProductRequest;
 import by.bsuir.productservice.dto.response.ProductResponse;
+import by.bsuir.productservice.model.enums.StorageConditions;
 import by.bsuir.productservice.service.ProductService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,7 @@ class ProductControllerTest {
                 "Test description",
                 "pcs",
                 new BigDecimal("1.5"),
-                new BigDecimal("0.01")
+                StorageConditions.ROOM
         );
 
         ProductResponse expectedResponse = new ProductResponse(
@@ -57,7 +58,7 @@ class ProductControllerTest {
                 "Test description",
                 "pcs",
                 new BigDecimal("1.5"),
-                new BigDecimal("0.01"),
+                StorageConditions.ROOM,
                 LocalDateTime.now(),
                 LocalDateTime.now()
         );
@@ -83,7 +84,7 @@ class ProductControllerTest {
                 "Test description",
                 "pcs",
                 new BigDecimal("1.5"),
-                new BigDecimal("0.01")
+                StorageConditions.ROOM
         );
 
         ResponseEntity<ProductResponse> response = productController.createProduct(request, null, null);
@@ -105,7 +106,7 @@ class ProductControllerTest {
                 "Test description",
                 "pcs",
                 new BigDecimal("1.5"),
-                new BigDecimal("0.01"),
+                StorageConditions.ROOM,
                 LocalDateTime.now(),
                 LocalDateTime.now()
         );
@@ -138,7 +139,7 @@ class ProductControllerTest {
                 "Test description",
                 "pcs",
                 new BigDecimal("1.5"),
-                new BigDecimal("0.01"),
+                StorageConditions.ROOM,
                 LocalDateTime.now(),
                 LocalDateTime.now()
         );
@@ -165,7 +166,7 @@ class ProductControllerTest {
                 "Test description",
                 "pcs",
                 new BigDecimal("1.5"),
-                new BigDecimal("0.01"),
+                StorageConditions.ROOM,
                 LocalDateTime.now(),
                 LocalDateTime.now()
         );
@@ -198,7 +199,7 @@ class ProductControllerTest {
                 "Updated description",
                 "pcs",
                 new BigDecimal("2.0"),
-                new BigDecimal("0.02")
+                StorageConditions.ROOM
         );
 
         ProductResponse expectedResponse = new ProductResponse(
@@ -210,7 +211,7 @@ class ProductControllerTest {
                 "Updated description",
                 "pcs",
                 new BigDecimal("2.0"),
-                new BigDecimal("0.02"),
+                StorageConditions.ROOM,
                 LocalDateTime.now(),
                 LocalDateTime.now()
         );
@@ -237,7 +238,7 @@ class ProductControllerTest {
                 "Updated description",
                 "pcs",
                 new BigDecimal("2.0"),
-                new BigDecimal("0.02")
+                StorageConditions.ROOM
         );
 
         ResponseEntity<ProductResponse> response = productController.updateProduct(productId, request, null);
